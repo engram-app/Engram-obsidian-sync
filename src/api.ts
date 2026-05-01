@@ -36,7 +36,7 @@ export class EngramApi {
 		this.vaultId = id;
 	}
 
-	setAuthProvider(provider: AuthProvider): void {
+	setAuthProvider(provider: AuthProvider | null): void {
 		this.authProvider = provider;
 	}
 
