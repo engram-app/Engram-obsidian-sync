@@ -1,4 +1,5 @@
 import { Notice, Setting, setIcon } from "obsidian";
+import { applyApiUrlChange } from "../auth-state";
 import { describeEncryptionBadge } from "../encryption-badge";
 import type { VaultEncryptionStatus, VaultInfo } from "../types";
 import type { TabContext } from "./types";
@@ -52,8 +53,19 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 				.setPlaceholder("http://localhost:8000")
 				.setValue(plugin.settings.apiUrl)
 				.onChange(async (value) => {
-					plugin.settings.apiUrl = value;
-					await plugin.saveSettings();
+					const cleared = await applyApiUrlChange(
+						{
+							settings: plugin.settings,
+							api: plugin.api,
+							noteStream: plugin.noteStream,
+						},
+						value,
+						() => plugin.saveSettings(),
+					);
+					if (cleared) {
+						new Notice("Engram backend changed — sign in again to continue.");
+						redisplay();
+					}
 				}),
 		);
 

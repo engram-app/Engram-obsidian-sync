@@ -2310,6 +2310,38 @@ var EncryptionConfirmModal = class extends import_obsidian11.Modal {
 // src/tabs/self-hosted-tab.ts
 var import_obsidian12 = require("obsidian");
 
+// src/auth-state.ts
+function completeOrigin(url) {
+  if (!url) return null;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (e) {
+    return null;
+  }
+  let host = parsed.hostname, isLocalhost = host === "localhost", isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(host), hasTld = /\.[a-z]{2,}$/i.test(host);
+  return !isLocalhost && !isIPv4 && !hasTld ? null : `${parsed.protocol}//${parsed.host}`.toLowerCase();
+}
+function isBackendChange(oldUrl, newUrl) {
+  let oldO = completeOrigin(oldUrl), newO = completeOrigin(newUrl);
+  return !oldO || !newO ? !1 : oldO !== newO;
+}
+function withClearedAuth(settings) {
+  return {
+    ...settings,
+    apiKey: "",
+    refreshToken: void 0,
+    userEmail: void 0,
+    authMethod: null,
+    vaultId: null
+  };
+}
+async function applyApiUrlChange(target, newUrl, save) {
+  var _a;
+  let cleared = isBackendChange(target.settings.apiUrl, newUrl);
+  return cleared && (Object.assign(target.settings, withClearedAuth(target.settings)), target.api.setAuthProvider(null), (_a = target.noteStream) == null || _a.disconnect()), target.settings.apiUrl = newUrl, await save(), cleared;
+}
+
 // src/encryption-badge.ts
 function describeEncryptionBadge(status, progress) {
   switch (status) {
@@ -2372,7 +2404,15 @@ function renderSelfHostedTab(ctx) {
     href: "https://github.com/Rasbandit/engram"
   }), new import_obsidian12.Setting(containerEl).setName("Engram URL").setDesc("Full URL to your Engram instance (e.g. http://10.0.20.214:8000).").addText(
     (text) => text.setPlaceholder("http://localhost:8000").setValue(plugin.settings.apiUrl).onChange(async (value) => {
-      plugin.settings.apiUrl = value, await plugin.saveSettings();
+      await applyApiUrlChange(
+        {
+          settings: plugin.settings,
+          api: plugin.api,
+          noteStream: plugin.noteStream
+        },
+        value,
+        () => plugin.saveSettings()
+      ) && (new import_obsidian12.Notice("Engram backend changed \u2014 sign in again to continue."), redisplay());
     })
   ), new import_obsidian12.Setting(containerEl).setName("Test connection").setDesc("Check if Engram is reachable and credentials are valid.").addButton(
     (btn) => btn.setButtonText("Test").onClick(async () => {

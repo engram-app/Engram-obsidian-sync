@@ -1,0 +1,197 @@
+import { describe, expect, mock, test } from "bun:test";
+import {
+	type ApiUrlSwitchTarget,
+	applyApiUrlChange,
+	isBackendChange,
+	withClearedAuth,
+} from "../src/auth-state";
+import type { EngramSyncSettings } from "../src/types";
+
+const fullSettings = (override: Partial<EngramSyncSettings> = {}): EngramSyncSettings => ({
+	apiUrl: "https://engram.ras.band",
+	apiKey: "engram_secret123",
+	refreshToken: "refresh_token_abc",
+	userEmail: "todd@example.com",
+	authMethod: "oauth",
+	vaultId: "1",
+	clientId: "client-uuid",
+	ignorePatterns: "node_modules",
+	debounceMs: 2000,
+	conflictViewMode: "unified",
+	remoteLoggingEnabled: false,
+	conflictResolution: "auto",
+	...override,
+});
+
+describe("isBackendChange", () => {
+	test("false when both URLs empty", () => {
+		expect(isBackendChange("", "")).toBe(false);
+	});
+
+	test("false when old URL is empty (first-time setup, nothing to clear)", () => {
+		expect(isBackendChange("", "https://engram.ras.band")).toBe(false);
+	});
+
+	test("false when new URL is partial (still typing)", () => {
+		expect(isBackendChange("https://engram.ras.band", "https://engr")).toBe(false);
+	});
+
+	test("false when both URLs target the same origin", () => {
+		expect(isBackendChange("https://engram.ras.band", "https://engram.ras.band")).toBe(false);
+	});
+
+	test("false when only trailing slash differs", () => {
+		expect(isBackendChange("https://engram.ras.band/", "https://engram.ras.band")).toBe(false);
+	});
+
+	test("false when path differs but origin matches", () => {
+		expect(isBackendChange("https://engram.ras.band", "https://engram.ras.band/api")).toBe(
+			false,
+		);
+	});
+
+	test("false when only case of host differs", () => {
+		expect(isBackendChange("https://Engram.Ras.Band", "https://engram.ras.band")).toBe(false);
+	});
+
+	test("true when host differs", () => {
+		expect(isBackendChange("https://engram.ras.band", "https://engram.ax")).toBe(true);
+	});
+
+	test("true when scheme differs (http vs https)", () => {
+		expect(isBackendChange("https://engram.ras.band", "http://engram.ras.band")).toBe(true);
+	});
+
+	test("true when port differs", () => {
+		expect(isBackendChange("http://localhost:8000", "http://localhost:8001")).toBe(true);
+	});
+
+	test("true when IPv4 hosts differ", () => {
+		expect(isBackendChange("http://10.0.20.214:8000", "http://10.0.20.215:8000")).toBe(true);
+	});
+
+	test("false when IPv4 host + port match", () => {
+		expect(isBackendChange("http://10.0.20.214:8000", "http://10.0.20.214:8000/api")).toBe(
+			false,
+		);
+	});
+
+	test("false when new URL is empty (cleared field)", () => {
+		expect(isBackendChange("https://engram.ras.band", "")).toBe(false);
+	});
+
+	test("false when new URL is unparseable garbage", () => {
+		expect(isBackendChange("https://engram.ras.band", "not a url")).toBe(false);
+	});
+
+	test("false when new URL has no scheme (host-only paste)", () => {
+		expect(isBackendChange("https://engram.ras.band", "engram.ax")).toBe(false);
+	});
+});
+
+describe("withClearedAuth", () => {
+	test("clears all backend-scoped auth fields", () => {
+		const cleared = withClearedAuth(fullSettings());
+		expect(cleared.apiKey).toBe("");
+		expect(cleared.refreshToken).toBeUndefined();
+		expect(cleared.userEmail).toBeUndefined();
+		expect(cleared.authMethod).toBeNull();
+		expect(cleared.vaultId).toBeNull();
+	});
+
+	test("preserves apiUrl, clientId, and unrelated settings", () => {
+		const before = fullSettings({
+			apiUrl: "http://engram.ax",
+			clientId: "stable-client-id",
+			ignorePatterns: "tmp/**",
+			debounceMs: 1500,
+			remoteLoggingEnabled: true,
+		});
+		const cleared = withClearedAuth(before);
+		expect(cleared.apiUrl).toBe("http://engram.ax");
+		expect(cleared.clientId).toBe("stable-client-id");
+		expect(cleared.ignorePatterns).toBe("tmp/**");
+		expect(cleared.debounceMs).toBe(1500);
+		expect(cleared.remoteLoggingEnabled).toBe(true);
+	});
+
+	test("does not mutate input settings object", () => {
+		const before = fullSettings();
+		const cleared = withClearedAuth(before);
+		expect(before.apiKey).toBe("engram_secret123");
+		expect(before.refreshToken).toBe("refresh_token_abc");
+		expect(before.vaultId).toBe("1");
+		expect(cleared).not.toBe(before);
+	});
+});
+
+function makeTarget(overrides: Partial<EngramSyncSettings> = {}): ApiUrlSwitchTarget & {
+	api: { setAuthProvider: ReturnType<typeof mock> };
+	noteStream: { disconnect: ReturnType<typeof mock> } | null;
+} {
+	return {
+		settings: fullSettings(overrides),
+		api: { setAuthProvider: mock(() => {}) },
+		noteStream: { disconnect: mock(() => {}) },
+	};
+}
+
+describe("applyApiUrlChange", () => {
+	test("same origin: updates apiUrl, preserves auth, returns false", async () => {
+		const target = makeTarget({ apiUrl: "https://engram.ras.band" });
+		const save = mock(async () => {});
+		const cleared = await applyApiUrlChange(target, "https://engram.ras.band/api", save);
+		expect(cleared).toBe(false);
+		expect(target.settings.apiUrl).toBe("https://engram.ras.band/api");
+		expect(target.settings.apiKey).toBe("engram_secret123");
+		expect(target.settings.refreshToken).toBe("refresh_token_abc");
+		expect(target.settings.vaultId).toBe("1");
+		expect(target.api.setAuthProvider).not.toHaveBeenCalled();
+		expect(target.noteStream?.disconnect).not.toHaveBeenCalled();
+		expect(save).toHaveBeenCalledTimes(1);
+	});
+
+	test("different origin: clears auth, disconnects stream, nulls api provider", async () => {
+		const target = makeTarget({ apiUrl: "https://engram.ras.band" });
+		const save = mock(async () => {});
+		const cleared = await applyApiUrlChange(target, "http://engram.ax", save);
+		expect(cleared).toBe(true);
+		expect(target.settings.apiUrl).toBe("http://engram.ax");
+		expect(target.settings.apiKey).toBe("");
+		expect(target.settings.refreshToken).toBeUndefined();
+		expect(target.settings.userEmail).toBeUndefined();
+		expect(target.settings.authMethod).toBeNull();
+		expect(target.settings.vaultId).toBeNull();
+		expect(target.api.setAuthProvider).toHaveBeenCalledWith(null);
+		expect(target.noteStream?.disconnect).toHaveBeenCalledTimes(1);
+		expect(save).toHaveBeenCalledTimes(1);
+	});
+
+	test("partial URL (still typing): updates apiUrl, preserves auth, returns false", async () => {
+		const target = makeTarget({ apiUrl: "https://engram.ras.band" });
+		const save = mock(async () => {});
+		const cleared = await applyApiUrlChange(target, "https://engr", save);
+		expect(cleared).toBe(false);
+		expect(target.settings.apiUrl).toBe("https://engr");
+		expect(target.settings.apiKey).toBe("engram_secret123");
+		expect(target.api.setAuthProvider).not.toHaveBeenCalled();
+		expect(target.noteStream?.disconnect).not.toHaveBeenCalled();
+	});
+
+	test("noteStream null: does not throw", async () => {
+		const target = makeTarget({ apiUrl: "https://engram.ras.band" });
+		target.noteStream = null;
+		const save = mock(async () => {});
+		const cleared = await applyApiUrlChange(target, "http://engram.ax", save);
+		expect(cleared).toBe(true);
+		expect(target.api.setAuthProvider).toHaveBeenCalledWith(null);
+	});
+
+	test("preserves settings reference identity (in-place mutation)", async () => {
+		const target = makeTarget({ apiUrl: "https://engram.ras.band" });
+		const settingsRef = target.settings;
+		const save = mock(async () => {});
+		await applyApiUrlChange(target, "http://engram.ax", save);
+		expect(target.settings).toBe(settingsRef);
+	});
+});
