@@ -1973,9 +1973,9 @@ var ENGRAM_CLOUD_URL = "https://app.engram.page", ENGRAM_MARKETING_URL = "https:
 
 // src/tabs/self-hosted-tab.ts
 function renderSelfHostedTab(ctx) {
-  let { containerEl, plugin, redisplay, switchToTab } = ctx, isOnCloud = plugin.settings.apiUrl === ENGRAM_CLOUD_URL, hasAuth = !!plugin.settings.apiKey || !!plugin.settings.refreshToken;
+  let { containerEl, plugin, redisplay } = ctx, isOnCloud = plugin.settings.apiUrl === ENGRAM_CLOUD_URL, hasAuth = !!plugin.settings.apiKey || !!plugin.settings.refreshToken;
   if (isOnCloud && hasAuth) {
-    renderCloudLockBanner(containerEl, () => switchToTab("account"));
+    renderCloudLockBanner(containerEl);
     return;
   }
   new import_obsidian8.Setting(containerEl).setName("Setup").setHeading();
@@ -1997,14 +1997,11 @@ function renderSelfHostedTab(ctx) {
     })
   ), renderTestConnection(ctx), renderAuthSection(ctx), renderVaultSection(ctx), renderSupportSection(ctx);
 }
-function renderCloudLockBanner(containerEl, openAccount) {
-  new import_obsidian8.Setting(containerEl).setName("Self-hosted unavailable").setHeading();
+function renderCloudLockBanner(containerEl) {
   let banner = containerEl.createDiv({ cls: "engram-mode-lock-banner" });
   banner.createEl("p", { text: "You're connected to Engram Cloud." }), banner.createEl("p", {
-    text: "To set up a self-hosted Engram server, sign out from the Account tab first. That will release the connection so you can point the plugin at your own server."
-  }), new import_obsidian8.Setting(containerEl).addButton(
-    (btn) => btn.setButtonText("Open Account tab").setCta().onClick(openAccount)
-  );
+    text: "To set up a self-hosted Engram server, sign out from the Cloud tab first. That will release the connection so you can point the plugin at your own server."
+  });
 }
 function renderTestConnection(ctx) {
   let { containerEl, plugin } = ctx;
@@ -2405,9 +2402,9 @@ var EngramSyncSettingTab = class extends import_obsidian12.PluginSettingTab {
       ), progressBarInner.style.width = `${pct}%`;
     };
     let tabs = [
-      { id: "account", label: "Account", render: renderAccountTab },
-      { id: "self-hosted", label: "Self-hosted", render: renderSelfHostedTab },
-      { id: "advanced", label: "Advanced", render: renderAdvancedTab }
+      { id: "account", label: "\u2601\uFE0F Cloud", render: renderAccountTab },
+      { id: "self-hosted", label: "\u{1F5A5}\uFE0F Self-hosted", render: renderSelfHostedTab },
+      { id: "advanced", label: "\u2699\uFE0F Advanced", render: renderAdvancedTab }
     ], tabBar = containerEl.createEl("nav", { cls: "engram-tab-bar" }), contentEl = containerEl.createEl("section", { cls: "engram-tab-content" }), activateTab = (tabId) => {
       var _a;
       this.activeTab = tabId;

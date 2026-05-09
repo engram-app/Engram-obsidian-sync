@@ -71,9 +71,9 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 
 		// ── Tab bar ──
 		const tabs = [
-			{ id: "account" as const, label: "Account", render: renderAccountTab },
-			{ id: "self-hosted" as const, label: "Self-hosted", render: renderSelfHostedTab },
-			{ id: "advanced" as const, label: "Advanced", render: renderAdvancedTab },
+			{ id: "account" as const, label: "☁️ Cloud", render: renderAccountTab },
+			{ id: "self-hosted" as const, label: "🖥️ Self-hosted", render: renderSelfHostedTab },
+			{ id: "advanced" as const, label: "⚙️ Advanced", render: renderAdvancedTab },
 		];
 
 		const tabBar = containerEl.createEl("nav", { cls: "engram-tab-bar" });
