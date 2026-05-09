@@ -28,9 +28,10 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		// ── Status indicator (persists across tabs) ──
-		this.renderStatus(containerEl);
-		this.renderEncryptionRow(containerEl);
+		// ── Status indicators (persists across tabs) ──
+		const statusRow = containerEl.createDiv({ cls: "engram-settings-status-row" });
+		this.renderStatus(statusRow);
+		this.renderEncryptionRow(statusRow);
 
 		// ── Progress bar (hidden until sync is active, persists across tabs) ──
 		const progressContainer = containerEl.createDiv({ cls: "engram-sync-progress" });

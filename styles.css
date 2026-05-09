@@ -404,6 +404,21 @@
 
 /* ── Settings status indicator ────────────────────────────────── */
 
+.engram-settings-status-row {
+	display: flex;
+	gap: 12px;
+	align-items: stretch;
+	margin-bottom: 16px;
+}
+
+.engram-settings-status-row > .engram-status-container {
+	margin-bottom: 0;
+}
+
+.engram-settings-status-row > .engram-status-bar {
+	flex: 1;
+}
+
 .engram-status-container {
 	margin-bottom: 16px;
 	padding: 8px 12px;

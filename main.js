@@ -2333,7 +2333,9 @@ var EngramSyncSettingTab = class extends import_obsidian12.PluginSettingTab {
   }
   display() {
     let { containerEl } = this;
-    containerEl.empty(), this.renderStatus(containerEl), this.renderEncryptionRow(containerEl);
+    containerEl.empty();
+    let statusRow = containerEl.createDiv({ cls: "engram-settings-status-row" });
+    this.renderStatus(statusRow), this.renderEncryptionRow(statusRow);
     let progressContainer = containerEl.createDiv({ cls: "engram-sync-progress" }), progressLabel = progressContainer.createEl("p", {
       text: "Syncing...",
       cls: "engram-progress-label"
