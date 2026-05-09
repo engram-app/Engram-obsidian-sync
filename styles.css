@@ -517,16 +517,97 @@
 
 /* ── Account tab ─────────────────────────────────────────────── */
 
-.engram-api-key-toggle {
-	margin-top: 8px;
-}
-
-.engram-api-key-toggle summary {
-	cursor: pointer;
-}
-
 .engram-api-key-input {
 	font-family: var(--font-monospace);
+}
+
+.engram-auth-divider {
+	display: flex;
+	align-items: center;
+	text-align: center;
+	color: var(--text-normal);
+	font-size: 0.95em;
+	font-weight: 600;
+	letter-spacing: 0.15em;
+	text-transform: uppercase;
+	margin: 1.5em 0;
+}
+
+.engram-auth-divider::before,
+.engram-auth-divider::after {
+	content: "";
+	flex: 1;
+	border-bottom: 2px solid var(--background-modifier-border-hover);
+}
+
+.engram-auth-divider::before {
+	margin-right: 1em;
+}
+
+.engram-auth-divider::after {
+	margin-left: 1em;
+}
+
+.engram-mode-lock-banner {
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 1em 1.25em;
+	margin: 0.5em 0 1em;
+}
+
+.engram-mode-lock-banner p {
+	margin: 0 0 0.5em;
+}
+
+.engram-mode-lock-banner p:last-child {
+	margin-bottom: 0;
+	color: var(--text-muted);
+}
+
+.engram-vault-current-name {
+	font-weight: 500;
+	margin-right: 0.75em;
+}
+
+.engram-vault-switch-warning {
+	display: flex;
+	gap: 0.75em;
+	align-items: flex-start;
+	background: var(--background-secondary);
+	border-left: 3px solid var(--text-warning);
+	border-radius: 4px;
+	padding: 0.75em 1em;
+	margin: 0.5em 0 1em;
+}
+
+.engram-vault-switch-icon {
+	font-size: 1.5em;
+	line-height: 1;
+	color: var(--text-warning);
+}
+
+.engram-vault-switch-warning p {
+	margin: 0 0 0.5em;
+}
+
+.engram-vault-switch-warning p:last-child {
+	margin-bottom: 0;
+	color: var(--text-muted);
+	font-size: 0.9em;
+}
+
+.engram-vault-switch-select {
+	width: 100%;
+	margin: 0.5em 0 1em;
+	padding: 0.5em;
+}
+
+.engram-button-row-end {
+	display: flex;
+	gap: 0.5em;
+	justify-content: flex-end;
+	margin-top: 1em;
 }
 
 .engram-status-time {
@@ -545,7 +626,7 @@
 
 .engram-tab-bar {
 	display: flex;
-	gap: 0;
+	gap: 12px;
 	border-bottom: 1px solid var(--background-modifier-border);
 	margin-bottom: 16px;
 }

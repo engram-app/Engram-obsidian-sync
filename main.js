@@ -900,24 +900,6 @@ var import_obsidian = require("obsidian"), EngramApi = class _EngramApi {
     let encoded = encodeURIComponent(since);
     return (await this.request("GET", `/attachments/changes?since=${encoded}`)).json;
   }
-  /** Enable encryption-at-rest for the given vault. Throws on 429 cooldown
-   *  with `{status: 429, json: {error, retry_after}}` for the caller to
-   *  surface in a Notice. */
-  async encryptVault(vaultId) {
-    return (await this.request("POST", `/vaults/${vaultId}/encrypt`)).json.vault;
-  }
-  /** Schedule decryption (24h delay enforced server-side). */
-  async requestDecryptVault(vaultId) {
-    return (await this.request("POST", `/vaults/${vaultId}/decrypt`)).json.vault;
-  }
-  /** Cancel a pending decryption. */
-  async cancelDecryptVault(vaultId) {
-    return (await this.request("DELETE", `/vaults/${vaultId}/decrypt`)).json.vault;
-  }
-  /** Backfill progress while encrypting/decrypting. */
-  async getEncryptionProgress(vaultId) {
-    return (await this.request("GET", `/vaults/${vaultId}/encryption_progress`)).json;
-  }
 };
 function arrayBufferToBase64(buffer) {
   let bytes = new Uint8Array(buffer), binary = "";
@@ -1949,23 +1931,45 @@ var import_obsidian7 = require("obsidian"), PHASE_LABELS = {
 };
 
 // src/tabs/account-tab.ts
-var import_obsidian8 = require("obsidian");
-function renderAccountTab(ctx) {
-  let { containerEl, switchToTab } = ctx;
-  new import_obsidian8.Setting(containerEl).setName("Engram Cloud").setHeading(), containerEl.createEl("p", {
-    text: "Engram Cloud is coming. Sign in here once it launches \u2014 no server setup needed."
-  }), new import_obsidian8.Setting(containerEl).setName("How to connect today").setHeading(), containerEl.createEl("p", {
-    text: "For now, run your own Engram server. Configure your server URL and authenticate on the Self-hosted tab."
-  }), new import_obsidian8.Setting(containerEl).setName("Switch to Self-hosted setup").setDesc("Configure your self-hosted Engram server.").addButton(
-    (btn) => btn.setButtonText("Open Self-hosted").setCta().onClick(() => switchToTab("self-hosted"))
-  );
+var import_obsidian12 = require("obsidian");
+
+// src/auth-state.ts
+function completeOrigin(url) {
+  if (!url) return null;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (e) {
+    return null;
+  }
+  let host = parsed.hostname, isLocalhost = host === "localhost", isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(host), hasTld = /\.[a-z]{2,}$/i.test(host);
+  return !isLocalhost && !isIPv4 && !hasTld ? null : `${parsed.protocol}//${parsed.host}`.toLowerCase();
+}
+function isBackendChange(oldUrl, newUrl) {
+  let oldO = completeOrigin(oldUrl), newO = completeOrigin(newUrl);
+  return !oldO || !newO ? !1 : oldO !== newO;
+}
+function withClearedAuth(settings) {
+  return {
+    ...settings,
+    apiKey: "",
+    refreshToken: void 0,
+    userEmail: void 0,
+    authMethod: null,
+    vaultId: null
+  };
+}
+async function applyApiUrlChange(target, newUrl, save) {
+  var _a;
+  let cleared = isBackendChange(target.settings.apiUrl, newUrl);
+  return cleared && (Object.assign(target.settings, withClearedAuth(target.settings)), target.api.setAuthProvider(null), (_a = target.noteStream) == null || _a.disconnect()), target.settings.apiUrl = newUrl, await save(), cleared;
 }
 
-// src/tabs/advanced-tab.ts
-var import_obsidian10 = require("obsidian");
+// src/tabs/actions-section.ts
+var import_obsidian9 = require("obsidian");
 
 // src/pre-sync-modal.ts
-var import_obsidian9 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 function plural(count, singular) {
   return count === 1 ? `${count} ${singular}` : `${count} ${singular}s`;
 }
@@ -1976,7 +1980,7 @@ function formatPlanSummary(plan) {
   return lines.push(`\u2715  ${plural(totalDeletes, "deletion")}`), (plan.toPush.attachments.length > 0 || plan.toPull.attachments.length > 0) && (lines.push(""), plan.toPush.attachments.length > 0 && lines.push(`\u2191  ${plural(plan.toPush.attachments.length, "attachment")} to push`), plan.toPull.attachments.length > 0 && lines.push(`\u2193  ${plural(plan.toPull.attachments.length, "attachment")} to pull`)), lines.join(`
 `);
 }
-var PreSyncModal = class extends import_obsidian9.Modal {
+var PreSyncModal = class extends import_obsidian8.Modal {
   constructor(app, plan, showWipePull = !1) {
     super(app);
     this.resolved = !1;
@@ -2023,7 +2027,7 @@ var PreSyncModal = class extends import_obsidian9.Modal {
       this.resolve = resolve, this.open();
     });
   }
-}, WipeConfirmModal = class extends import_obsidian9.Modal {
+}, WipeConfirmModal = class extends import_obsidian8.Modal {
   constructor(app, localNoteCount, localAttachmentCount, serverNoteCount) {
     super(app);
     this.resolved = !1;
@@ -2067,26 +2071,10 @@ var PreSyncModal = class extends import_obsidian9.Modal {
   }
 };
 
-// src/tabs/advanced-tab.ts
-var PROBLEMATIC_DIRS = [
-  { pattern: "node_modules/", label: "node_modules", desc: "Node.js dependencies" },
-  { pattern: ".venv/", label: ".venv", desc: "Python virtual environment" },
-  { pattern: "venv/", label: "venv", desc: "Python virtual environment" },
-  { pattern: "__pycache__/", label: "__pycache__", desc: "Python bytecode cache" },
-  { pattern: "vendor/", label: "vendor", desc: "Vendored dependencies" },
-  { pattern: ".gradle/", label: ".gradle", desc: "Gradle build cache" },
-  { pattern: "target/", label: "target", desc: "Rust/Java build output" },
-  { pattern: "build/", label: "build", desc: "Build output" },
-  { pattern: ".next/", label: ".next", desc: "Next.js build output" },
-  { pattern: "dist/", label: "dist", desc: "Distribution build output" },
-  { pattern: ".cargo/", label: ".cargo", desc: "Cargo cache" },
-  { pattern: "Pods/", label: "Pods", desc: "CocoaPods dependencies" },
-  { pattern: ".dart_tool/", label: ".dart_tool", desc: "Dart tool cache" },
-  { pattern: ".cache/", label: ".cache", desc: "Generic cache directory" }
-];
-function renderAdvancedTab(ctx) {
-  let { containerEl, app, plugin, redisplay, openProgressModal } = ctx;
-  new import_obsidian10.Setting(containerEl).setName("Actions").setHeading(), new import_obsidian10.Setting(containerEl).setName("Sync now").setDesc("Pull remote changes and push local changes.").addButton(
+// src/tabs/actions-section.ts
+function renderActionsSection(ctx) {
+  let { containerEl, app, plugin, openProgressModal } = ctx;
+  (plugin.settings.apiKey || plugin.settings.refreshToken) && (new import_obsidian9.Setting(containerEl).setName("Actions").setHeading(), new import_obsidian9.Setting(containerEl).setName("Sync now").setDesc("Pull remote changes and push local changes.").addButton(
     (btn) => btn.setButtonText("Sync").onClick(async () => {
       var _a, _b;
       try {
@@ -2104,12 +2092,12 @@ function renderAdvancedTab(ctx) {
           failed: errors
         });
       } catch (e) {
-        new import_obsidian10.Notice(`Engram Sync: ${e instanceof Error ? e.message : "sync failed"}`);
+        new import_obsidian9.Notice(`Engram Sync: ${e instanceof Error ? e.message : "sync failed"}`);
       } finally {
         btn.setDisabled(!1);
       }
     })
-  ), new import_obsidian10.Setting(containerEl).setName("Push entire vault").setDesc("Push all syncable files to Engram. Only needed for initial import.").addButton(
+  ), new import_obsidian9.Setting(containerEl).setName("Push entire vault").setDesc("Push all syncable files to Engram. Only needed for initial import.").addButton(
     (btn) => btn.setButtonText("Push all").setWarning().onClick(async () => {
       try {
         btn.setDisabled(!0);
@@ -2120,14 +2108,14 @@ function renderAdvancedTab(ctx) {
         }
         await openProgressModal(), await plugin.syncEngine.pushAll();
       } catch (e) {
-        new import_obsidian10.Notice(
+        new import_obsidian9.Notice(
           `Engram Sync: ${e instanceof Error ? e.message : "push failed"}`
         );
       } finally {
         btn.setDisabled(!1);
       }
     })
-  ), new import_obsidian10.Setting(containerEl).setName("Pull all from server").setDesc(
+  ), new import_obsidian9.Setting(containerEl).setName("Pull all from server").setDesc(
     "Pull every note and attachment from the server. Wipe & pull deletes all local files first."
   ).addButton(
     (btn) => btn.setButtonText("Pull all").setWarning().onClick(async () => {
@@ -2153,36 +2141,295 @@ function renderAdvancedTab(ctx) {
         }
         await openProgressModal(), await plugin.syncEngine.pullAll();
       } catch (e) {
-        new import_obsidian10.Notice(
+        new import_obsidian9.Notice(
           `Engram Sync: ${e instanceof Error ? e.message : "pull failed"}`
         );
       } finally {
         btn.setDisabled(!1);
       }
     })
-  ), new import_obsidian10.Setting(containerEl).setName("Sync behavior").setHeading(), new import_obsidian10.Setting(containerEl).setName("Conflict resolution").setDesc(
+  ));
+}
+
+// src/tabs/self-hosted-tab.ts
+var import_obsidian11 = require("obsidian");
+
+// src/vault-switch-modal.ts
+var import_obsidian10 = require("obsidian"), VaultSwitchModal = class extends import_obsidian10.Modal {
+  constructor(app, vaults, currentVaultId) {
+    var _a, _b;
+    super(app);
+    this.resolve = () => {
+    };
+    this.vaults = vaults, this.currentVaultId = currentVaultId;
+    let firstOther = vaults.find((v) => String(v.id) !== currentVaultId);
+    this.selectedId = String((_b = (_a = firstOther != null ? firstOther : vaults[0]) == null ? void 0 : _a.id) != null ? _b : "");
+  }
+  onOpen() {
+    let { contentEl } = this;
+    contentEl.empty(), contentEl.createEl("h2", { text: "Switch sync vault" });
+    let warning = contentEl.createDiv({ cls: "engram-vault-switch-warning" });
+    warning.createSpan({ cls: "engram-vault-switch-icon", text: "\u26A0" });
+    let warningText = warning.createDiv();
+    warningText.createEl("p", {
+      text: "Switching vaults retargets sync at a different server vault."
+    }), warningText.createEl("p", {
+      text: "This can pull unfamiliar files into this Obsidian vault, push your local files into the new server vault, and surface conflicts. Make sure your current vault is fully synced before switching."
+    });
+    let select = contentEl.createEl("select", { cls: "engram-vault-switch-select" });
+    for (let v of this.vaults) {
+      let label = v.is_default ? `${v.name} (default)` : v.name, isCurrent = String(v.id) === this.currentVaultId, opt = select.createEl("option", {
+        text: isCurrent ? `${label} \u2014 current` : label,
+        value: String(v.id)
+      });
+      isCurrent && (opt.disabled = !0), String(v.id) === this.selectedId && (opt.selected = !0);
+    }
+    select.addEventListener("change", () => {
+      this.selectedId = select.value, updateSwitchButton();
+    });
+    let btnRow = contentEl.createDiv({ cls: "engram-button-row-end" });
+    btnRow.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
+      this.resolve(null), this.close();
+    });
+    let switchBtn = btnRow.createEl("button", {
+      text: "Switch",
+      cls: "mod-warning"
+    });
+    switchBtn.addEventListener("click", () => {
+      this.selectedId && this.selectedId !== this.currentVaultId && (this.resolve(this.selectedId), this.close());
+    });
+    let updateSwitchButton = () => {
+      let same = this.selectedId === this.currentVaultId;
+      switchBtn.disabled = same || !this.selectedId;
+    };
+    updateSwitchButton();
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+  /** Open the modal, return the chosen new vault id, or null on cancel. */
+  waitForChoice() {
+    return new Promise((resolve) => {
+      this.resolve = resolve, this.open();
+    });
+  }
+};
+
+// src/tabs/urls.ts
+var ENGRAM_CLOUD_URL = "https://app.engram.page", ENGRAM_MARKETING_URL = "https://engram.page";
+
+// src/tabs/self-hosted-tab.ts
+function renderSelfHostedTab(ctx) {
+  let { containerEl, plugin, redisplay } = ctx, isOnCloud = plugin.settings.apiUrl === ENGRAM_CLOUD_URL, hasAuth = !!plugin.settings.apiKey || !!plugin.settings.refreshToken;
+  if (isOnCloud && hasAuth) {
+    renderCloudLockBanner(containerEl);
+    return;
+  }
+  new import_obsidian11.Setting(containerEl).setName("Setup").setHeading();
+  let repoSetting = new import_obsidian11.Setting(containerEl).setName("Engram server").setDesc("Engram is the backend that powers sync and semantic search. Run it yourself:");
+  repoSetting.descEl.createEl("br"), repoSetting.descEl.createEl("a", {
+    text: "github.com/Rasbandit/engram",
+    href: "https://github.com/Rasbandit/engram"
+  }), new import_obsidian11.Setting(containerEl).setName("Engram URL").setDesc("Full URL to your Engram instance (e.g. http://10.0.20.214:8000).").addText(
+    (text) => text.setPlaceholder("http://localhost:8000").setValue(plugin.settings.apiUrl).onChange(async (value) => {
+      await applyApiUrlChange(
+        {
+          settings: plugin.settings,
+          api: plugin.api,
+          noteStream: plugin.noteStream
+        },
+        value,
+        () => plugin.saveSettings()
+      ) && (new import_obsidian11.Notice("Engram backend changed \u2014 sign in again to continue."), redisplay());
+    })
+  ), renderAuthSection(ctx), renderVaultSection(ctx), renderActionsSection(ctx), renderTestConnection(ctx), renderSupportSection(ctx);
+}
+function renderCloudLockBanner(containerEl) {
+  let banner = containerEl.createDiv({ cls: "engram-mode-lock-banner" });
+  banner.createEl("p", { text: "You're connected to Engram Cloud." }), banner.createEl("p", {
+    text: "To set up a self-hosted Engram server, sign out from the Cloud tab first. That will release the connection so you can point the plugin at your own server."
+  });
+}
+function renderTestConnection(ctx) {
+  let { containerEl, plugin } = ctx;
+  (plugin.settings.refreshToken || plugin.settings.apiKey) && new import_obsidian11.Setting(containerEl).setName("Test connection").setDesc("Check if Engram is reachable and credentials are valid.").addButton(
+    (btn) => btn.setButtonText("Test").onClick(async () => {
+      let { ok, error } = await plugin.api.ping();
+      new import_obsidian11.Notice(ok ? "Engram: connected!" : `Engram: ${error}`);
+    })
+  );
+}
+function renderAuthSection(ctx) {
+  var _a;
+  let { containerEl, plugin, redisplay, startDeviceFlow } = ctx, isOAuth = !!plugin.settings.refreshToken, hasApiKey = !!plugin.settings.apiKey;
+  if (new import_obsidian11.Setting(containerEl).setName("Authentication").setHeading(), isOAuth) {
+    new import_obsidian11.Setting(containerEl).setName(`Signed in as ${(_a = plugin.settings.userEmail) != null ? _a : "unknown"}`).setDesc("Authenticated via Engram account (OAuth).").addButton(
+      (btn) => btn.setButtonText("Sign out").onClick(async () => {
+        await plugin.clearOAuthTokens(), redisplay();
+      })
+    );
+    return;
+  }
+  if (hasApiKey) {
+    new import_obsidian11.Setting(containerEl).setName("Using API key").setDesc("Authenticated via manual API key.").addButton(
+      (btn) => btn.setButtonText("Clear key").setWarning().onClick(async () => {
+        plugin.settings.apiKey = "", await plugin.saveSettings(), redisplay();
+      })
+    ).addButton(
+      (btn) => btn.setButtonText("Switch to sign in").setCta().onClick(async () => {
+        plugin.settings.apiKey = "", await plugin.saveSettings(), startDeviceFlow();
+      })
+    );
+    return;
+  }
+  new import_obsidian11.Setting(containerEl).setName("Sign in with Engram").setDesc("Links your Obsidian vault to your Engram account. Opens a browser window.").addButton(
+    (btn) => btn.setButtonText("Sign in").setCta().onClick(() => startDeviceFlow())
+  ), containerEl.createDiv({ cls: "engram-auth-divider", text: "or" });
+  let pendingKey = "";
+  new import_obsidian11.Setting(containerEl).setName("API key").setDesc("Bearer token from Engram (starts with engram_).").addText((text) => {
+    text.setPlaceholder("engram_abc123...").onChange((value) => {
+      pendingKey = value;
+    }), text.inputEl.type = "password", text.inputEl.addClass("engram-api-key-input");
+  }).addButton(
+    (btn) => btn.setButtonText("Save").setCta().onClick(async () => {
+      let trimmed = pendingKey.trim();
+      if (!trimmed) {
+        new import_obsidian11.Notice("Enter an API key first");
+        return;
+      }
+      plugin.settings.apiKey = trimmed, await plugin.saveSettings(), redisplay();
+    })
+  );
+}
+function renderVaultSection(ctx) {
+  let { containerEl, app, plugin, redisplay } = ctx;
+  if (!plugin.settings.apiKey && !plugin.settings.refreshToken) return;
+  new import_obsidian11.Setting(containerEl).setName("Vault").setHeading();
+  let setting = new import_obsidian11.Setting(containerEl).setName("Sync vault").setDesc("Select which vault this plugin syncs with."), placeholderEl = setting.controlEl.createSpan({ text: "Loading vaults..." });
+  plugin.api.listVaults().then((vaults) => {
+    if (placeholderEl.remove(), vaults.length === 0) {
+      setting.controlEl.createSpan({
+        text: "No vaults found \u2014 first sync will create one"
+      });
+      return;
+    }
+    let currentId = plugin.settings.vaultId, current = currentId ? vaults.find((v) => String(v.id) === currentId) : void 0;
+    if (!current) {
+      setting.addDropdown((dropdown) => {
+        currentId ? dropdown.addOption("", `Pick a vault (previous: id ${currentId} not found)`) : dropdown.addOption("", "Pick a vault");
+        for (let v of vaults) {
+          let label = v.is_default ? `${v.name} (default)` : v.name;
+          dropdown.addOption(String(v.id), label);
+        }
+        dropdown.onChange(async (value) => {
+          await applyVaultSwitch(plugin, value) && redisplay();
+        });
+      });
+      return;
+    }
+    setting.controlEl.createSpan({
+      cls: "engram-vault-current-name",
+      text: current.is_default ? `${current.name} (default)` : current.name
+    }).setAttribute("title", `Vault id: ${current.id}`), setting.addButton(
+      (btn) => btn.setButtonText("Change").onClick(async () => {
+        let newId = await new VaultSwitchModal(
+          app,
+          vaults,
+          currentId
+        ).waitForChoice();
+        newId && await applyVaultSwitch(plugin, newId) && redisplay();
+      })
+    );
+  }).catch((e) => {
+    placeholderEl.remove(), setting.controlEl.createSpan({ text: describeListVaultsError(e) });
+  });
+}
+function renderSupportSection(ctx) {
+  let { containerEl } = ctx;
+  new import_obsidian11.Setting(containerEl).setName("Support development").setHeading();
+  let kofiLink = new import_obsidian11.Setting(containerEl).setDesc(
+    "If this plugin saves you time, consider supporting development."
+  ).controlEl.createEl("a", {
+    cls: "engram-kofi-button",
+    href: "https://ko-fi.com/rasbandit",
+    attr: { target: "_blank", rel: "noopener" }
+  }), iconSpan = kofiLink.createSpan({ cls: "engram-kofi-icon" });
+  (0, import_obsidian11.setIcon)(iconSpan, "coffee"), kofiLink.createSpan({ text: "Support on Ko-fi" });
+}
+function describeListVaultsError(e) {
+  let err = e, status = err == null ? void 0 : err.status;
+  return status === 401 || status === 403 ? "Sign-in required to load vaults" : status && status >= 500 ? `Server error (${status}) \u2014 check Engram logs` : status && status >= 400 ? `Request failed (${status})` : "Could not reach Engram \u2014 check connection";
+}
+async function applyVaultSwitch(plugin, value) {
+  return !value || value === plugin.settings.vaultId ? !1 : (plugin.settings.vaultId = value, plugin.api.setVaultId(value), await plugin.saveSettings(), !0);
+}
+
+// src/tabs/account-tab.ts
+async function renderAccountTab(ctx) {
+  let { containerEl, plugin, redisplay } = ctx;
+  if (await applyApiUrlChange(
+    {
+      settings: plugin.settings,
+      api: plugin.api,
+      noteStream: plugin.noteStream
+    },
+    ENGRAM_CLOUD_URL,
+    () => plugin.saveSettings()
+  )) {
+    new import_obsidian12.Notice("Switched to Engram Cloud \u2014 sign in to continue."), redisplay();
+    return;
+  }
+  new import_obsidian12.Setting(containerEl).setName("Engram Cloud").setHeading();
+  let aboutSetting = new import_obsidian12.Setting(containerEl).setName("New to Engram?").setDesc("Create an account, read the docs, and learn more at ");
+  aboutSetting.descEl.createEl("a", {
+    text: "engram.page",
+    href: ENGRAM_MARKETING_URL,
+    attr: { target: "_blank", rel: "noopener" }
+  }), aboutSetting.descEl.appendText("."), renderAuthSection(ctx), renderVaultSection(ctx), renderActionsSection(ctx), renderTestConnection(ctx);
+}
+
+// src/tabs/advanced-tab.ts
+var import_obsidian13 = require("obsidian"), PROBLEMATIC_DIRS = [
+  { pattern: "node_modules/", label: "node_modules", desc: "Node.js dependencies" },
+  { pattern: ".venv/", label: ".venv", desc: "Python virtual environment" },
+  { pattern: "venv/", label: "venv", desc: "Python virtual environment" },
+  { pattern: "__pycache__/", label: "__pycache__", desc: "Python bytecode cache" },
+  { pattern: "vendor/", label: "vendor", desc: "Vendored dependencies" },
+  { pattern: ".gradle/", label: ".gradle", desc: "Gradle build cache" },
+  { pattern: "target/", label: "target", desc: "Rust/Java build output" },
+  { pattern: "build/", label: "build", desc: "Build output" },
+  { pattern: ".next/", label: ".next", desc: "Next.js build output" },
+  { pattern: "dist/", label: "dist", desc: "Distribution build output" },
+  { pattern: ".cargo/", label: ".cargo", desc: "Cargo cache" },
+  { pattern: "Pods/", label: "Pods", desc: "CocoaPods dependencies" },
+  { pattern: ".dart_tool/", label: ".dart_tool", desc: "Dart tool cache" },
+  { pattern: ".cache/", label: ".cache", desc: "Generic cache directory" }
+];
+function renderAdvancedTab(ctx) {
+  let { containerEl, app, plugin, redisplay } = ctx;
+  new import_obsidian13.Setting(containerEl).setName("Sync behavior").setHeading(), new import_obsidian13.Setting(containerEl).setName("Conflict resolution").setDesc(
     "How to handle conflicts. Automatic creates a conflict copy. Interactive shows a diff dialog."
   ).addDropdown(
     (dropdown) => dropdown.addOption("auto", "Automatic (conflict files)").addOption("modal", "Interactive (diff modal)").setValue(plugin.settings.conflictResolution).onChange(async (value) => {
       plugin.settings.conflictResolution = value, await plugin.saveSettings();
     })
-  ), new import_obsidian10.Setting(containerEl).setName("Debounce (ms)").setDesc("Delay after editing before pushing. Prevents flooding during typing.").addText(
+  ), new import_obsidian13.Setting(containerEl).setName("Debounce (ms)").setDesc("Delay after editing before pushing. Prevents flooding during typing.").addText(
     (text) => text.setPlaceholder("2000").setValue(String(plugin.settings.debounceMs)).onChange(async (value) => {
       let num = Number.parseInt(value, 10);
       !Number.isNaN(num) && num >= 100 && (plugin.settings.debounceMs = num, await plugin.saveSettings());
     })
-  ), new import_obsidian10.Setting(containerEl).setName("Ignore patterns").setHeading(), renderIgnoreWarnings(containerEl, app, plugin, redisplay), new import_obsidian10.Setting(containerEl).setName("Custom patterns").setDesc(
+  ), new import_obsidian13.Setting(containerEl).setName("Ignore patterns").setHeading(), renderIgnoreWarnings(containerEl, app, plugin, redisplay), new import_obsidian13.Setting(containerEl).setName("Custom patterns").setDesc(
     "Paths to skip (one per line). Folder patterns end with /. Built-in: .obsidian/, .trash/, .git/"
   ).addTextArea((text) => {
     text.setPlaceholder(`drafts/
 secret.md`).setValue(plugin.settings.ignorePatterns).onChange(async (value) => {
       plugin.settings.ignorePatterns = value, await plugin.saveSettings();
     }), text.inputEl.rows = 6, text.inputEl.addClass("engram-ignore-textarea");
-  }).settingEl.addClass("engram-ignore-setting"), new import_obsidian10.Setting(containerEl).setName("Diagnostics").setHeading(), new import_obsidian10.Setting(containerEl).setName("Remote logging").setDesc("Send sync events to the server for remote debugging.").addToggle(
+  }).settingEl.addClass("engram-ignore-setting"), new import_obsidian13.Setting(containerEl).setName("Diagnostics").setHeading(), new import_obsidian13.Setting(containerEl).setName("Remote logging").setDesc("Send sync events to the server for remote debugging.").addToggle(
     (toggle) => toggle.setValue(plugin.settings.remoteLoggingEnabled).onChange(async (value) => {
       plugin.settings.remoteLoggingEnabled = value, await plugin.saveSettings();
     })
-  ), new import_obsidian10.Setting(containerEl).setName("About").setHeading();
+  ), new import_obsidian13.Setting(containerEl).setName("About").setHeading();
   let aboutList = containerEl.createEl("ul", { cls: "engram-about-list" }), versionItem = aboutList.createEl("li");
   versionItem.createSpan({ text: "Version: " }), versionItem.createSpan({ text: plugin.manifest.version });
   let repoItem = aboutList.createEl("li");
@@ -2199,418 +2446,20 @@ function renderIgnoreWarnings(containerEl, app, plugin, redisplay) {
     if (folder) {
       let count = 0, walk = (f) => {
         for (let child of f.children)
-          child instanceof import_obsidian10.TFolder ? walk(child) : count++;
+          child instanceof import_obsidian13.TFolder ? walk(child) : count++;
       };
       walk(folder), detected.push({ ...dir, count });
     }
   }
   if (detected.length !== 0)
     for (let item of detected)
-      new import_obsidian10.Setting(containerEl).setName(`\u26A0 Detected: ${item.label}/ (${item.count.toLocaleString()} files)`).setDesc(`${item.desc} \u2014 should not be synced`).addButton(
+      new import_obsidian13.Setting(containerEl).setName(`\u26A0 Detected: ${item.label}/ (${item.count.toLocaleString()} files)`).setDesc(`${item.desc} \u2014 should not be synced`).addButton(
         (btn) => btn.setButtonText("Add to ignores").setCta().onClick(async () => {
           let current = plugin.settings.ignorePatterns.trim();
           plugin.settings.ignorePatterns = current ? `${current}
-${item.pattern}` : item.pattern, await plugin.saveSettings(), new import_obsidian10.Notice(`Added ${item.pattern} to ignore patterns`), redisplay();
+${item.pattern}` : item.pattern, await plugin.saveSettings(), new import_obsidian13.Notice(`Added ${item.pattern} to ignore patterns`), redisplay();
         })
       ).settingEl.addClass("engram-status-warning");
-}
-
-// src/tabs/encryption-tab.ts
-var import_obsidian13 = require("obsidian");
-
-// src/encryption-confirm-modal.ts
-var import_obsidian11 = require("obsidian");
-function describeAction(action, vaultName) {
-  switch (action) {
-    case "encrypt":
-      return {
-        title: "Enable encryption at rest",
-        body: [
-          `This will encrypt every note in "${vaultName}" on the server using a key only you control.`,
-          "Search and sync continue to work, but the server stores ciphertext at rest.",
-          "While the backfill runs, the vault is read-only."
-        ],
-        confirmLabel: "Encrypt vault",
-        confirmClass: "mod-cta"
-      };
-    case "decrypt":
-      return {
-        title: "Disable encryption at rest",
-        body: [
-          `This schedules decryption of "${vaultName}". The server waits 24 hours before starting so you can cancel by mistake.`,
-          "Once it runs, notes are stored as plaintext on the server again.",
-          "Your operator may have set a cooldown that prevents toggling this back on quickly."
-        ],
-        confirmLabel: "Schedule decryption",
-        confirmClass: "engram-btn-danger-solid"
-      };
-    case "cancel-decrypt":
-      return {
-        title: "Cancel pending decryption",
-        body: [
-          `This stops the scheduled decryption of "${vaultName}". The vault stays encrypted.`
-        ],
-        confirmLabel: "Cancel decryption",
-        confirmClass: "mod-cta"
-      };
-  }
-}
-function isConfirmInputValid(input, vaultName) {
-  let typed = input.trim();
-  return typed.length === 0 ? !1 : typed === vaultName.trim();
-}
-var EncryptionConfirmModal = class extends import_obsidian11.Modal {
-  constructor(app, action, vaultName) {
-    super(app);
-    this.action = action;
-    this.vaultName = vaultName;
-    this.resolved = !1;
-    this.resolve = () => {
-    };
-  }
-  onOpen() {
-    let { contentEl } = this;
-    contentEl.empty(), contentEl.addClass("engram-encryption-confirm-modal");
-    let copy = describeAction(this.action, this.vaultName);
-    contentEl.createEl("h2", { text: copy.title });
-    for (let line of copy.body)
-      contentEl.createEl("p", { text: line });
-    contentEl.createEl("p", {
-      text: `Type "${this.vaultName}" to confirm:`,
-      cls: "engram-confirm-prompt"
-    });
-    let input = contentEl.createEl("input", {
-      type: "text",
-      cls: "engram-confirm-input",
-      attr: { autocomplete: "off", spellcheck: "false" }
-    }), buttons = contentEl.createDiv({ cls: "engram-button-row" });
-    buttons.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
-      this.resolved = !0, this.resolve(!1), this.close();
-    });
-    let confirmBtn = buttons.createEl("button", {
-      text: copy.confirmLabel,
-      cls: copy.confirmClass
-    });
-    confirmBtn.disabled = !0, input.addEventListener("input", () => {
-      confirmBtn.disabled = !isConfirmInputValid(input.value, this.vaultName);
-    }), confirmBtn.addEventListener("click", () => {
-      isConfirmInputValid(input.value, this.vaultName) && (this.resolved = !0, this.resolve(!0), this.close());
-    }), input.focus();
-  }
-  onClose() {
-    this.resolved || this.resolve(!1), this.contentEl.empty();
-  }
-  awaitConfirmation() {
-    return new Promise((resolve) => {
-      this.resolve = resolve, this.open();
-    });
-  }
-};
-
-// src/tabs/self-hosted-tab.ts
-var import_obsidian12 = require("obsidian");
-
-// src/auth-state.ts
-function completeOrigin(url) {
-  if (!url) return null;
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch (e) {
-    return null;
-  }
-  let host = parsed.hostname, isLocalhost = host === "localhost", isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(host), hasTld = /\.[a-z]{2,}$/i.test(host);
-  return !isLocalhost && !isIPv4 && !hasTld ? null : `${parsed.protocol}//${parsed.host}`.toLowerCase();
-}
-function isBackendChange(oldUrl, newUrl) {
-  let oldO = completeOrigin(oldUrl), newO = completeOrigin(newUrl);
-  return !oldO || !newO ? !1 : oldO !== newO;
-}
-function withClearedAuth(settings) {
-  return {
-    ...settings,
-    apiKey: "",
-    refreshToken: void 0,
-    userEmail: void 0,
-    authMethod: null,
-    vaultId: null
-  };
-}
-async function applyApiUrlChange(target, newUrl, save) {
-  var _a;
-  let cleared = isBackendChange(target.settings.apiUrl, newUrl);
-  return cleared && (Object.assign(target.settings, withClearedAuth(target.settings)), target.api.setAuthProvider(null), (_a = target.noteStream) == null || _a.disconnect()), target.settings.apiUrl = newUrl, await save(), cleared;
-}
-
-// src/encryption-badge.ts
-function describeEncryptionBadge(status, progress) {
-  switch (status) {
-    case "encrypted":
-      return { glyph: "\u{1F512}", tooltip: "Vault encrypted at rest" };
-    case "encrypting":
-      return { glyph: "\u{1F512}\u2026", tooltip: `Encrypting vault${progress ? ` \u2014 ${progress.processed}/${progress.total} notes` : ""}` };
-    case "decrypt_pending":
-      return {
-        glyph: "\u{1F513}\u23F3",
-        tooltip: "Decryption scheduled \u2014 cancel within 24h"
-      };
-    case "decrypting":
-      return { glyph: "\u{1F513}\u2026", tooltip: `Decrypting vault${progress ? ` \u2014 ${progress.processed}/${progress.total} notes` : ""}` };
-    case "none":
-      return { glyph: "\u{1F513}", tooltip: "Vault not encrypted" };
-    default:
-      return { glyph: "", tooltip: "" };
-  }
-}
-function chooseEncryptionPollInterval(status) {
-  switch (status) {
-    case "encrypting":
-    case "decrypting":
-      return 5e3;
-    case "decrypt_pending":
-      return 6e4;
-    default:
-      return null;
-  }
-}
-
-// src/tabs/self-hosted-tab.ts
-function formatEncryptionRowLabel(vault) {
-  var _a;
-  if (!vault) return null;
-  let status = (_a = vault.encryption_status) != null ? _a : "none", { glyph } = describeEncryptionBadge(status);
-  switch (status) {
-    case "encrypted":
-      return { glyph, label: "Encryption: enabled (at rest)" };
-    case "encrypting":
-      return { glyph, label: "Encryption: enabling\u2026" };
-    case "decrypt_pending":
-      return { glyph, label: "Encryption: decryption scheduled" };
-    case "decrypting":
-      return { glyph, label: "Encryption: disabling\u2026" };
-    case "none":
-      return { glyph: glyph || "\u{1F513}", label: "Encryption: not enabled" };
-    default:
-      return null;
-  }
-}
-function renderSelfHostedTab(ctx) {
-  var _a;
-  let { containerEl, plugin, redisplay, startDeviceFlow } = ctx;
-  new import_obsidian12.Setting(containerEl).setName("Setup").setHeading();
-  let repoSetting = new import_obsidian12.Setting(containerEl).setName("Engram server").setDesc("Engram is the backend that powers sync and semantic search. Run it yourself:");
-  repoSetting.descEl.createEl("br"), repoSetting.descEl.createEl("a", {
-    text: "github.com/Rasbandit/engram",
-    href: "https://github.com/Rasbandit/engram"
-  }), new import_obsidian12.Setting(containerEl).setName("Engram URL").setDesc("Full URL to your Engram instance (e.g. http://10.0.20.214:8000).").addText(
-    (text) => text.setPlaceholder("http://localhost:8000").setValue(plugin.settings.apiUrl).onChange(async (value) => {
-      await applyApiUrlChange(
-        {
-          settings: plugin.settings,
-          api: plugin.api,
-          noteStream: plugin.noteStream
-        },
-        value,
-        () => plugin.saveSettings()
-      ) && (new import_obsidian12.Notice("Engram backend changed \u2014 sign in again to continue."), redisplay());
-    })
-  ), new import_obsidian12.Setting(containerEl).setName("Test connection").setDesc("Check if Engram is reachable and credentials are valid.").addButton(
-    (btn) => btn.setButtonText("Test").onClick(async () => {
-      let { ok, error } = await plugin.api.ping();
-      new import_obsidian12.Notice(ok ? "Engram: connected!" : `Engram: ${error}`);
-    })
-  );
-  let isOAuth = !!plugin.settings.refreshToken, hasApiKey = !!plugin.settings.apiKey;
-  if (new import_obsidian12.Setting(containerEl).setName("Authentication").setHeading(), isOAuth)
-    new import_obsidian12.Setting(containerEl).setName(`Signed in as ${(_a = plugin.settings.userEmail) != null ? _a : "unknown"}`).setDesc("Authenticated via Engram account (OAuth).").addButton(
-      (btn) => btn.setButtonText("Sign out").onClick(async () => {
-        await plugin.clearOAuthTokens(), redisplay();
-      })
-    );
-  else if (hasApiKey)
-    new import_obsidian12.Setting(containerEl).setName("Using API key").setDesc("Authenticated via manual API key.").addButton(
-      (btn) => btn.setButtonText("Clear key").setWarning().onClick(async () => {
-        plugin.settings.apiKey = "", await plugin.saveSettings(), redisplay();
-      })
-    ).addButton(
-      (btn) => btn.setButtonText("Switch to sign in").setCta().onClick(async () => {
-        plugin.settings.apiKey = "", await plugin.saveSettings(), startDeviceFlow();
-      })
-    );
-  else {
-    new import_obsidian12.Setting(containerEl).setName("Sign in with Engram").setDesc("Links your Obsidian vault to your Engram account. Opens a browser window.").addButton(
-      (btn) => btn.setButtonText("Sign in").setCta().onClick(() => startDeviceFlow())
-    );
-    let details = containerEl.createEl("details", { cls: "engram-api-key-toggle" });
-    details.createEl("summary", { text: "Use API key instead" }), new import_obsidian12.Setting(details).setName("API key").setDesc("Bearer token from Engram (starts with engram_).").addText((text) => {
-      text.setPlaceholder("engram_abc123...").setValue(plugin.settings.apiKey).onChange(async (value) => {
-        plugin.settings.apiKey = value, await plugin.saveSettings();
-      }), text.inputEl.type = "password", text.inputEl.addClass("engram-api-key-input");
-    });
-  }
-  (plugin.settings.apiKey || plugin.settings.refreshToken) && (new import_obsidian12.Setting(containerEl).setName("Vault").setHeading(), new import_obsidian12.Setting(containerEl).setName("Sync vault").setDesc("Select which vault this plugin syncs with.").addDropdown((dropdown) => {
-    dropdown.addOption("", "Loading vaults..."), dropdown.setDisabled(!0), plugin.api.listVaults().then((vaults) => {
-      if (dropdown.selectEl.empty(), vaults.length === 0)
-        dropdown.addOption("", "No vaults found \u2014 first sync will create one");
-      else
-        for (let v of vaults) {
-          let label = v.is_default ? `${v.name} (default)` : v.name;
-          dropdown.addOption(String(v.id), label);
-        }
-      dropdown.setDisabled(!1), plugin.settings.vaultId && dropdown.setValue(plugin.settings.vaultId), dropdown.onChange(async (value) => {
-        await applyVaultSwitch(plugin, value) && redisplay();
-      });
-    }).catch((e) => {
-      dropdown.selectEl.empty(), dropdown.addOption("", describeListVaultsError(e)), dropdown.setDisabled(!0);
-    });
-  })), new import_obsidian12.Setting(containerEl).setName("Support development").setHeading();
-  let kofiLink = new import_obsidian12.Setting(containerEl).setDesc(
-    "If this plugin saves you time, consider supporting development."
-  ).controlEl.createEl("a", {
-    cls: "engram-kofi-button",
-    href: "https://ko-fi.com/rasbandit",
-    attr: { target: "_blank", rel: "noopener" }
-  }), iconSpan = kofiLink.createSpan({ cls: "engram-kofi-icon" });
-  (0, import_obsidian12.setIcon)(iconSpan, "coffee"), kofiLink.createSpan({ text: "Support on Ko-fi" });
-}
-function describeListVaultsError(e) {
-  let err = e, status = err == null ? void 0 : err.status;
-  return status === 401 || status === 403 ? "Sign-in required to load vaults" : status && status >= 500 ? `Server error (${status}) \u2014 check Engram logs` : status && status >= 400 ? `Request failed (${status})` : "Could not reach Engram \u2014 check connection";
-}
-async function applyVaultSwitch(plugin, value) {
-  return !value || value === plugin.settings.vaultId ? !1 : (plugin.settings.vaultId = value, plugin.api.setVaultId(value), await plugin.saveSettings(), plugin.refreshEncryptionStatus(), !0);
-}
-
-// src/tabs/encryption-tab.ts
-function formatStatusLabel(status) {
-  switch (status) {
-    case "encrypted":
-      return "Encrypted at rest";
-    case "encrypting":
-      return "Encrypting\u2026";
-    case "decrypt_pending":
-      return "Decryption scheduled";
-    case "decrypting":
-      return "Decrypting\u2026";
-    case "none":
-    case void 0:
-      return "Not encrypted";
-  }
-}
-function nextToggleAvailable(vault) {
-  if (!vault) return null;
-  let days = vault.cooldown_days, last = vault.last_toggle_at;
-  if (!last || days == null || days <= 0) return null;
-  let ts = new Date(last);
-  return Number.isNaN(ts.getTime()) ? null : new Date(ts.getTime() + days * 24 * 60 * 60 * 1e3);
-}
-function describeError(e) {
-  var _a;
-  let err = e;
-  if ((err == null ? void 0 : err.status) === 429) {
-    let retry = (_a = err.json) == null ? void 0 : _a.retry_after;
-    return retry ? `Cooldown active until ${new Date(retry).toLocaleString()}` : "Cooldown active";
-  }
-  return (err == null ? void 0 : err.status) === 409 ? "Vault is in an incompatible state for this action" : "Request failed \u2014 check the server logs";
-}
-function renderEncryptionTab(ctx) {
-  let { containerEl, plugin, app, redisplay } = ctx;
-  new import_obsidian13.Setting(containerEl).setName("Encryption at rest").setHeading(), containerEl.createEl("p", {
-    text: "When enabled, your notes are encrypted on the server with a key only you control. Sync and search continue to work; the server stores ciphertext at rest."
-  });
-  let statusBox = containerEl.createDiv({ cls: "engram-encryption-status" });
-  statusBox.setText("Loading vault status\u2026"), loadAndRender();
-  async function loadAndRender() {
-    let result = await fetchActiveVault();
-    if (result.kind === "error") {
-      statusBox.empty(), statusBox.setText(result.message);
-      return;
-    }
-    let vault = result.vault;
-    if (!vault) {
-      statusBox.empty(), statusBox.setText(
-        "No vault registered yet. Connect to your Engram server first, then return here."
-      );
-      return;
-    }
-    let progress = vault.encryption_status === "encrypting" || vault.encryption_status === "decrypting" ? await safeProgress(vault.id) : null;
-    if (statusBox.empty(), statusBox.createEl("p", {
-      text: `Status: ${formatStatusLabel(vault.encryption_status)}`,
-      cls: "engram-encryption-status-line"
-    }), vault.encrypted_at && statusBox.createEl("p", {
-      text: `Encrypted at: ${new Date(vault.encrypted_at).toLocaleString()}`
-    }), progress && progress.total > 0 && statusBox.createEl("p", {
-      text: `Progress: ${progress.processed} of ${progress.total} notes processed.`
-    }), vault.encryption_status === "decrypt_pending" && vault.decrypt_requested_at) {
-      let requestedAt = new Date(vault.decrypt_requested_at), runsAt = new Date(requestedAt.getTime() + 1440 * 60 * 1e3);
-      statusBox.createEl("p", {
-        text: `Scheduled to decrypt at ${runsAt.toLocaleString()}. Cancel before then to keep the vault encrypted.`
-      });
-    }
-    let nextToggle = nextToggleAvailable(vault);
-    nextToggle && nextToggle > /* @__PURE__ */ new Date() && statusBox.createEl("p", {
-      cls: "engram-encryption-cooldown-line",
-      text: `Next toggle available ${nextToggle.toLocaleString()} (operator-imposed cooldown).`
-    }), renderActionButton(vault);
-  }
-  function renderActionButton(vault) {
-    var _a;
-    let existing = containerEl.querySelector(".engram-encryption-action");
-    existing == null || existing.remove();
-    let setting = new import_obsidian13.Setting(containerEl);
-    switch (setting.settingEl.addClass("engram-encryption-action"), (_a = vault.encryption_status) != null ? _a : "none") {
-      case "none":
-        setting.setName("Enable encryption").setDesc("Re-encrypts every note in this vault on the server.").addButton(
-          (btn) => btn.setButtonText("Enable encryption").setCta().onClick(() => runAction("encrypt", vault))
-        );
-        break;
-      case "encrypted":
-        setting.setName("Disable encryption").setDesc(
-          "Schedules decryption. The server waits 24 hours before running so you can cancel by mistake."
-        ).addButton(
-          (btn) => btn.setButtonText("Disable encryption").setWarning().onClick(() => runAction("decrypt", vault))
-        );
-        break;
-      case "decrypt_pending":
-        setting.setName("Cancel pending decryption").setDesc("Stops the scheduled decryption \u2014 vault stays encrypted.").addButton(
-          (btn) => btn.setButtonText("Cancel decryption").setCta().onClick(() => runAction("cancel-decrypt", vault))
-        );
-        break;
-      case "encrypting":
-      case "decrypting":
-        setting.setName("Backfill in progress").setDesc("Toggles are disabled while the server is processing notes.").addButton(
-          (btn) => btn.setButtonText("Refresh").onClick(() => loadAndRender())
-        );
-        break;
-    }
-  }
-  async function runAction(action, vault) {
-    if (await new EncryptionConfirmModal(app, action, vault.name).awaitConfirmation())
-      try {
-        action === "encrypt" && await plugin.api.encryptVault(vault.id), action === "decrypt" && await plugin.api.requestDecryptVault(vault.id), action === "cancel-decrypt" && await plugin.api.cancelDecryptVault(vault.id), new import_obsidian13.Notice("Encryption update requested."), plugin.refreshEncryptionStatus(), redisplay();
-      } catch (e) {
-        new import_obsidian13.Notice(`Encryption: ${describeError(e)}`, 8e3);
-      }
-  }
-  async function fetchActiveVault() {
-    var _a;
-    let activeId = plugin.api.getActiveVaultId();
-    if (!activeId) return { kind: "ok", vault: null };
-    let idNum = Number(activeId);
-    if (Number.isNaN(idNum)) return { kind: "ok", vault: null };
-    try {
-      return { kind: "ok", vault: (_a = (await plugin.api.listVaults()).find((v) => v.id === idNum)) != null ? _a : null };
-    } catch (e) {
-      return { kind: "error", message: describeListVaultsError(e) };
-    }
-  }
-  async function safeProgress(vaultId) {
-    try {
-      return await plugin.api.getEncryptionProgress(vaultId);
-    } catch (e) {
-      return null;
-    }
-  }
 }
 
 // src/settings.ts
@@ -2618,6 +2467,7 @@ var EngramSyncSettingTab = class extends import_obsidian14.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.activeTab = "account";
+    this.statusContainerEl = null;
     this.plugin = plugin;
   }
   /** Pre-select a tab before the next display() call. */
@@ -2626,8 +2476,8 @@ var EngramSyncSettingTab = class extends import_obsidian14.PluginSettingTab {
   }
   display() {
     let { containerEl } = this;
-    containerEl.empty(), this.renderStatus(containerEl);
-    let encryptionStatusEl = containerEl.createDiv({ cls: "engram-encryption-status-row" }), progressContainer = containerEl.createDiv({ cls: "engram-sync-progress" }), progressLabel = progressContainer.createEl("p", {
+    containerEl.empty(), this.statusContainerEl = containerEl.createDiv({ cls: "engram-status-bar" }), this.statusContainerEl.addClasses(["engram-status-container"]), this.renderStatus(), this.plugin.onStatusBarChange = () => this.renderStatus();
+    let progressContainer = containerEl.createDiv({ cls: "engram-sync-progress" }), progressLabel = progressContainer.createEl("p", {
       text: "Syncing...",
       cls: "engram-progress-label"
     }), progressBarInner = progressContainer.createDiv({ cls: "engram-progress-bar-outer" }).createDiv({ cls: "engram-progress-bar-inner" });
@@ -2643,10 +2493,9 @@ var EngramSyncSettingTab = class extends import_obsidian14.PluginSettingTab {
       ), progressBarInner.style.width = `${pct}%`;
     };
     let tabs = [
-      { id: "account", label: "Account", render: renderAccountTab },
-      { id: "self-hosted", label: "Self-hosted", render: renderSelfHostedTab },
-      { id: "encryption", label: "Encryption", render: renderEncryptionTab },
-      { id: "advanced", label: "Advanced", render: renderAdvancedTab }
+      { id: "account", label: "\u2601\uFE0F Cloud", render: renderAccountTab },
+      { id: "self-hosted", label: "\u{1F5A5}\uFE0F Self-hosted", render: renderSelfHostedTab },
+      { id: "advanced", label: "\u2699\uFE0F Advanced", render: renderAdvancedTab }
     ], tabBar = containerEl.createEl("nav", { cls: "engram-tab-bar" }), contentEl = containerEl.createEl("section", { cls: "engram-tab-content" }), activateTab = (tabId) => {
       var _a;
       this.activeTab = tabId;
@@ -2671,35 +2520,8 @@ var EngramSyncSettingTab = class extends import_obsidian14.PluginSettingTab {
       });
       btn.dataset.tab = tab.id, btn.addEventListener("click", () => activateTab(tab.id));
     }
-    this.renderEncryptionStatus(encryptionStatusEl, () => activateTab("encryption"));
     let startTab = tabs.find((t) => t.id === this.activeTab) ? this.activeTab : "account";
     activateTab(startTab);
-  }
-  /** Render the persistent encryption-status row (above the tab bar).
-   *  Mirrors the connection-status pattern: dot/glyph + label, clickable
-   *  to switch to the Encryption tab. Hidden when there's nothing useful
-   *  to show (no auth, no vault). */
-  renderEncryptionStatus(el, onClick) {
-    let isAuthed = !!this.plugin.settings.apiKey || !!this.plugin.settings.refreshToken, activeVaultId = this.plugin.settings.vaultId;
-    if (!isAuthed || !activeVaultId) {
-      el.style.display = "none";
-      return;
-    }
-    el.empty(), el.addClass("engram-status-container"), el.addEventListener("click", onClick);
-    let glyphEl = el.createSpan({ cls: "engram-encryption-glyph" }), labelEl = el.createSpan({ cls: "engram-encryption-label" });
-    labelEl.setText("Encryption: checking\u2026");
-    let idNum = Number(activeVaultId);
-    if (Number.isNaN(idNum)) {
-      labelEl.setText("Encryption: vault not registered");
-      return;
-    }
-    this.plugin.api.listVaults().then((vaults) => {
-      var _a;
-      let vault = (_a = vaults.find((v) => v.id === idNum)) != null ? _a : null, formatted = formatEncryptionRowLabel(vault);
-      formatted ? (glyphEl.setText(formatted.glyph), labelEl.setText(formatted.label)) : labelEl.setText("Encryption: vault not registered");
-    }).catch((e) => {
-      labelEl.setText(`Encryption: ${describeListVaultsError(e)}`);
-    });
   }
   /** Open a progress modal and wire it to the sync engine's progress callback. */
   async openProgressModal() {
@@ -2716,13 +2538,20 @@ var EngramSyncSettingTab = class extends import_obsidian14.PluginSettingTab {
       result.user_email
     ), this.display());
   }
-  /** Render connection status indicator at the top of settings. */
-  renderStatus(containerEl) {
-    let statusEl = containerEl.createDiv({ cls: "engram-status-bar" }), status = this.plugin.syncEngine.getStatus(), live = this.plugin.isLiveConnected(), dotState, label;
-    if (status.state === "offline" ? (dotState = "is-error", label = "Disconnected") : status.state === "error" ? (dotState = "is-error", label = `Error: ${status.error || "unknown"}`) : live ? (dotState = "is-connected", label = "Connected \u2014 live sync active") : this.plugin.settings.apiUrl && (this.plugin.settings.apiKey || this.plugin.settings.refreshToken) ? (dotState = "is-polling", label = "Connected \u2014 polling") : (dotState = "is-idle", label = "Not configured"), statusEl.addClasses(["engram-status-container"]), statusEl.createSpan({ cls: `engram-status-dot ${dotState}` }), statusEl.createSpan({ text: label }), status.lastSync) {
+  /** Render (or re-render) the connection status row in place. Idempotent —
+   *  empties the container first so it can be wired to live status events. */
+  renderStatus() {
+    let statusEl = this.statusContainerEl;
+    if (!statusEl || !statusEl.isConnected) return;
+    statusEl.empty();
+    let status = this.plugin.syncEngine.getStatus(), live = this.plugin.isLiveConnected(), dotState, label;
+    if (status.state === "offline" ? (dotState = "is-error", label = "Disconnected") : status.state === "error" ? (dotState = "is-error", label = `Error: ${status.error || "unknown"}`) : live ? (dotState = "is-connected", label = "Connected \u2014 live sync active") : this.plugin.settings.apiUrl && (this.plugin.settings.apiKey || this.plugin.settings.refreshToken) ? (dotState = "is-polling", label = "Connected \u2014 polling") : (dotState = "is-idle", label = "Not configured"), statusEl.createSpan({ cls: `engram-status-dot ${dotState}` }), statusEl.createSpan({ text: label }), status.lastSync) {
       let date = new Date(status.lastSync);
       statusEl.createDiv({ cls: "engram-status-time" }).setText(`Last sync: ${date.toLocaleString()}`);
     }
+  }
+  hide() {
+    this.plugin.onStatusBarChange = null, this.statusContainerEl = null;
   }
 };
 
@@ -4296,10 +4125,11 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
     this.syncInterval = null;
     this.noteStream = null;
     this.statusBarEl = null;
-    this.encryptionStatusBarEl = null;
-    this.encryptionStatus = null;
-    this.encryptionPollHandle = null;
     this.liveConnected = !1;
+    /** Fires whenever the status bar text/state changes — used by the settings
+     *  panel to keep its top status row in sync with sync engine + WebSocket
+     *  connection state without requiring tab navigation. Single-slot. */
+    this.onStatusBarChange = null;
     this.baseStore = null;
   }
   /** Whether the WebSocket channel is currently connected (for settings UI). */
@@ -4419,9 +4249,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
       }
       let leaf = this.app.workspace.getRightLeaf(!1);
       leaf && (await leaf.setViewState({ type: SEARCH_VIEW_TYPE, active: !0 }), this.app.workspace.revealLeaf(leaf));
-    }), this.startSyncInterval(), this.statusBarEl = this.addStatusBarItem(), this.statusBarEl.setText("Engram: ready"), this.statusBarEl.addClass("engram-status-bar-clickable"), this.encryptionStatusBarEl = this.addStatusBarItem(), this.encryptionStatusBarEl.addClass("engram-status-bar-clickable"), this.encryptionStatusBarEl.addClass("engram-encryption-badge"), this.renderEncryptionBadge(null), this.registerDomEvent(this.encryptionStatusBarEl, "click", () => {
-      this.openSettingsToTab("encryption");
-    }), this.registerDomEvent(this.statusBarEl, "click", () => {
+    }), this.startSyncInterval(), this.statusBarEl = this.addStatusBarItem(), this.statusBarEl.setText("Engram: ready"), this.statusBarEl.addClass("engram-status-bar-clickable"), this.registerDomEvent(this.statusBarEl, "click", () => {
       this.settings.apiUrl && this.settings.apiKey && (new import_obsidian17.Notice("Engram Sync: syncing..."), this.syncEngine.fullSync().then(({ pulled, pushed }) => {
         new import_obsidian17.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
       }).catch((e) => {
@@ -4444,7 +4272,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
             rlog().info("lifecycle", "Vault not registered \u2014 skipping initial sync");
             return;
           }
-          await this.doSyncWithFirstSyncCheck(), this.refreshEncryptionStatus();
+          await this.doSyncWithFirstSyncCheck();
         }
       } finally {
         this.syncEngine.setReady();
@@ -4453,7 +4281,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
   }
   onunload() {
     var _a, _b, _c, _d;
-    devLog().log("lifecycle", "plugin unloading"), rlog().info("lifecycle", "Plugin unloading"), this.savePluginData(this.syncEngine.getLastSync()), (_a = this.baseStore) == null || _a.prune(), (_b = this.baseStore) == null || _b.save(), (_c = this.syncEngine) == null || _c.destroy(), (_d = this.noteStream) == null || _d.disconnect(), this.syncInterval && (clearInterval(this.syncInterval), this.syncInterval = null), this.clearEncryptionPoll(), destroyRemoteLog(), destroyDevLog();
+    devLog().log("lifecycle", "plugin unloading"), rlog().info("lifecycle", "Plugin unloading"), this.savePluginData(this.syncEngine.getLastSync()), (_a = this.baseStore) == null || _a.prune(), (_b = this.baseStore) == null || _b.save(), (_c = this.syncEngine) == null || _c.destroy(), (_d = this.noteStream) == null || _d.disconnect(), this.syncInterval && (clearInterval(this.syncInterval), this.syncInterval = null), destroyRemoteLog(), destroyDevLog();
   }
   async loadSettings() {
     let data = await this.loadData();
@@ -4527,7 +4355,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
     return this.settings.apiKey ? new ApiKeyAuth(this.settings.apiKey, this.settings.vaultId) : null;
   }
   async saveOAuthTokens(refreshToken, vaultId, userEmail) {
-    this.settings.refreshToken = refreshToken, this.settings.userEmail = userEmail, this.settings.authMethod = "oauth", this.settings.vaultId = vaultId, await this.saveSettings(), this.authProvider = this.createAuthProvider(), this.authProvider && (this.api.setAuthProvider(this.authProvider), this.noteStream && this.noteStream.setAuthProvider(this.authProvider)), this.refreshEncryptionStatus();
+    this.settings.refreshToken = refreshToken, this.settings.userEmail = userEmail, this.settings.authMethod = "oauth", this.settings.vaultId = vaultId, await this.saveSettings(), this.authProvider = this.createAuthProvider(), this.authProvider && (this.api.setAuthProvider(this.authProvider), this.noteStream && this.noteStream.setAuthProvider(this.authProvider));
   }
   async clearOAuthTokens() {
     this.settings.refreshToken = void 0, this.settings.userEmail = void 0, this.settings.authMethod = null, await this.saveSettings(), this.authProvider = this.settings.apiKey ? new ApiKeyAuth(this.settings.apiKey, this.settings.vaultId) : null, this.authProvider && this.api.setAuthProvider(this.authProvider);
@@ -4562,7 +4390,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
         });
       }, channel.onVaultDeleted = () => {
         var _a;
-        new import_obsidian17.Notice("Engram: This vault has been deleted on the server."), rlog().info("lifecycle", "Vault deleted on server \u2014 clearing vaultId"), this.settings.vaultId = null, this.api.setVaultId(null), this.savePluginData(this.syncEngine.getLastSync()), (_a = this.noteStream) == null || _a.disconnect(), this.refreshEncryptionStatus();
+        new import_obsidian17.Notice("Engram: This vault has been deleted on the server."), rlog().info("lifecycle", "Vault deleted on server \u2014 clearing vaultId"), this.settings.vaultId = null, this.api.setVaultId(null), this.savePluginData(this.syncEngine.getLastSync()), (_a = this.noteStream) == null || _a.disconnect();
       }, this.noteStream = channel, this.authProvider && this.noteStream.setAuthProvider(this.authProvider), channel.connect();
     }).catch((e) => {
       if (console.error("Engram Sync: failed to fetch user id for channel", e), rlog().error(
@@ -4594,53 +4422,9 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
         console.error("Engram Sync: sync failed", e), new import_obsidian17.Notice("Engram Sync: sync failed \u2014 check connection");
       }
   }
-  /** Refresh the encryption badge from the server. Called after toggle actions
-   *  and on layout-ready. While encrypting/decrypting, schedules a 5-second
-   *  poll until status settles. */
-  async refreshEncryptionStatus() {
-    let activeId = this.api.getActiveVaultId();
-    if (!activeId) {
-      this.renderEncryptionBadge(null);
-      return;
-    }
-    let idNum = Number(activeId);
-    if (!Number.isNaN(idNum))
-      try {
-        let progress = await this.api.getEncryptionProgress(idNum);
-        this.renderEncryptionBadge(progress.status, progress);
-        let interval = chooseEncryptionPollInterval(progress.status);
-        interval == null ? this.clearEncryptionPoll() : this.scheduleEncryptionPoll(interval);
-      } catch (e) {
-      }
-  }
-  scheduleEncryptionPoll(intervalMs) {
-    this.encryptionPollHandle == null && (this.encryptionPollHandle = window.setTimeout(() => {
-      this.encryptionPollHandle = null, this.refreshEncryptionStatus();
-    }, intervalMs));
-  }
-  clearEncryptionPoll() {
-    this.encryptionPollHandle != null && (clearTimeout(this.encryptionPollHandle), this.encryptionPollHandle = null);
-  }
-  renderEncryptionBadge(status, progress) {
-    if (!this.encryptionStatusBarEl) return;
-    this.encryptionStatus = status;
-    let { glyph, tooltip } = describeEncryptionBadge(status, progress);
-    this.encryptionStatusBarEl.setText(glyph), this.encryptionStatusBarEl.setAttribute("aria-label", tooltip), this.encryptionStatusBarEl.style.display = glyph === "" ? "none" : "";
-  }
-  /** Read-only access for tests and the encryption tab redisplay path. */
-  getEncryptionStatus() {
-    return this.encryptionStatus;
-  }
-  openSettingsToTab(tabId) {
-    let setting = this.app.setting;
-    if (!setting) return;
-    setting.open(), setting.openTabById(this.manifest.id);
-    let tab = setting.activeTab;
-    tab != null && tab.setInitialTab && tab.display && (tab.setInitialTab(tabId), tab.display());
-  }
   /** Update status bar text and tooltip based on sync state + WebSocket connection. */
   updateStatusBar(status) {
-    var _a, _b;
+    var _a, _b, _c;
     if (!this.statusBarEl) return;
     let text, tooltip;
     status.state === "offline" ? (text = status.queued > 0 ? `Engram: offline (${status.queued} queued)` : "Engram: offline", tooltip = "Server unreachable \u2014 changes will sync when connected") : status.state === "error" ? (text = "Engram: error", tooltip = status.error || "Unknown error") : status.state === "syncing" ? (text = status.pending > 0 ? `Engram: syncing (${status.pending})` : "Engram: syncing", tooltip = "Sync in progress...") : status.pending > 0 ? (text = `Engram: pending (${status.pending})`, tooltip = `${status.pending} file(s) queued`) : this.liveConnected ? (text = "Engram: live", tooltip = "WebSocket connected \u2014 live sync active") : (text = "Engram: ready", tooltip = "Click to sync");
@@ -4650,7 +4434,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
       tooltip += `
 Last sync: ${date.toLocaleString()}`;
     }
-    this.statusBarEl.setText(text), this.statusBarEl.setAttribute("aria-label", tooltip);
+    this.statusBarEl.setText(text), this.statusBarEl.setAttribute("aria-label", tooltip), (_c = this.onStatusBarChange) == null || _c.call(this);
   }
   startSyncInterval() {
     this.syncInterval && (clearInterval(this.syncInterval), this.syncInterval = null), !(!this.settings.apiUrl || !this.settings.apiKey) && (this.syncInterval = window.setInterval(async () => {
