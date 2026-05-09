@@ -2,9 +2,9 @@ import { Notice, Setting } from "obsidian";
 import { applyApiUrlChange } from "../auth-state";
 import { renderAuthSection, renderTestConnection, renderVaultSection } from "./self-hosted-tab";
 import type { TabContext } from "./types";
+import { ENGRAM_CLOUD_URL, ENGRAM_MARKETING_URL } from "./urls";
 
-export const ENGRAM_CLOUD_URL = "https://app.engram.page";
-export const ENGRAM_MARKETING_URL = "https://engram.page";
+export { ENGRAM_CLOUD_URL, ENGRAM_MARKETING_URL };
 
 export async function renderAccountTab(ctx: TabContext): Promise<void> {
 	const { containerEl, plugin, redisplay } = ctx;

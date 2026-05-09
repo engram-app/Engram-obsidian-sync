@@ -1967,8 +1967,17 @@ async function applyApiUrlChange(target, newUrl, save) {
 
 // src/tabs/self-hosted-tab.ts
 var import_obsidian8 = require("obsidian");
+
+// src/tabs/urls.ts
+var ENGRAM_CLOUD_URL = "https://app.engram.page", ENGRAM_MARKETING_URL = "https://engram.page";
+
+// src/tabs/self-hosted-tab.ts
 function renderSelfHostedTab(ctx) {
-  let { containerEl, plugin, redisplay } = ctx;
+  let { containerEl, plugin, redisplay, switchToTab } = ctx, isOnCloud = plugin.settings.apiUrl === ENGRAM_CLOUD_URL, hasAuth = !!plugin.settings.apiKey || !!plugin.settings.refreshToken;
+  if (isOnCloud && hasAuth) {
+    renderCloudLockBanner(containerEl, () => switchToTab("account"));
+    return;
+  }
   new import_obsidian8.Setting(containerEl).setName("Setup").setHeading();
   let repoSetting = new import_obsidian8.Setting(containerEl).setName("Engram server").setDesc("Engram is the backend that powers sync and semantic search. Run it yourself:");
   repoSetting.descEl.createEl("br"), repoSetting.descEl.createEl("a", {
@@ -1987,6 +1996,15 @@ function renderSelfHostedTab(ctx) {
       ) && (new import_obsidian8.Notice("Engram backend changed \u2014 sign in again to continue."), redisplay());
     })
   ), renderTestConnection(ctx), renderAuthSection(ctx), renderVaultSection(ctx), renderSupportSection(ctx);
+}
+function renderCloudLockBanner(containerEl, openAccount) {
+  new import_obsidian8.Setting(containerEl).setName("Self-hosted unavailable").setHeading();
+  let banner = containerEl.createDiv({ cls: "engram-mode-lock-banner" });
+  banner.createEl("p", { text: "You're connected to Engram Cloud." }), banner.createEl("p", {
+    text: "To set up a self-hosted Engram server, sign out from the Account tab first. That will release the connection so you can point the plugin at your own server."
+  }), new import_obsidian8.Setting(containerEl).addButton(
+    (btn) => btn.setButtonText("Open Account tab").setCta().onClick(openAccount)
+  );
 }
 function renderTestConnection(ctx) {
   let { containerEl, plugin } = ctx;
@@ -2079,7 +2097,6 @@ async function applyVaultSwitch(plugin, value) {
 }
 
 // src/tabs/account-tab.ts
-var ENGRAM_CLOUD_URL = "https://app.engram.page", ENGRAM_MARKETING_URL = "https://engram.page";
 async function renderAccountTab(ctx) {
   let { containerEl, plugin, redisplay } = ctx;
   if (await applyApiUrlChange(

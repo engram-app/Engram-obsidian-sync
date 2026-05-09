@@ -548,6 +548,23 @@
 	margin-left: 1em;
 }
 
+.engram-mode-lock-banner {
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 1em 1.25em;
+	margin: 0.5em 0 1em;
+}
+
+.engram-mode-lock-banner p {
+	margin: 0 0 0.5em;
+}
+
+.engram-mode-lock-banner p:last-child {
+	margin-bottom: 0;
+	color: var(--text-muted);
+}
+
 .engram-status-time {
 	font-size: 0.85em;
 	color: var(--text-muted);

@@ -1,9 +1,20 @@
 import { Notice, Setting, setIcon } from "obsidian";
 import { applyApiUrlChange } from "../auth-state";
 import type { TabContext } from "./types";
+import { ENGRAM_CLOUD_URL } from "./urls";
 
 export function renderSelfHostedTab(ctx: TabContext): void {
-	const { containerEl, plugin, redisplay } = ctx;
+	const { containerEl, plugin, redisplay, switchToTab } = ctx;
+
+	// Lock the tab when the user is signed into Engram Cloud — both modes share
+	// the same auth fields, so showing the auth UI here would let them sign out
+	// of Cloud from the wrong tab. Sign-out has to happen via the Account tab.
+	const isOnCloud = plugin.settings.apiUrl === ENGRAM_CLOUD_URL;
+	const hasAuth = !!plugin.settings.apiKey || !!plugin.settings.refreshToken;
+	if (isOnCloud && hasAuth) {
+		renderCloudLockBanner(containerEl, () => switchToTab("account"));
+		return;
+	}
 
 	// ── Setup ──
 	new Setting(containerEl).setName("Setup").setHeading();
@@ -45,6 +56,23 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 	renderAuthSection(ctx);
 	renderVaultSection(ctx);
 	renderSupportSection(ctx);
+}
+
+/** Render the "you're on Cloud — switch over there to sign out" banner that
+ *  replaces the entire Self-hosted body when the active backend is Cloud.
+ *  Keeps the user from bypassing the Account tab to manage Cloud auth. */
+function renderCloudLockBanner(containerEl: HTMLElement, openAccount: () => void): void {
+	new Setting(containerEl).setName("Self-hosted unavailable").setHeading();
+
+	const banner = containerEl.createDiv({ cls: "engram-mode-lock-banner" });
+	banner.createEl("p", { text: "You're connected to Engram Cloud." });
+	banner.createEl("p", {
+		text: "To set up a self-hosted Engram server, sign out from the Account tab first. That will release the connection so you can point the plugin at your own server.",
+	});
+
+	new Setting(containerEl).addButton((btn) =>
+		btn.setButtonText("Open Account tab").setCta().onClick(openAccount),
+	);
 }
 
 /** Render the "Test connection" row. Hidden when no auth is configured —
