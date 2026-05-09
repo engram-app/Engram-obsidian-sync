@@ -1,14 +1,10 @@
 import { Notice, Setting } from "obsidian";
 import { applyApiUrlChange } from "../auth-state";
-import {
-	renderAuthSection,
-	renderSupportSection,
-	renderTestConnection,
-	renderVaultSection,
-} from "./self-hosted-tab";
+import { renderAuthSection, renderTestConnection, renderVaultSection } from "./self-hosted-tab";
 import type { TabContext } from "./types";
 
 export const ENGRAM_CLOUD_URL = "https://app.engram.page";
+export const ENGRAM_MARKETING_URL = "https://engram.page";
 
 export async function renderAccountTab(ctx: TabContext): Promise<void> {
 	const { containerEl, plugin, redisplay } = ctx;
@@ -31,12 +27,18 @@ export async function renderAccountTab(ctx: TabContext): Promise<void> {
 	}
 
 	new Setting(containerEl).setName("Engram Cloud").setHeading();
-	containerEl.createEl("p", {
-		text: "Sign in to your Engram Cloud account at app.engram.page.",
-	});
 
-	renderTestConnection(ctx);
+	const aboutSetting = new Setting(containerEl)
+		.setName("New to Engram?")
+		.setDesc("Create an account, read the docs, and learn more at ");
+	aboutSetting.descEl.createEl("a", {
+		text: "engram.page",
+		href: ENGRAM_MARKETING_URL,
+		attr: { target: "_blank", rel: "noopener" },
+	});
+	aboutSetting.descEl.appendText(".");
+
 	renderAuthSection(ctx);
 	renderVaultSection(ctx);
-	renderSupportSection(ctx);
+	renderTestConnection(ctx);
 }
