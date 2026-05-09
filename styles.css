@@ -517,16 +517,32 @@
 
 /* ── Account tab ─────────────────────────────────────────────── */
 
-.engram-api-key-toggle {
-	margin-top: 8px;
-}
-
-.engram-api-key-toggle summary {
-	cursor: pointer;
-}
-
 .engram-api-key-input {
 	font-family: var(--font-monospace);
+}
+
+.engram-auth-divider {
+	display: flex;
+	align-items: center;
+	text-align: center;
+	color: var(--text-muted);
+	font-size: 0.85em;
+	margin: 0.75em 0;
+}
+
+.engram-auth-divider::before,
+.engram-auth-divider::after {
+	content: "";
+	flex: 1;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.engram-auth-divider::before {
+	margin-right: 0.75em;
+}
+
+.engram-auth-divider::after {
+	margin-left: 0.75em;
 }
 
 .engram-status-time {

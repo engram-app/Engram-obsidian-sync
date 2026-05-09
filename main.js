@@ -1990,7 +1990,7 @@ function renderSelfHostedTab(ctx) {
 }
 function renderTestConnection(ctx) {
   let { containerEl, plugin } = ctx;
-  new import_obsidian8.Setting(containerEl).setName("Test connection").setDesc("Check if Engram is reachable and credentials are valid.").addButton(
+  (plugin.settings.refreshToken || plugin.settings.apiKey) && new import_obsidian8.Setting(containerEl).setName("Test connection").setDesc("Check if Engram is reachable and credentials are valid.").addButton(
     (btn) => btn.setButtonText("Test").onClick(async () => {
       let { ok, error } = await plugin.api.ping();
       new import_obsidian8.Notice(ok ? "Engram: connected!" : `Engram: ${error}`);
@@ -2022,13 +2022,22 @@ function renderAuthSection(ctx) {
   }
   new import_obsidian8.Setting(containerEl).setName("Sign in with Engram").setDesc("Links your Obsidian vault to your Engram account. Opens a browser window.").addButton(
     (btn) => btn.setButtonText("Sign in").setCta().onClick(() => startDeviceFlow())
-  );
-  let details = containerEl.createEl("details", { cls: "engram-api-key-toggle" });
-  details.createEl("summary", { text: "Use API key instead" }), new import_obsidian8.Setting(details).setName("API key").setDesc("Bearer token from Engram (starts with engram_).").addText((text) => {
-    text.setPlaceholder("engram_abc123...").setValue(plugin.settings.apiKey).onChange(async (value) => {
-      plugin.settings.apiKey = value, await plugin.saveSettings();
+  ), containerEl.createDiv({ cls: "engram-auth-divider", text: "or" });
+  let pendingKey = "";
+  new import_obsidian8.Setting(containerEl).setName("API key").setDesc("Bearer token from Engram (starts with engram_).").addText((text) => {
+    text.setPlaceholder("engram_abc123...").onChange((value) => {
+      pendingKey = value;
     }), text.inputEl.type = "password", text.inputEl.addClass("engram-api-key-input");
-  });
+  }).addButton(
+    (btn) => btn.setButtonText("Save").setCta().onClick(async () => {
+      let trimmed = pendingKey.trim();
+      if (!trimmed) {
+        new import_obsidian8.Notice("Enter an API key first");
+        return;
+      }
+      plugin.settings.apiKey = trimmed, await plugin.saveSettings(), redisplay();
+    })
+  );
 }
 function renderVaultSection(ctx) {
   let { containerEl, plugin, redisplay } = ctx;

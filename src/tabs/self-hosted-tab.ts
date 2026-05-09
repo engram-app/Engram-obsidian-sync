@@ -47,9 +47,13 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 	renderSupportSection(ctx);
 }
 
-/** Render the "Test connection" row. Used by both Self-hosted and Account tabs. */
+/** Render the "Test connection" row. Hidden when no auth is configured —
+ *  there is nothing to test against an empty backend. */
 export function renderTestConnection(ctx: TabContext): void {
 	const { containerEl, plugin } = ctx;
+	const hasAuth = !!plugin.settings.refreshToken || !!plugin.settings.apiKey;
+	if (!hasAuth) return;
+
 	new Setting(containerEl)
 		.setName("Test connection")
 		.setDesc("Check if Engram is reachable and credentials are valid.")
@@ -61,7 +65,14 @@ export function renderTestConnection(ctx: TabContext): void {
 		);
 }
 
-/** Render Authentication section — OAuth status / API key / sign-in CTAs. */
+/** Render Authentication section — OAuth status / API key / sign-in CTAs.
+ *
+ *  States:
+ *    - Unauth: both Sign-in row and API-key row visible, separated by an "or"
+ *      divider. API-key field uses a buffered Save button (no per-keystroke
+ *      writes).
+ *    - OAuth locked: only the signed-in row + Sign out.
+ *    - API key locked: only the "Using API key" row + Clear / Switch to sign in. */
 export function renderAuthSection(ctx: TabContext): void {
 	const { containerEl, plugin, redisplay, startDeviceFlow } = ctx;
 
@@ -110,6 +121,7 @@ export function renderAuthSection(ctx: TabContext): void {
 		return;
 	}
 
+	// Unauth — show both methods side-by-side via stacked rows + divider.
 	new Setting(containerEl)
 		.setName("Sign in with Engram")
 		.setDesc("Links your Obsidian vault to your Engram account. Opens a browser window.")
@@ -120,22 +132,34 @@ export function renderAuthSection(ctx: TabContext): void {
 				.onClick(() => startDeviceFlow()),
 		);
 
-	const details = containerEl.createEl("details", { cls: "engram-api-key-toggle" });
-	details.createEl("summary", { text: "Use API key instead" });
+	containerEl.createDiv({ cls: "engram-auth-divider", text: "or" });
 
-	new Setting(details)
+	let pendingKey = "";
+	new Setting(containerEl)
 		.setName("API key")
 		.setDesc("Bearer token from Engram (starts with engram_).")
 		.addText((text) => {
-			text.setPlaceholder("engram_abc123...")
-				.setValue(plugin.settings.apiKey)
-				.onChange(async (value) => {
-					plugin.settings.apiKey = value;
-					await plugin.saveSettings();
-				});
+			text.setPlaceholder("engram_abc123...").onChange((value) => {
+				pendingKey = value;
+			});
 			text.inputEl.type = "password";
 			text.inputEl.addClass("engram-api-key-input");
-		});
+		})
+		.addButton((btn) =>
+			btn
+				.setButtonText("Save")
+				.setCta()
+				.onClick(async () => {
+					const trimmed = pendingKey.trim();
+					if (!trimmed) {
+						new Notice("Enter an API key first");
+						return;
+					}
+					plugin.settings.apiKey = trimmed;
+					await plugin.saveSettings();
+					redisplay();
+				}),
+		);
 }
 
 /** Render Vault selection section. No-op when no auth is configured. */
