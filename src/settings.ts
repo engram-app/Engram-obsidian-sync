@@ -13,6 +13,7 @@ import type { TabContext } from "./tabs/types";
 export class EngramSyncSettingTab extends PluginSettingTab {
 	plugin: EngramSyncPlugin;
 	private activeTab = "account";
+	private statusContainerEl: HTMLElement | null = null;
 
 	constructor(app: App, plugin: EngramSyncPlugin) {
 		super(app, plugin);
@@ -28,8 +29,12 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		// ── Status indicator (persists across tabs) ──
-		this.renderStatus(containerEl);
+		// ── Status indicator (persists across tabs, live-updates via plugin hook) ──
+		this.statusContainerEl = containerEl.createDiv({ cls: "engram-status-bar" });
+		this.statusContainerEl.addClasses(["engram-status-container"]);
+		this.renderStatus();
+
+		this.plugin.onStatusBarChange = () => this.renderStatus();
 
 		// ── Progress bar (hidden until sync is active, persists across tabs) ──
 		const progressContainer = containerEl.createDiv({ cls: "engram-sync-progress" });
@@ -137,9 +142,12 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 		}
 	}
 
-	/** Render connection status indicator at the top of settings. */
-	private renderStatus(containerEl: HTMLElement): void {
-		const statusEl = containerEl.createDiv({ cls: "engram-status-bar" });
+	/** Render (or re-render) the connection status row in place. Idempotent —
+	 *  empties the container first so it can be wired to live status events. */
+	private renderStatus(): void {
+		const statusEl = this.statusContainerEl;
+		if (!statusEl || !statusEl.isConnected) return;
+		statusEl.empty();
 
 		const status = this.plugin.syncEngine.getStatus();
 		const live = this.plugin.isLiveConnected();
@@ -167,10 +175,7 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 			label = "Not configured";
 		}
 
-		statusEl.addClasses(["engram-status-container"]);
-
 		statusEl.createSpan({ cls: `engram-status-dot ${dotState}` });
-
 		statusEl.createSpan({ text: label });
 
 		if (status.lastSync) {
@@ -178,5 +183,10 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 			const timeEl = statusEl.createDiv({ cls: "engram-status-time" });
 			timeEl.setText(`Last sync: ${date.toLocaleString()}`);
 		}
+	}
+
+	hide(): void {
+		this.plugin.onStatusBarChange = null;
+		this.statusContainerEl = null;
 	}
 }

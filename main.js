@@ -2353,6 +2353,7 @@ var EngramSyncSettingTab = class extends import_obsidian12.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.activeTab = "account";
+    this.statusContainerEl = null;
     this.plugin = plugin;
   }
   /** Pre-select a tab before the next display() call. */
@@ -2361,7 +2362,7 @@ var EngramSyncSettingTab = class extends import_obsidian12.PluginSettingTab {
   }
   display() {
     let { containerEl } = this;
-    containerEl.empty(), this.renderStatus(containerEl);
+    containerEl.empty(), this.statusContainerEl = containerEl.createDiv({ cls: "engram-status-bar" }), this.statusContainerEl.addClasses(["engram-status-container"]), this.renderStatus(), this.plugin.onStatusBarChange = () => this.renderStatus();
     let progressContainer = containerEl.createDiv({ cls: "engram-sync-progress" }), progressLabel = progressContainer.createEl("p", {
       text: "Syncing...",
       cls: "engram-progress-label"
@@ -2423,13 +2424,20 @@ var EngramSyncSettingTab = class extends import_obsidian12.PluginSettingTab {
       result.user_email
     ), this.display());
   }
-  /** Render connection status indicator at the top of settings. */
-  renderStatus(containerEl) {
-    let statusEl = containerEl.createDiv({ cls: "engram-status-bar" }), status = this.plugin.syncEngine.getStatus(), live = this.plugin.isLiveConnected(), dotState, label;
-    if (status.state === "offline" ? (dotState = "is-error", label = "Disconnected") : status.state === "error" ? (dotState = "is-error", label = `Error: ${status.error || "unknown"}`) : live ? (dotState = "is-connected", label = "Connected \u2014 live sync active") : this.plugin.settings.apiUrl && (this.plugin.settings.apiKey || this.plugin.settings.refreshToken) ? (dotState = "is-polling", label = "Connected \u2014 polling") : (dotState = "is-idle", label = "Not configured"), statusEl.addClasses(["engram-status-container"]), statusEl.createSpan({ cls: `engram-status-dot ${dotState}` }), statusEl.createSpan({ text: label }), status.lastSync) {
+  /** Render (or re-render) the connection status row in place. Idempotent —
+   *  empties the container first so it can be wired to live status events. */
+  renderStatus() {
+    let statusEl = this.statusContainerEl;
+    if (!statusEl || !statusEl.isConnected) return;
+    statusEl.empty();
+    let status = this.plugin.syncEngine.getStatus(), live = this.plugin.isLiveConnected(), dotState, label;
+    if (status.state === "offline" ? (dotState = "is-error", label = "Disconnected") : status.state === "error" ? (dotState = "is-error", label = `Error: ${status.error || "unknown"}`) : live ? (dotState = "is-connected", label = "Connected \u2014 live sync active") : this.plugin.settings.apiUrl && (this.plugin.settings.apiKey || this.plugin.settings.refreshToken) ? (dotState = "is-polling", label = "Connected \u2014 polling") : (dotState = "is-idle", label = "Not configured"), statusEl.createSpan({ cls: `engram-status-dot ${dotState}` }), statusEl.createSpan({ text: label }), status.lastSync) {
       let date = new Date(status.lastSync);
       statusEl.createDiv({ cls: "engram-status-time" }).setText(`Last sync: ${date.toLocaleString()}`);
     }
+  }
+  hide() {
+    this.plugin.onStatusBarChange = null, this.statusContainerEl = null;
   }
 };
 
@@ -4004,6 +4012,10 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian15.Plugin
     this.noteStream = null;
     this.statusBarEl = null;
     this.liveConnected = !1;
+    /** Fires whenever the status bar text/state changes — used by the settings
+     *  panel to keep its top status row in sync with sync engine + WebSocket
+     *  connection state without requiring tab navigation. Single-slot. */
+    this.onStatusBarChange = null;
     this.baseStore = null;
   }
   /** Whether the WebSocket channel is currently connected (for settings UI). */
@@ -4298,7 +4310,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian15.Plugin
   }
   /** Update status bar text and tooltip based on sync state + WebSocket connection. */
   updateStatusBar(status) {
-    var _a, _b;
+    var _a, _b, _c;
     if (!this.statusBarEl) return;
     let text, tooltip;
     status.state === "offline" ? (text = status.queued > 0 ? `Engram: offline (${status.queued} queued)` : "Engram: offline", tooltip = "Server unreachable \u2014 changes will sync when connected") : status.state === "error" ? (text = "Engram: error", tooltip = status.error || "Unknown error") : status.state === "syncing" ? (text = status.pending > 0 ? `Engram: syncing (${status.pending})` : "Engram: syncing", tooltip = "Sync in progress...") : status.pending > 0 ? (text = `Engram: pending (${status.pending})`, tooltip = `${status.pending} file(s) queued`) : this.liveConnected ? (text = "Engram: live", tooltip = "WebSocket connected \u2014 live sync active") : (text = "Engram: ready", tooltip = "Click to sync");
@@ -4308,7 +4320,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian15.Plugin
       tooltip += `
 Last sync: ${date.toLocaleString()}`;
     }
-    this.statusBarEl.setText(text), this.statusBarEl.setAttribute("aria-label", tooltip);
+    this.statusBarEl.setText(text), this.statusBarEl.setAttribute("aria-label", tooltip), (_c = this.onStatusBarChange) == null || _c.call(this);
   }
   startSyncInterval() {
     this.syncInterval && (clearInterval(this.syncInterval), this.syncInterval = null), !(!this.settings.apiUrl || !this.settings.apiKey) && (this.syncInterval = window.setInterval(async () => {

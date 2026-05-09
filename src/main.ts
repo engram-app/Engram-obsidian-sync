@@ -65,6 +65,11 @@ export default class EngramSyncPlugin extends Plugin {
 	private statusBarEl: HTMLElement | null = null;
 	private liveConnected = false;
 
+	/** Fires whenever the status bar text/state changes — used by the settings
+	 *  panel to keep its top status row in sync with sync engine + WebSocket
+	 *  connection state without requiring tab navigation. Single-slot. */
+	onStatusBarChange: (() => void) | null = null;
+
 	/** Whether the WebSocket channel is currently connected (for settings UI). */
 	isLiveConnected(): boolean {
 		return this.liveConnected;
@@ -667,6 +672,8 @@ export default class EngramSyncPlugin extends Plugin {
 
 		this.statusBarEl.setText(text);
 		this.statusBarEl.setAttribute("aria-label", tooltip);
+
+		this.onStatusBarChange?.();
 	}
 
 	private static readonly FALLBACK_POLL_MS = 5 * 60 * 1000;
