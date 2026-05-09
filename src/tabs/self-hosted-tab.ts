@@ -3,7 +3,7 @@ import { applyApiUrlChange } from "../auth-state";
 import type { TabContext } from "./types";
 
 export function renderSelfHostedTab(ctx: TabContext): void {
-	const { containerEl, plugin, redisplay, startDeviceFlow } = ctx;
+	const { containerEl, plugin, redisplay } = ctx;
 
 	// ── Setup ──
 	new Setting(containerEl).setName("Setup").setHeading();
@@ -41,6 +41,15 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 				}),
 		);
 
+	renderTestConnection(ctx);
+	renderAuthSection(ctx);
+	renderVaultSection(ctx);
+	renderSupportSection(ctx);
+}
+
+/** Render the "Test connection" row. Used by both Self-hosted and Account tabs. */
+export function renderTestConnection(ctx: TabContext): void {
+	const { containerEl, plugin } = ctx;
 	new Setting(containerEl)
 		.setName("Test connection")
 		.setDesc("Check if Engram is reachable and credentials are valid.")
@@ -50,8 +59,12 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 				new Notice(ok ? "Engram: connected!" : `Engram: ${error}`);
 			}),
 		);
+}
 
-	// ── Authentication ──
+/** Render Authentication section — OAuth status / API key / sign-in CTAs. */
+export function renderAuthSection(ctx: TabContext): void {
+	const { containerEl, plugin, redisplay, startDeviceFlow } = ctx;
+
 	const isOAuth = !!plugin.settings.refreshToken;
 	const hasApiKey = !!plugin.settings.apiKey;
 
@@ -67,7 +80,10 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 					redisplay();
 				}),
 			);
-	} else if (hasApiKey) {
+		return;
+	}
+
+	if (hasApiKey) {
 		new Setting(containerEl)
 			.setName("Using API key")
 			.setDesc("Authenticated via manual API key.")
@@ -91,77 +107,86 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 						startDeviceFlow();
 					}),
 			);
-	} else {
-		new Setting(containerEl)
-			.setName("Sign in with Engram")
-			.setDesc("Links your Obsidian vault to your Engram account. Opens a browser window.")
-			.addButton((btn) =>
-				btn
-					.setButtonText("Sign in")
-					.setCta()
-					.onClick(() => startDeviceFlow()),
-			);
-
-		const details = containerEl.createEl("details", { cls: "engram-api-key-toggle" });
-		details.createEl("summary", { text: "Use API key instead" });
-
-		new Setting(details)
-			.setName("API key")
-			.setDesc("Bearer token from Engram (starts with engram_).")
-			.addText((text) => {
-				text.setPlaceholder("engram_abc123...")
-					.setValue(plugin.settings.apiKey)
-					.onChange(async (value) => {
-						plugin.settings.apiKey = value;
-						await plugin.saveSettings();
-					});
-				text.inputEl.type = "password";
-				text.inputEl.addClass("engram-api-key-input");
-			});
+		return;
 	}
 
-	// ── Vault ──
-	if (plugin.settings.apiKey || plugin.settings.refreshToken) {
-		new Setting(containerEl).setName("Vault").setHeading();
+	new Setting(containerEl)
+		.setName("Sign in with Engram")
+		.setDesc("Links your Obsidian vault to your Engram account. Opens a browser window.")
+		.addButton((btn) =>
+			btn
+				.setButtonText("Sign in")
+				.setCta()
+				.onClick(() => startDeviceFlow()),
+		);
 
-		new Setting(containerEl)
-			.setName("Sync vault")
-			.setDesc("Select which vault this plugin syncs with.")
-			.addDropdown((dropdown) => {
-				dropdown.addOption("", "Loading vaults...");
-				dropdown.setDisabled(true);
+	const details = containerEl.createEl("details", { cls: "engram-api-key-toggle" });
+	details.createEl("summary", { text: "Use API key instead" });
 
-				plugin.api
-					.listVaults()
-					.then((vaults) => {
-						dropdown.selectEl.empty();
-						if (vaults.length === 0) {
-							dropdown.addOption("", "No vaults found — first sync will create one");
-						} else {
-							for (const v of vaults) {
-								const label = v.is_default ? `${v.name} (default)` : v.name;
-								dropdown.addOption(String(v.id), label);
-							}
+	new Setting(details)
+		.setName("API key")
+		.setDesc("Bearer token from Engram (starts with engram_).")
+		.addText((text) => {
+			text.setPlaceholder("engram_abc123...")
+				.setValue(plugin.settings.apiKey)
+				.onChange(async (value) => {
+					plugin.settings.apiKey = value;
+					await plugin.saveSettings();
+				});
+			text.inputEl.type = "password";
+			text.inputEl.addClass("engram-api-key-input");
+		});
+}
+
+/** Render Vault selection section. No-op when no auth is configured. */
+export function renderVaultSection(ctx: TabContext): void {
+	const { containerEl, plugin, redisplay } = ctx;
+
+	if (!plugin.settings.apiKey && !plugin.settings.refreshToken) return;
+
+	new Setting(containerEl).setName("Vault").setHeading();
+
+	new Setting(containerEl)
+		.setName("Sync vault")
+		.setDesc("Select which vault this plugin syncs with.")
+		.addDropdown((dropdown) => {
+			dropdown.addOption("", "Loading vaults...");
+			dropdown.setDisabled(true);
+
+			plugin.api
+				.listVaults()
+				.then((vaults) => {
+					dropdown.selectEl.empty();
+					if (vaults.length === 0) {
+						dropdown.addOption("", "No vaults found — first sync will create one");
+					} else {
+						for (const v of vaults) {
+							const label = v.is_default ? `${v.name} (default)` : v.name;
+							dropdown.addOption(String(v.id), label);
 						}
-						dropdown.setDisabled(false);
+					}
+					dropdown.setDisabled(false);
 
-						if (plugin.settings.vaultId) {
-							dropdown.setValue(plugin.settings.vaultId);
-						}
+					if (plugin.settings.vaultId) {
+						dropdown.setValue(plugin.settings.vaultId);
+					}
 
-						dropdown.onChange(async (value) => {
-							if (await applyVaultSwitch(plugin, value)) redisplay();
-						});
-					})
-					.catch((e: unknown) => {
-						dropdown.selectEl.empty();
-						dropdown.addOption("", describeListVaultsError(e));
-						dropdown.setDisabled(true);
+					dropdown.onChange(async (value) => {
+						if (await applyVaultSwitch(plugin, value)) redisplay();
 					});
-			});
-	}
+				})
+				.catch((e: unknown) => {
+					dropdown.selectEl.empty();
+					dropdown.addOption("", describeListVaultsError(e));
+					dropdown.setDisabled(true);
+				});
+		});
+}
 
-	// ── Support development ──
+/** Render the Ko-fi support section. */
+export function renderSupportSection(ctx: TabContext): void {
+	const { containerEl } = ctx;
+
 	new Setting(containerEl).setName("Support development").setHeading();
 
 	const supportSetting = new Setting(containerEl).setDesc(

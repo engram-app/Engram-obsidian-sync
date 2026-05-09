@@ -1,26 +1,42 @@
-import { Setting } from "obsidian";
+import { Notice, Setting } from "obsidian";
+import { applyApiUrlChange } from "../auth-state";
+import {
+	renderAuthSection,
+	renderSupportSection,
+	renderTestConnection,
+	renderVaultSection,
+} from "./self-hosted-tab";
 import type { TabContext } from "./types";
 
-export function renderAccountTab(ctx: TabContext): void {
-	const { containerEl, switchToTab } = ctx;
+export const ENGRAM_CLOUD_URL = "https://app.engram.page";
+
+export async function renderAccountTab(ctx: TabContext): Promise<void> {
+	const { containerEl, plugin, redisplay } = ctx;
+
+	// Force cloud URL so Account = cloud. If user had a self-hosted URL, this
+	// clears auth — caller can re-sign-in here, or switch to the Self-hosted tab.
+	const cleared = await applyApiUrlChange(
+		{
+			settings: plugin.settings,
+			api: plugin.api,
+			noteStream: plugin.noteStream,
+		},
+		ENGRAM_CLOUD_URL,
+		() => plugin.saveSettings(),
+	);
+	if (cleared) {
+		new Notice("Switched to Engram Cloud — sign in to continue.");
+		redisplay();
+		return;
+	}
 
 	new Setting(containerEl).setName("Engram Cloud").setHeading();
 	containerEl.createEl("p", {
-		text: "Engram Cloud is coming. Sign in here once it launches — no server setup needed.",
+		text: "Sign in to your Engram Cloud account at app.engram.page.",
 	});
 
-	new Setting(containerEl).setName("How to connect today").setHeading();
-	containerEl.createEl("p", {
-		text: "For now, run your own Engram server. Configure your server URL and authenticate on the Self-hosted tab.",
-	});
-
-	new Setting(containerEl)
-		.setName("Switch to Self-hosted setup")
-		.setDesc("Configure your self-hosted Engram server.")
-		.addButton((btn) =>
-			btn
-				.setButtonText("Open Self-hosted")
-				.setCta()
-				.onClick(() => switchToTab("self-hosted")),
-		);
+	renderTestConnection(ctx);
+	renderAuthSection(ctx);
+	renderVaultSection(ctx);
+	renderSupportSection(ctx);
 }
