@@ -1,5 +1,6 @@
 import { Notice, Setting, setIcon } from "obsidian";
 import { applyApiUrlChange } from "../auth-state";
+import { renderActionsSection } from "./actions-section";
 import type { TabContext } from "./types";
 import { ENGRAM_CLOUD_URL } from "./urls";
 
@@ -52,9 +53,10 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 				}),
 		);
 
-	renderTestConnection(ctx);
 	renderAuthSection(ctx);
 	renderVaultSection(ctx);
+	renderTestConnection(ctx);
+	renderActionsSection(ctx);
 	renderSupportSection(ctx);
 }
 
