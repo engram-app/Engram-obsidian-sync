@@ -1,5 +1,6 @@
 import { Notice, Setting, setIcon } from "obsidian";
 import { applyApiUrlChange } from "../auth-state";
+import { VaultSwitchModal } from "../vault-switch-modal";
 import { renderActionsSection } from "./actions-section";
 import type { TabContext } from "./types";
 import { ENGRAM_CLOUD_URL } from "./urls";
@@ -55,8 +56,8 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 
 	renderAuthSection(ctx);
 	renderVaultSection(ctx);
-	renderTestConnection(ctx);
 	renderActionsSection(ctx);
+	renderTestConnection(ctx);
 	renderSupportSection(ctx);
 }
 
@@ -186,48 +187,86 @@ export function renderAuthSection(ctx: TabContext): void {
 		);
 }
 
-/** Render Vault selection section. No-op when no auth is configured. */
+/** Render Vault selection section. No-op when no auth is configured.
+ *
+ *  Two modes:
+ *    - First-time (no vaultId): dropdown directly so the user can pick.
+ *    - Locked-in (vaultId set): read-only "Sync vault: <name>" + Change button
+ *      that opens VaultSwitchModal. Vault switching is destructive (retargets
+ *      sync at a different server vault), so it lives behind a confirm modal. */
 export function renderVaultSection(ctx: TabContext): void {
-	const { containerEl, plugin, redisplay } = ctx;
+	const { containerEl, app, plugin, redisplay } = ctx;
 
 	if (!plugin.settings.apiKey && !plugin.settings.refreshToken) return;
 
 	new Setting(containerEl).setName("Vault").setHeading();
 
-	new Setting(containerEl)
+	const setting = new Setting(containerEl)
 		.setName("Sync vault")
-		.setDesc("Select which vault this plugin syncs with.")
-		.addDropdown((dropdown) => {
-			dropdown.addOption("", "Loading vaults...");
-			dropdown.setDisabled(true);
+		.setDesc("Select which vault this plugin syncs with.");
 
-			plugin.api
-				.listVaults()
-				.then((vaults) => {
-					dropdown.selectEl.empty();
-					if (vaults.length === 0) {
-						dropdown.addOption("", "No vaults found — first sync will create one");
+	const placeholderEl = setting.controlEl.createSpan({ text: "Loading vaults..." });
+
+	plugin.api
+		.listVaults()
+		.then((vaults) => {
+			placeholderEl.remove();
+
+			if (vaults.length === 0) {
+				setting.controlEl.createSpan({
+					text: "No vaults found — first sync will create one",
+				});
+				return;
+			}
+
+			const currentId = plugin.settings.vaultId;
+			const current = currentId ? vaults.find((v) => String(v.id) === currentId) : undefined;
+
+			// First-time picker: render the dropdown directly so the user can
+			// choose without going through the warning modal.
+			if (!current) {
+				setting.addDropdown((dropdown) => {
+					if (currentId) {
+						// Vault id set but no longer exists on server — surface it.
+						dropdown.addOption(
+							"",
+							`Pick a vault (previous: id ${currentId} not found)`,
+						);
 					} else {
-						for (const v of vaults) {
-							const label = v.is_default ? `${v.name} (default)` : v.name;
-							dropdown.addOption(String(v.id), label);
-						}
+						dropdown.addOption("", "Pick a vault");
 					}
-					dropdown.setDisabled(false);
-
-					if (plugin.settings.vaultId) {
-						dropdown.setValue(plugin.settings.vaultId);
+					for (const v of vaults) {
+						const label = v.is_default ? `${v.name} (default)` : v.name;
+						dropdown.addOption(String(v.id), label);
 					}
-
 					dropdown.onChange(async (value) => {
 						if (await applyVaultSwitch(plugin, value)) redisplay();
 					});
-				})
-				.catch((e: unknown) => {
-					dropdown.selectEl.empty();
-					dropdown.addOption("", describeListVaultsError(e));
-					dropdown.setDisabled(true);
 				});
+				return;
+			}
+
+			// Locked-in display: vault name + Change button → confirm modal.
+			const nameEl = setting.controlEl.createSpan({
+				cls: "engram-vault-current-name",
+				text: current.is_default ? `${current.name} (default)` : current.name,
+			});
+			nameEl.setAttribute("title", `Vault id: ${current.id}`);
+
+			setting.addButton((btn) =>
+				btn.setButtonText("Change").onClick(async () => {
+					const newId = await new VaultSwitchModal(
+						app,
+						vaults,
+						currentId,
+					).waitForChoice();
+					if (newId && (await applyVaultSwitch(plugin, newId))) redisplay();
+				}),
+			);
+		})
+		.catch((e: unknown) => {
+			placeholderEl.remove();
+			setting.controlEl.createSpan({ text: describeListVaultsError(e) });
 		});
 }
 

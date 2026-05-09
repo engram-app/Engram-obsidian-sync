@@ -41,6 +41,6 @@ export async function renderAccountTab(ctx: TabContext): Promise<void> {
 
 	renderAuthSection(ctx);
 	renderVaultSection(ctx);
-	renderTestConnection(ctx);
 	renderActionsSection(ctx);
+	renderTestConnection(ctx);
 }
