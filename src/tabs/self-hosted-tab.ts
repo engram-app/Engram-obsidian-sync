@@ -1,34 +1,6 @@
 import { Notice, Setting, setIcon } from "obsidian";
 import { applyApiUrlChange } from "../auth-state";
-import { describeEncryptionBadge } from "../encryption-badge";
-import type { VaultEncryptionStatus, VaultInfo } from "../types";
 import type { TabContext } from "./types";
-
-/** One-line encryption status label shown in the persistent header row.
- *  Pure so it can be tested without the Obsidian DOM. Returns null when
- *  there's nothing meaningful to show (no active vault). */
-export function formatEncryptionRowLabel(vault: VaultInfo | null): {
-	glyph: string;
-	label: string;
-} | null {
-	if (!vault) return null;
-	const status: VaultEncryptionStatus = vault.encryption_status ?? "none";
-	const { glyph } = describeEncryptionBadge(status);
-	switch (status) {
-		case "encrypted":
-			return { glyph, label: "Encryption: enabled (at rest)" };
-		case "encrypting":
-			return { glyph, label: "Encryption: enabling…" };
-		case "decrypt_pending":
-			return { glyph, label: "Encryption: decryption scheduled" };
-		case "decrypting":
-			return { glyph, label: "Encryption: disabling…" };
-		case "none":
-			return { glyph: glyph || "🔓", label: "Encryption: not enabled" };
-		default:
-			return null;
-	}
-}
 
 export function renderSelfHostedTab(ctx: TabContext): void {
 	const { containerEl, plugin, redisplay, startDeviceFlow } = ctx;
@@ -224,21 +196,14 @@ export interface VaultSwitchTarget {
 	settings: { vaultId: string | null };
 	api: { setVaultId: (id: string | null) => void };
 	saveSettings: () => Promise<void>;
-	refreshEncryptionStatus: () => void | Promise<void>;
 }
 
-/**
- * Apply a user-driven vault switch. Returns `true` if the active vault
- * actually changed (caller should redisplay). Encryption state is per-vault,
- * so the badge MUST be refreshed on every successful switch — leaving the
- * prior tenant's lock state on screen is a security-indicator bug, not just
- * cosmetic drift.
- */
+/** Apply a user-driven vault switch. Returns `true` if the active vault
+ *  actually changed (caller should redisplay). */
 export async function applyVaultSwitch(plugin: VaultSwitchTarget, value: string): Promise<boolean> {
 	if (!value || value === plugin.settings.vaultId) return false;
 	plugin.settings.vaultId = value;
 	plugin.api.setVaultId(value);
 	await plugin.saveSettings();
-	void plugin.refreshEncryptionStatus();
 	return true;
 }

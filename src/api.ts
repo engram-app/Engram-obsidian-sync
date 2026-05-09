@@ -11,7 +11,6 @@ import type {
 	AttachmentResponse,
 	ChangesResponse,
 	DeleteResponse,
-	EncryptionProgress,
 	ManifestResponse,
 	NoteDetail,
 	NoteResponse,
@@ -297,32 +296,6 @@ export class EngramApi {
 		const encoded = encodeURIComponent(since);
 		const resp = await this.request("GET", `/attachments/changes?since=${encoded}`);
 		return resp.json as AttachmentChangesResponse;
-	}
-
-	/** Enable encryption-at-rest for the given vault. Throws on 429 cooldown
-	 *  with `{status: 429, json: {error, retry_after}}` for the caller to
-	 *  surface in a Notice. */
-	async encryptVault(vaultId: number): Promise<VaultInfo> {
-		const resp = await this.request("POST", `/vaults/${vaultId}/encrypt`);
-		return (resp.json as { vault: VaultInfo }).vault;
-	}
-
-	/** Schedule decryption (24h delay enforced server-side). */
-	async requestDecryptVault(vaultId: number): Promise<VaultInfo> {
-		const resp = await this.request("POST", `/vaults/${vaultId}/decrypt`);
-		return (resp.json as { vault: VaultInfo }).vault;
-	}
-
-	/** Cancel a pending decryption. */
-	async cancelDecryptVault(vaultId: number): Promise<VaultInfo> {
-		const resp = await this.request("DELETE", `/vaults/${vaultId}/decrypt`);
-		return (resp.json as { vault: VaultInfo }).vault;
-	}
-
-	/** Backfill progress while encrypting/decrypting. */
-	async getEncryptionProgress(vaultId: number): Promise<EncryptionProgress> {
-		const resp = await this.request("GET", `/vaults/${vaultId}/encryption_progress`);
-		return resp.json as EncryptionProgress;
 	}
 }
 
