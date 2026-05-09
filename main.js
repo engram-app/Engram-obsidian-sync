@@ -2333,9 +2333,7 @@ var EngramSyncSettingTab = class extends import_obsidian12.PluginSettingTab {
   }
   display() {
     let { containerEl } = this;
-    containerEl.empty();
-    let statusRow = containerEl.createDiv({ cls: "engram-settings-status-row" });
-    this.renderStatus(statusRow), this.renderEncryptionRow(statusRow);
+    containerEl.empty(), this.renderStatus(containerEl);
     let progressContainer = containerEl.createDiv({ cls: "engram-sync-progress" }), progressLabel = progressContainer.createEl("p", {
       text: "Syncing...",
       cls: "engram-progress-label"
@@ -2404,13 +2402,6 @@ var EngramSyncSettingTab = class extends import_obsidian12.PluginSettingTab {
       let date = new Date(status.lastSync);
       statusEl.createDiv({ cls: "engram-status-time" }).setText(`Last sync: ${date.toLocaleString()}`);
     }
-  }
-  /** Static encryption-at-rest indicator. Backend always encrypts; this is
-   *  reassurance, not a control. Hidden until the user is signed in. */
-  renderEncryptionRow(containerEl) {
-    if (!(!!this.plugin.settings.apiKey || !!this.plugin.settings.refreshToken)) return;
-    let row = containerEl.createDiv({ cls: "engram-encryption-status-row" });
-    row.addClass("engram-status-container"), row.createSpan({ cls: "engram-encryption-glyph", text: "\u{1F512}" }), row.createSpan({ cls: "engram-encryption-label", text: "Vault encrypted at rest" });
   }
 };
 
