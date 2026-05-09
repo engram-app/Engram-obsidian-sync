@@ -30,6 +30,7 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 
 		// ── Status indicator (persists across tabs) ──
 		this.renderStatus(containerEl);
+		this.renderEncryptionRow(containerEl);
 
 		// ── Progress bar (hidden until sync is active, persists across tabs) ──
 		const progressContainer = containerEl.createDiv({ cls: "engram-sync-progress" });
@@ -178,5 +179,16 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 			const timeEl = statusEl.createDiv({ cls: "engram-status-time" });
 			timeEl.setText(`Last sync: ${date.toLocaleString()}`);
 		}
+	}
+
+	/** Static encryption-at-rest indicator. Backend always encrypts; this is
+	 *  reassurance, not a control. Hidden until the user is signed in. */
+	private renderEncryptionRow(containerEl: HTMLElement): void {
+		const isAuthed = !!this.plugin.settings.apiKey || !!this.plugin.settings.refreshToken;
+		if (!isAuthed) return;
+		const row = containerEl.createDiv({ cls: "engram-encryption-status-row" });
+		row.addClass("engram-status-container");
+		row.createSpan({ cls: "engram-encryption-glyph", text: "🔒" });
+		row.createSpan({ cls: "engram-encryption-label", text: "Vault encrypted at rest" });
 	}
 }

@@ -2333,7 +2333,7 @@ var EngramSyncSettingTab = class extends import_obsidian12.PluginSettingTab {
   }
   display() {
     let { containerEl } = this;
-    containerEl.empty(), this.renderStatus(containerEl);
+    containerEl.empty(), this.renderStatus(containerEl), this.renderEncryptionRow(containerEl);
     let progressContainer = containerEl.createDiv({ cls: "engram-sync-progress" }), progressLabel = progressContainer.createEl("p", {
       text: "Syncing...",
       cls: "engram-progress-label"
@@ -2402,6 +2402,13 @@ var EngramSyncSettingTab = class extends import_obsidian12.PluginSettingTab {
       let date = new Date(status.lastSync);
       statusEl.createDiv({ cls: "engram-status-time" }).setText(`Last sync: ${date.toLocaleString()}`);
     }
+  }
+  /** Static encryption-at-rest indicator. Backend always encrypts; this is
+   *  reassurance, not a control. Hidden until the user is signed in. */
+  renderEncryptionRow(containerEl) {
+    if (!(!!this.plugin.settings.apiKey || !!this.plugin.settings.refreshToken)) return;
+    let row = containerEl.createDiv({ cls: "engram-encryption-status-row" });
+    row.addClass("engram-status-container"), row.createSpan({ cls: "engram-encryption-glyph", text: "\u{1F512}" }), row.createSpan({ cls: "engram-encryption-label", text: "Vault encrypted at rest" });
   }
 };
 
@@ -4095,9 +4102,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian15.Plugin
       }
       let leaf = this.app.workspace.getRightLeaf(!1);
       leaf && (await leaf.setViewState({ type: SEARCH_VIEW_TYPE, active: !0 }), this.app.workspace.revealLeaf(leaf));
-    }), this.startSyncInterval(), this.statusBarEl = this.addStatusBarItem(), this.statusBarEl.setText("Engram: ready"), this.statusBarEl.addClass("engram-status-bar-clickable");
-    let lockEl = this.addStatusBarItem();
-    lockEl.addClass("engram-encryption-badge"), lockEl.setText("\u{1F512}"), lockEl.setAttribute("aria-label", "Vault encrypted at rest"), this.registerDomEvent(this.statusBarEl, "click", () => {
+    }), this.startSyncInterval(), this.statusBarEl = this.addStatusBarItem(), this.statusBarEl.setText("Engram: ready"), this.statusBarEl.addClass("engram-status-bar-clickable"), this.registerDomEvent(this.statusBarEl, "click", () => {
       this.settings.apiUrl && this.settings.apiKey && (new import_obsidian15.Notice("Engram Sync: syncing..."), this.syncEngine.fullSync().then(({ pulled, pushed }) => {
         new import_obsidian15.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
       }).catch((e) => {

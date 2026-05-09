@@ -290,12 +290,6 @@ export default class EngramSyncPlugin extends Plugin {
 		this.statusBarEl.setText("Engram: ready");
 		this.statusBarEl.addClass("engram-status-bar-clickable");
 
-		// Static encryption indicator — backend always encrypts at rest.
-		const lockEl = this.addStatusBarItem();
-		lockEl.addClass("engram-encryption-badge");
-		lockEl.setText("🔒");
-		lockEl.setAttribute("aria-label", "Vault encrypted at rest");
-
 		this.registerDomEvent(this.statusBarEl, "click", () => {
 			if (this.settings.apiUrl && this.settings.apiKey) {
 				new Notice("Engram Sync: syncing...");
