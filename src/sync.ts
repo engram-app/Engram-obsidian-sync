@@ -5,6 +5,7 @@ import { type App, Notice, type TAbstractFile, TFile, TFolder, normalizePath } f
 import { type EngramApi, arrayBufferToBase64, base64ToArrayBuffer } from "./api";
 import type { BaseStore } from "./base-store";
 import { devLog } from "./dev-log";
+import { IgnoredFiles } from "./ignored-files";
 import { IssueStore, categorizeError } from "./issue-store";
 import { OfflineQueue } from "./offline-queue";
 import { rlog } from "./remote-log";
@@ -150,6 +151,11 @@ export class SyncEngine {
 	 *  queue for terminal failures (e.g. 413 Payload Too Large). */
 	readonly issues: IssueStore = new IssueStore();
 
+	/** Per-file explicit ignores (the Sync Center "Ignore" button). Honored by
+	 *  shouldIgnore so excluded files never enter push plans, isSyncable filters,
+	 *  or the Issues list. Distinct from settings.ignorePatterns (regex textarea). */
+	readonly ignoredFiles: IgnoredFiles = new IgnoredFiles();
+
 	constructor(
 		private app: App,
 		private api: EngramApi,
@@ -267,6 +273,8 @@ export class SyncEngine {
 				return true;
 			}
 		}
+		// User-explicit per-file ignores (from Sync Center)
+		if (this.ignoredFiles.has(path)) return true;
 		return this.ignorePatterns.some((pattern) => {
 			if (pattern.endsWith("/")) {
 				return path.startsWith(pattern) || path.includes(`/${pattern}`);

@@ -54,6 +54,8 @@ interface PluginData {
 	syncedHashes?: Record<string, number>;
 	/** Persistent failures surfaced in the Sync Center "Issues" panel. */
 	syncIssues?: SyncIssue[];
+	/** User-explicit per-file ignores (Sync Center "Ignore" button). */
+	ignoredFiles?: string[];
 }
 
 export default class EngramSyncPlugin extends Plugin {
@@ -155,6 +157,7 @@ export default class EngramSyncPlugin extends Plugin {
 			devLog().log("lifecycle", "Migrated legacy syncedHashes → syncState");
 		}
 		this.syncEngine.issues.hydrate(saved?.syncIssues);
+		this.syncEngine.ignoredFiles.hydrate(saved?.ignoredFiles);
 
 		// Register settings tab
 		this.addSettingTab(new EngramSyncSettingTab(this.app, this));
@@ -467,6 +470,7 @@ export default class EngramSyncPlugin extends Plugin {
 			// Dual-write legacy format for rollback safety (remove after one release cycle)
 			syncedHashes: this.syncEngine.exportHashes(),
 			syncIssues: this.syncEngine.issues.serialize(),
+			ignoredFiles: this.syncEngine.ignoredFiles.serialize(),
 		} as PluginData);
 	}
 
@@ -651,6 +655,13 @@ export default class EngramSyncPlugin extends Plugin {
 				new Notice("Engram Sync: sync failed — check connection");
 			}
 		}
+	}
+
+	/** Persist current sync engine state (issues, ignored files, etc.) to plugin
+	 *  data. Public so Sync Center button handlers can save without owning a
+	 *  reference to the private savePluginData method. */
+	async persistEngineState(): Promise<void> {
+		await this.savePluginData(this.syncEngine.getLastSync());
 	}
 
 	/** Open the Sync Center pane in the right sidebar (or reveal it if already open). */

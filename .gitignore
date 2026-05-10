@@ -21,3 +21,6 @@ data.json
 
 # Worktrees
 .worktrees/
+
+# Local Claude state
+.claude/
