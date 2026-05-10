@@ -151,6 +151,17 @@ describe("applyApiUrlChange", () => {
 		expect(save).toHaveBeenCalledTimes(1);
 	});
 
+	test("identical URL: skips save and stream disconnect (no-op)", async () => {
+		const target = makeTarget({ apiUrl: "https://engram.ras.band" });
+		const save = mock(async () => {});
+		const cleared = await applyApiUrlChange(target, "https://engram.ras.band", save);
+		expect(cleared).toBe(false);
+		expect(target.settings.apiKey).toBe("engram_secret123");
+		expect(target.api.setAuthProvider).not.toHaveBeenCalled();
+		expect(target.noteStream?.disconnect).not.toHaveBeenCalled();
+		expect(save).not.toHaveBeenCalled();
+	});
+
 	test("different origin: clears auth, disconnects stream, nulls api provider", async () => {
 		const target = makeTarget({ apiUrl: "https://engram.ras.band" });
 		const save = mock(async () => {});

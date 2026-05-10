@@ -1961,6 +1961,7 @@ function withClearedAuth(settings) {
 }
 async function applyApiUrlChange(target, newUrl, save) {
   var _a;
+  if (target.settings.apiUrl === newUrl) return !1;
   let cleared = isBackendChange(target.settings.apiUrl, newUrl);
   return cleared && (Object.assign(target.settings, withClearedAuth(target.settings)), target.api.setAuthProvider(null), (_a = target.noteStream) == null || _a.disconnect()), target.settings.apiUrl = newUrl, await save(), cleared;
 }
@@ -2316,7 +2317,10 @@ function renderVaultSection(ctx) {
     let currentId = plugin.settings.vaultId, current = currentId ? vaults.find((v) => String(v.id) === currentId) : void 0;
     if (!current) {
       setting.addDropdown((dropdown) => {
-        currentId ? dropdown.addOption("", `Pick a vault (previous: id ${currentId} not found)`) : dropdown.addOption("", "Pick a vault");
+        currentId ? dropdown.addOption(
+          "",
+          `Pick a vault (previous: id ${currentId} not found)`
+        ) : dropdown.addOption("", "Pick a vault");
         for (let v of vaults) {
           let label = v.is_default ? `${v.name} (default)` : v.name;
           dropdown.addOption(String(v.id), label);
@@ -2367,7 +2371,7 @@ async function applyVaultSwitch(plugin, value) {
 // src/tabs/account-tab.ts
 async function renderAccountTab(ctx) {
   let { containerEl, plugin, redisplay } = ctx;
-  if (await applyApiUrlChange(
+  if (plugin.settings.apiUrl !== ENGRAM_CLOUD_URL && await applyApiUrlChange(
     {
       settings: plugin.settings,
       api: plugin.api,

@@ -12,19 +12,21 @@ export async function renderAccountTab(ctx: TabContext): Promise<void> {
 
 	// Force cloud URL so Account = cloud. If user had a self-hosted URL, this
 	// clears auth — caller can re-sign-in here, or switch to the Self-hosted tab.
-	const cleared = await applyApiUrlChange(
-		{
-			settings: plugin.settings,
-			api: plugin.api,
-			noteStream: plugin.noteStream,
-		},
-		ENGRAM_CLOUD_URL,
-		() => plugin.saveSettings(),
-	);
-	if (cleared) {
-		new Notice("Switched to Engram Cloud — sign in to continue.");
-		redisplay();
-		return;
+	if (plugin.settings.apiUrl !== ENGRAM_CLOUD_URL) {
+		const cleared = await applyApiUrlChange(
+			{
+				settings: plugin.settings,
+				api: plugin.api,
+				noteStream: plugin.noteStream,
+			},
+			ENGRAM_CLOUD_URL,
+			() => plugin.saveSettings(),
+		);
+		if (cleared) {
+			new Notice("Switched to Engram Cloud — sign in to continue.");
+			redisplay();
+			return;
+		}
 	}
 
 	new Setting(containerEl).setName("Engram Cloud").setHeading();
