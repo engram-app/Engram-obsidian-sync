@@ -914,75 +914,6 @@ function base64ToArrayBuffer(base64) {
   return bytes.buffer;
 }
 
-// src/auth.ts
-var ApiKeyAuth = class {
-  constructor(apiKey, vaultId) {
-    this.apiKey = apiKey, this.vaultId = vaultId;
-  }
-  async getToken() {
-    return this.apiKey;
-  }
-  getVaultId() {
-    return this.vaultId;
-  }
-  isAuthenticated() {
-    return this.apiKey.length > 0;
-  }
-  signOut() {
-    this.apiKey = "", this.vaultId = null;
-  }
-}, _OAuthAuth = class _OAuthAuth {
-  constructor(refreshToken, vaultId, userEmail, refreshFn, onTokenRotated) {
-    this.accessToken = null;
-    this.expiresAt = 0;
-    this.authenticated = !0;
-    this.inflightRefresh = null;
-    this.refreshToken = refreshToken, this.vaultId = vaultId, this.userEmail = userEmail, this.refreshFn = refreshFn, this.onTokenRotated = onTokenRotated;
-  }
-  async getToken() {
-    if (this.accessToken && this.expiresAt > Date.now() + _OAuthAuth.EXPIRY_BUFFER_MS)
-      return this.accessToken;
-    if (this.inflightRefresh)
-      return this.inflightRefresh;
-    this.inflightRefresh = this.doRefresh();
-    try {
-      return await this.inflightRefresh;
-    } finally {
-      this.inflightRefresh = null;
-    }
-  }
-  async doRefresh() {
-    var _a;
-    try {
-      let result = await this.refreshFn(this.refreshToken);
-      return this.accessToken = result.access_token, this.refreshToken = result.refresh_token, this.expiresAt = Date.now() + result.expires_in * 1e3, this.authenticated = !0, (_a = this.onTokenRotated) == null || _a.call(this, result.refresh_token), this.accessToken;
-    } catch (err) {
-      throw this.authenticated = !1, this.accessToken = null, this.expiresAt = 0, err;
-    }
-  }
-  getVaultId() {
-    return this.vaultId;
-  }
-  getUserEmail() {
-    return this.userEmail;
-  }
-  getRefreshToken() {
-    return this.refreshToken;
-  }
-  invalidateAccessToken() {
-    this.accessToken = null, this.expiresAt = 0;
-  }
-  isAuthenticated() {
-    return this.authenticated;
-  }
-  signOut() {
-    this.accessToken = null, this.refreshToken = "", this.expiresAt = 0, this.authenticated = !1, this.vaultId = null, this.userEmail = null;
-  }
-};
-/** Buffer in ms — refresh if token expires within this window. */
-_OAuthAuth.EXPIRY_BUFFER_MS = 6e4;
-var OAuthAuth = _OAuthAuth;
-
 // src/remote-log.ts
 var RemoteLogger = class {
   constructor() {
@@ -1069,6 +1000,85 @@ async function destroyRemoteLog() {
   await (_instance == null ? void 0 : _instance.destroy()), _instance = null;
 }
 
+// src/auth.ts
+var ApiKeyAuth = class {
+  constructor(apiKey, vaultId) {
+    this.apiKey = apiKey, this.vaultId = vaultId;
+  }
+  async getToken() {
+    return this.apiKey;
+  }
+  getVaultId() {
+    return this.vaultId;
+  }
+  isAuthenticated() {
+    return this.apiKey.length > 0;
+  }
+  signOut() {
+    this.apiKey = "", this.vaultId = null;
+  }
+}, _OAuthAuth = class _OAuthAuth {
+  constructor(refreshToken, vaultId, userEmail, refreshFn, onTokenRotated) {
+    this.accessToken = null;
+    this.expiresAt = 0;
+    this.authenticated = !0;
+    this.inflightRefresh = null;
+    this.refreshToken = refreshToken, this.vaultId = vaultId, this.userEmail = userEmail, this.refreshFn = refreshFn, this.onTokenRotated = onTokenRotated;
+  }
+  async getToken() {
+    if (this.accessToken && this.expiresAt > Date.now() + _OAuthAuth.EXPIRY_BUFFER_MS)
+      return this.accessToken;
+    if (this.inflightRefresh)
+      return this.inflightRefresh;
+    rlog().info(
+      "auth",
+      `OAuth.getToken \u2014 triggering refresh (refreshTokenLen=${this.refreshToken.length} hadAccessToken=${this.accessToken !== null} expiresInMs=${this.expiresAt - Date.now()})`
+    ), this.inflightRefresh = this.doRefresh();
+    try {
+      return await this.inflightRefresh;
+    } finally {
+      this.inflightRefresh = null;
+    }
+  }
+  async doRefresh() {
+    var _a;
+    try {
+      let result = await this.refreshFn(this.refreshToken);
+      return this.accessToken = result.access_token, this.refreshToken = result.refresh_token, this.expiresAt = Date.now() + result.expires_in * 1e3, this.authenticated = !0, (_a = this.onTokenRotated) == null || _a.call(this, result.refresh_token), rlog().info(
+        "auth",
+        `OAuth refresh ok \u2014 accessTokenLen=${result.access_token.length} expiresInS=${result.expires_in}`
+      ), this.accessToken;
+    } catch (err) {
+      throw this.authenticated = !1, this.accessToken = null, this.expiresAt = 0, rlog().error(
+        "auth",
+        `OAuth refresh failed: ${err instanceof Error ? err.message : String(err)}`,
+        err instanceof Error ? err.stack : void 0
+      ), err;
+    }
+  }
+  getVaultId() {
+    return this.vaultId;
+  }
+  getUserEmail() {
+    return this.userEmail;
+  }
+  getRefreshToken() {
+    return this.refreshToken;
+  }
+  invalidateAccessToken() {
+    this.accessToken = null, this.expiresAt = 0;
+  }
+  isAuthenticated() {
+    return this.authenticated;
+  }
+  signOut() {
+    this.accessToken = null, this.refreshToken = "", this.expiresAt = 0, this.authenticated = !1, this.vaultId = null, this.userEmail = null;
+  }
+};
+/** Buffer in ms — refresh if token expires within this window. */
+_OAuthAuth.EXPIRY_BUFFER_MS = 6e4;
+var OAuthAuth = _OAuthAuth;
+
 // src/channel.ts
 var NO_AUTH_RECONNECT_MS = 3e4, NoteChannel = class {
   constructor(baseUrl, apiKey, userId, vaultId = null) {
@@ -1084,13 +1094,19 @@ var NO_AUTH_RECONNECT_MS = 3e4, NoteChannel = class {
     this.onEvent = null;
     this.onStatusChange = null;
     this.onVaultDeleted = null;
-    this.baseUrl = baseUrl.replace(/\/+$/, "").replace(/\/api$/, ""), this.apiKey = apiKey, this.userId = userId, this.vaultId = vaultId;
+    this.baseUrl = baseUrl.replace(/\/+$/, "").replace(/\/api$/, ""), this.apiKey = apiKey, this.userId = userId, this.vaultId = vaultId, rlog().info(
+      "channel",
+      `NoteChannel ctor \u2014 userId=${userId} vaultId=${vaultId != null ? vaultId : "null"} apiKeyLen=${apiKey.length} baseUrl=${this.baseUrl}`
+    );
   }
   setAuthProvider(provider) {
-    this.authProvider = provider;
+    this.authProvider = provider, rlog().info(
+      "channel",
+      `setAuthProvider \u2014 type=${provider.constructor.name}`
+    );
   }
   async getAuthToken() {
-    return this.authProvider ? this.authProvider.getToken() : this.apiKey;
+    return this.authProvider ? { token: await this.authProvider.getToken(), source: this.authProvider.constructor.name } : { token: this.apiKey, source: "apiKey-fallback" };
   }
   updateConfig(baseUrl, apiKey, userId, vaultId = null) {
     this.baseUrl = baseUrl.replace(/\/+$/, "").replace(/\/api$/, ""), this.apiKey = apiKey, this.userId = userId, this.vaultId = vaultId;
@@ -1111,17 +1127,29 @@ var NO_AUTH_RECONNECT_MS = 3e4, NoteChannel = class {
   // Private
   // ---------------------------------------------------------------------------
   async openSocket() {
-    let token;
+    var _a, _b, _c, _d, _e;
+    let token, source;
     try {
-      token = await this.getAuthToken();
+      let result = await this.getAuthToken();
+      token = result.token, source = result.source;
     } catch (e) {
-      rlog().warn("channel", `getToken failed \u2014 deferring reconnect: ${e}`), this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
+      rlog().warn(
+        "channel",
+        `getToken threw \u2014 deferring reconnect ${NO_AUTH_RECONNECT_MS}ms \u2014 providerType=${(_b = (_a = this.authProvider) == null ? void 0 : _a.constructor.name) != null ? _b : "none"} err=${e instanceof Error ? e.message : String(e)}`
+      ), this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
       return;
     }
     if (!token) {
-      rlog().warn("channel", "Skipping WS connect \u2014 no auth token yet"), this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
+      rlog().warn(
+        "channel",
+        `Empty token \u2014 skip WS connect, defer ${NO_AUTH_RECONNECT_MS}ms \u2014 source=${source} hasProvider=${!!this.authProvider} providerType=${(_d = (_c = this.authProvider) == null ? void 0 : _c.constructor.name) != null ? _d : "none"} apiKeyLen=${this.apiKey.length}`
+      ), this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
       return;
     }
+    rlog().info(
+      "channel",
+      `openSocket \u2014 token.length=${token.length} source=${source} userId=${this.userId} vaultId=${(_e = this.vaultId) != null ? _e : "null"}`
+    );
     let url = `${this.baseUrl.replace(/^http/, "ws").replace(/^https/, "wss")}/socket/websocket?token=${encodeURIComponent(token)}&vsn=2.0.0`;
     try {
       this.ws = new WebSocket(url);
@@ -4754,7 +4782,11 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian19.Plugin
   }
   /** Attempt to connect the WebSocket channel with retry on getMe() failure. */
   connectChannel(attempt = 0) {
-    this.api.getMe().then((user) => {
+    var _a, _b, _c, _d, _e, _f, _g;
+    rlog().info(
+      "channel",
+      `connectChannel(attempt=${attempt}) \u2014 apiKeyLen=${(_b = (_a = this.settings.apiKey) == null ? void 0 : _a.length) != null ? _b : 0} refreshTokenLen=${(_d = (_c = this.settings.refreshToken) == null ? void 0 : _c.length) != null ? _d : 0} hasAuthProvider=${this.authProvider !== null} authProviderType=${(_f = (_e = this.authProvider) == null ? void 0 : _e.constructor.name) != null ? _f : "none"} vaultId=${(_g = this.settings.vaultId) != null ? _g : "null"}`
+    ), this.api.getMe().then((user) => {
       let channel = new NoteChannel(
         this.settings.apiUrl,
         this.settings.apiKey,
@@ -4771,8 +4803,8 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian19.Plugin
           );
         });
       }, channel.onVaultDeleted = () => {
-        var _a;
-        new import_obsidian19.Notice("Engram: This vault has been deleted on the server."), rlog().info("lifecycle", "Vault deleted on server \u2014 clearing vaultId"), this.settings.vaultId = null, this.api.setVaultId(null), this.savePluginData(this.syncEngine.getLastSync()), (_a = this.noteStream) == null || _a.disconnect();
+        var _a2;
+        new import_obsidian19.Notice("Engram: This vault has been deleted on the server."), rlog().info("lifecycle", "Vault deleted on server \u2014 clearing vaultId"), this.settings.vaultId = null, this.api.setVaultId(null), this.savePluginData(this.syncEngine.getLastSync()), (_a2 = this.noteStream) == null || _a2.disconnect();
       }, this.noteStream = channel, this.authProvider && this.noteStream.setAuthProvider(this.authProvider), channel.connect();
     }).catch((e) => {
       if (console.error("Engram Sync: failed to fetch user id for channel", e), rlog().error(

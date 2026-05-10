@@ -559,6 +559,11 @@ export default class EngramSyncPlugin extends Plugin {
 		const maxAttempts = 5;
 		const baseDelay = 2000;
 
+		rlog().info(
+			"channel",
+			`connectChannel(attempt=${attempt}) — apiKeyLen=${this.settings.apiKey?.length ?? 0} refreshTokenLen=${this.settings.refreshToken?.length ?? 0} hasAuthProvider=${this.authProvider !== null} authProviderType=${this.authProvider?.constructor.name ?? "none"} vaultId=${this.settings.vaultId ?? "null"}`,
+		);
+
 		this.api
 			.getMe()
 			.then((user) => {

@@ -2,6 +2,7 @@
  * Auth providers for Engram plugin — abstracts API key vs OAuth token management.
  * The rest of the plugin calls getToken() and doesn't know which method is active.
  */
+import { rlog } from "./remote-log";
 
 export interface AuthProvider {
 	getToken(): Promise<string>;
@@ -89,6 +90,11 @@ export class OAuthAuth implements AuthProvider {
 			return this.inflightRefresh;
 		}
 
+		rlog().info(
+			"auth",
+			`OAuth.getToken — triggering refresh (refreshTokenLen=${this.refreshToken.length} hadAccessToken=${this.accessToken !== null} expiresInMs=${this.expiresAt - Date.now()})`,
+		);
+
 		this.inflightRefresh = this.doRefresh();
 		try {
 			return await this.inflightRefresh;
@@ -105,11 +111,20 @@ export class OAuthAuth implements AuthProvider {
 			this.expiresAt = Date.now() + result.expires_in * 1000;
 			this.authenticated = true;
 			this.onTokenRotated?.(result.refresh_token);
+			rlog().info(
+				"auth",
+				`OAuth refresh ok — accessTokenLen=${result.access_token.length} expiresInS=${result.expires_in}`,
+			);
 			return this.accessToken;
 		} catch (err) {
 			this.authenticated = false;
 			this.accessToken = null;
 			this.expiresAt = 0;
+			rlog().error(
+				"auth",
+				`OAuth refresh failed: ${err instanceof Error ? err.message : String(err)}`,
+				err instanceof Error ? err.stack : undefined,
+			);
 			throw err;
 		}
 	}
