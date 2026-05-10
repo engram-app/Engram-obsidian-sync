@@ -984,3 +984,107 @@
 	font-size: 11px;
 	padding: 3px 8px;
 }
+
+.engram-sync-center-clear-btn {
+	font-size: 11px;
+	padding: 2px 8px;
+}
+
+/* Activity feed */
+
+.engram-sync-center-activity-list {
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.engram-sync-center-activity-row {
+	display: grid;
+	grid-template-columns: 18px 50px 1fr auto;
+	gap: 8px;
+	align-items: center;
+	padding: 5px 10px;
+	font-size: 12px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.engram-sync-center-activity-row:first-child {
+	border-top: none;
+}
+
+.engram-sync-center-activity-row.is-error {
+	background: var(--background-modifier-error-hover);
+}
+
+.engram-sync-center-activity-row.is-skipped {
+	color: var(--text-muted);
+}
+
+.engram-sync-center-activity-icon {
+	font-weight: 600;
+	text-align: center;
+}
+
+.engram-sync-center-activity-row.is-ok .engram-sync-center-activity-icon {
+	color: var(--color-green);
+}
+
+.engram-sync-center-activity-row.is-error .engram-sync-center-activity-icon {
+	color: var(--color-red);
+}
+
+.engram-sync-center-activity-action {
+	font-family: var(--font-monospace);
+	font-size: 11px;
+	color: var(--text-muted);
+	text-transform: uppercase;
+}
+
+.engram-sync-center-activity-path {
+	font-family: var(--font-monospace);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.engram-sync-center-activity-time {
+	color: var(--text-muted);
+	font-size: 11px;
+	white-space: nowrap;
+}
+
+.engram-sync-center-activity-error {
+	grid-column: 2 / -1;
+	color: var(--text-error);
+	font-size: 11px;
+	padding: 2px 10px 6px;
+}
+
+/* Stats */
+
+.engram-sync-center-stats-grid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 8px;
+}
+
+.engram-sync-center-stat {
+	background: var(--background-secondary);
+	border-radius: 6px;
+	padding: 8px 10px;
+}
+
+.engram-sync-center-stat-label {
+	font-size: 11px;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+}
+
+.engram-sync-center-stat-value {
+	font-size: 14px;
+	font-weight: 600;
+	margin-top: 2px;
+}

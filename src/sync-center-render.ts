@@ -8,7 +8,7 @@
  */
 import { Notice, normalizePath } from "obsidian";
 import type EngramSyncPlugin from "./main";
-import type { SyncIssue, SyncIssueCategory } from "./types";
+import type { SyncIssue, SyncIssueCategory, SyncLogEntry } from "./types";
 
 const CATEGORY_LABEL: Record<SyncIssueCategory, string> = {
 	too_large: "Too large — server max 5 MB",
@@ -39,8 +39,8 @@ export function renderSyncCenter(
 	renderActions(parent, plugin, refresh);
 	renderIssues(parent, plugin, refresh);
 	renderIgnored(parent, plugin, refresh);
-	renderPlaceholder(parent, "Activity", "Live activity feed lands in a follow-up phase.");
-	renderPlaceholder(parent, "Stats", "Local/server counts land in a follow-up phase.");
+	renderActivity(parent, plugin, refresh);
+	renderStats(parent, plugin);
 }
 
 function renderHeader(parent: HTMLElement, plugin: EngramSyncPlugin): void {
@@ -251,10 +251,114 @@ async function restoreFile(
 	plugin.refreshSyncCenter();
 }
 
-function renderPlaceholder(parent: HTMLElement, title: string, text: string): void {
+const ACTIVITY_LIMIT = 50;
+
+const ACTION_ICON: Record<SyncLogEntry["action"], string> = {
+	push: "↑",
+	pull: "↓",
+	delete: "✕",
+	conflict: "⚡",
+	skip: "·",
+	error: "!",
+};
+
+const RESULT_CLASS: Record<SyncLogEntry["result"], string> = {
+	ok: "is-ok",
+	error: "is-error",
+	skipped: "is-skipped",
+};
+
+function renderActivity(parent: HTMLElement, plugin: EngramSyncPlugin, refresh: () => void): void {
 	const section = parent.createDiv({ cls: "engram-sync-center-section" });
-	section.createEl("h3", { text: title });
-	section.createEl("p", { cls: "engram-sync-center-empty", text });
+	const head = section.createDiv({ cls: "engram-sync-center-section-head" });
+	const all = plugin.syncLog.entries();
+	head.createEl("h3", { text: `Activity (${all.length})` });
+
+	if (all.length > 0) {
+		const clearBtn = head.createEl("button", {
+			text: "Clear",
+			cls: "engram-sync-center-clear-btn",
+		});
+		clearBtn.addEventListener("click", () => {
+			plugin.syncLog.clear();
+			refresh();
+		});
+	}
+
+	if (all.length === 0) {
+		section.createEl("p", {
+			cls: "engram-sync-center-empty",
+			text: "No activity yet. Push or pull to see entries here.",
+		});
+		return;
+	}
+
+	const list = section.createDiv({ cls: "engram-sync-center-activity-list" });
+	const recent = all.slice(-ACTIVITY_LIMIT).reverse();
+	for (const entry of recent) {
+		renderActivityRow(list, entry);
+	}
+}
+
+function renderActivityRow(parent: HTMLElement, entry: SyncLogEntry): void {
+	const row = parent.createDiv({
+		cls: `engram-sync-center-activity-row ${RESULT_CLASS[entry.result]}`,
+	});
+	row.createSpan({
+		cls: "engram-sync-center-activity-icon",
+		text: ACTION_ICON[entry.action] ?? "?",
+	});
+	row.createSpan({ cls: "engram-sync-center-activity-action", text: entry.action });
+	row.createSpan({ cls: "engram-sync-center-activity-path", text: entry.path });
+	row.createSpan({
+		cls: "engram-sync-center-activity-time",
+		text: formatRelative(entry.timestamp.getTime()),
+	});
+	if (entry.error) {
+		const err = parent.createDiv({ cls: "engram-sync-center-activity-error" });
+		err.setText(entry.error);
+	}
+}
+
+function renderStats(parent: HTMLElement, plugin: EngramSyncPlugin): void {
+	const section = parent.createDiv({ cls: "engram-sync-center-section" });
+	section.createEl("h3", { text: "Stats" });
+
+	const grid = section.createDiv({ cls: "engram-sync-center-stats-grid" });
+
+	const allFiles = plugin.app.vault.getFiles();
+	let noteCount = 0;
+	let attCount = 0;
+	for (const f of allFiles) {
+		if (!plugin.syncEngine.isSyncable(f)) continue;
+		if (plugin.syncEngine.shouldIgnore(f.path)) continue;
+		if (plugin.syncEngine.isBinaryFile(f)) attCount++;
+		else noteCount++;
+	}
+
+	addStat(grid, "Local notes", String(noteCount));
+	addStat(grid, "Local attachments", String(attCount));
+	addStat(grid, "Vault", plugin.app.vault.getName());
+
+	const vaultId = plugin.settings.vaultId;
+	addStat(grid, "Vault ID", vaultId ? String(vaultId) : "—");
+
+	const lastSync = plugin.syncEngine.getLastSync();
+	addStat(grid, "Last sync", lastSync ? formatRelative(new Date(lastSync).getTime()) : "never");
+
+	addStat(grid, "Live (WebSocket)", plugin.isLiveConnected() ? "connected" : "disconnected");
+
+	const queueSize = plugin.syncEngine.queue.size;
+	addStat(grid, "Pending in queue", String(queueSize));
+
+	addStat(grid, "Issues", String(plugin.syncEngine.issues.count()));
+	addStat(grid, "Ignored", String(plugin.syncEngine.ignoredFiles.size()));
+}
+
+function addStat(parent: HTMLElement, label: string, value: string): void {
+	const item = parent.createDiv({ cls: "engram-sync-center-stat" });
+	item.createDiv({ cls: "engram-sync-center-stat-label", text: label });
+	item.createDiv({ cls: "engram-sync-center-stat-value", text: value });
 }
 
 function formatBytes(bytes: number): string {

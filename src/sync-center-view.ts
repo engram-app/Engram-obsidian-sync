@@ -9,6 +9,7 @@ export const SYNC_CENTER_VIEW_TYPE = "engram-sync-center";
  *  can mount the same UI inside its tab. */
 export class SyncCenterView extends ItemView {
 	private plugin: EngramSyncPlugin;
+	private unsubscribeLog: (() => void) | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: EngramSyncPlugin) {
 		super(leaf);
@@ -30,9 +31,14 @@ export class SyncCenterView extends ItemView {
 	async onOpen(): Promise<void> {
 		this.contentEl.addClass("engram-sync-center");
 		this.render();
+		// Live-refresh on every log entry so the Activity feed stays current
+		// during a long pushAll without the user clicking Refresh.
+		this.unsubscribeLog = this.plugin.syncLog.subscribe(() => this.render());
 	}
 
 	async onClose(): Promise<void> {
+		this.unsubscribeLog?.();
+		this.unsubscribeLog = null;
 		this.contentEl.empty();
 	}
 

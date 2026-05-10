@@ -2483,7 +2483,7 @@ var import_obsidian14 = require("obsidian"), CATEGORY_LABEL = {
   "other"
 ];
 function renderSyncCenter(parent, plugin, refresh) {
-  parent.empty(), parent.addClass("engram-sync-center"), renderHeader(parent, plugin), renderActions(parent, plugin, refresh), renderIssues(parent, plugin, refresh), renderIgnored(parent, plugin, refresh), renderPlaceholder(parent, "Activity", "Live activity feed lands in a follow-up phase."), renderPlaceholder(parent, "Stats", "Local/server counts land in a follow-up phase.");
+  parent.empty(), parent.addClass("engram-sync-center"), renderHeader(parent, plugin), renderActions(parent, plugin, refresh), renderIssues(parent, plugin, refresh), renderIgnored(parent, plugin, refresh), renderActivity(parent, plugin, refresh), renderStats(parent, plugin);
 }
 function renderHeader(parent, plugin) {
   let header = parent.createDiv({ cls: "engram-sync-center-header" }), status = plugin.syncEngine.getStatus(), issueCount = plugin.syncEngine.issues.count(), ignoredCount = plugin.syncEngine.ignoredFiles.size();
@@ -2585,9 +2585,66 @@ async function ignoreFilePermanently(plugin, path, refresh) {
 async function restoreFile(plugin, path, refresh) {
   plugin.syncEngine.ignoredFiles.remove(path), await plugin.persistEngineState(), new import_obsidian14.Notice(`Restored ${path} \u2014 will sync on next push.`), refresh(), plugin.refreshSyncCenter();
 }
-function renderPlaceholder(parent, title, text) {
+var ACTIVITY_LIMIT = 50, ACTION_ICON = {
+  push: "\u2191",
+  pull: "\u2193",
+  delete: "\u2715",
+  conflict: "\u26A1",
+  skip: "\xB7",
+  error: "!"
+}, RESULT_CLASS = {
+  ok: "is-ok",
+  error: "is-error",
+  skipped: "is-skipped"
+};
+function renderActivity(parent, plugin, refresh) {
+  let section = parent.createDiv({ cls: "engram-sync-center-section" }), head = section.createDiv({ cls: "engram-sync-center-section-head" }), all = plugin.syncLog.entries();
+  if (head.createEl("h3", { text: `Activity (${all.length})` }), all.length > 0 && head.createEl("button", {
+    text: "Clear",
+    cls: "engram-sync-center-clear-btn"
+  }).addEventListener("click", () => {
+    plugin.syncLog.clear(), refresh();
+  }), all.length === 0) {
+    section.createEl("p", {
+      cls: "engram-sync-center-empty",
+      text: "No activity yet. Push or pull to see entries here."
+    });
+    return;
+  }
+  let list = section.createDiv({ cls: "engram-sync-center-activity-list" }), recent = all.slice(-ACTIVITY_LIMIT).reverse();
+  for (let entry of recent)
+    renderActivityRow(list, entry);
+}
+function renderActivityRow(parent, entry) {
+  var _a;
+  let row = parent.createDiv({
+    cls: `engram-sync-center-activity-row ${RESULT_CLASS[entry.result]}`
+  });
+  row.createSpan({
+    cls: "engram-sync-center-activity-icon",
+    text: (_a = ACTION_ICON[entry.action]) != null ? _a : "?"
+  }), row.createSpan({ cls: "engram-sync-center-activity-action", text: entry.action }), row.createSpan({ cls: "engram-sync-center-activity-path", text: entry.path }), row.createSpan({
+    cls: "engram-sync-center-activity-time",
+    text: formatRelative(entry.timestamp.getTime())
+  }), entry.error && parent.createDiv({ cls: "engram-sync-center-activity-error" }).setText(entry.error);
+}
+function renderStats(parent, plugin) {
   let section = parent.createDiv({ cls: "engram-sync-center-section" });
-  section.createEl("h3", { text: title }), section.createEl("p", { cls: "engram-sync-center-empty", text });
+  section.createEl("h3", { text: "Stats" });
+  let grid = section.createDiv({ cls: "engram-sync-center-stats-grid" }), allFiles = plugin.app.vault.getFiles(), noteCount = 0, attCount = 0;
+  for (let f of allFiles)
+    plugin.syncEngine.isSyncable(f) && (plugin.syncEngine.shouldIgnore(f.path) || (plugin.syncEngine.isBinaryFile(f) ? attCount++ : noteCount++));
+  addStat(grid, "Local notes", String(noteCount)), addStat(grid, "Local attachments", String(attCount)), addStat(grid, "Vault", plugin.app.vault.getName());
+  let vaultId = plugin.settings.vaultId;
+  addStat(grid, "Vault ID", vaultId ? String(vaultId) : "\u2014");
+  let lastSync = plugin.syncEngine.getLastSync();
+  addStat(grid, "Last sync", lastSync ? formatRelative(new Date(lastSync).getTime()) : "never"), addStat(grid, "Live (WebSocket)", plugin.isLiveConnected() ? "connected" : "disconnected");
+  let queueSize = plugin.syncEngine.queue.size;
+  addStat(grid, "Pending in queue", String(queueSize)), addStat(grid, "Issues", String(plugin.syncEngine.issues.count())), addStat(grid, "Ignored", String(plugin.syncEngine.ignoredFiles.size()));
+}
+function addStat(parent, label, value) {
+  let item = parent.createDiv({ cls: "engram-sync-center-stat" });
+  item.createDiv({ cls: "engram-sync-center-stat-label", text: label }), item.createDiv({ cls: "engram-sync-center-stat-value", text: value });
 }
 function formatBytes(bytes) {
   return bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : bytes < 1024 * 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
@@ -4237,7 +4294,9 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
 var import_obsidian17 = require("obsidian");
 var SYNC_CENTER_VIEW_TYPE = "engram-sync-center", SyncCenterView = class extends import_obsidian17.ItemView {
   constructor(leaf, plugin) {
-    super(leaf), this.plugin = plugin;
+    super(leaf);
+    this.unsubscribeLog = null;
+    this.plugin = plugin;
   }
   getViewType() {
     return SYNC_CENTER_VIEW_TYPE;
@@ -4249,10 +4308,11 @@ var SYNC_CENTER_VIEW_TYPE = "engram-sync-center", SyncCenterView = class extends
     return "refresh-cw";
   }
   async onOpen() {
-    this.contentEl.addClass("engram-sync-center"), this.render();
+    this.contentEl.addClass("engram-sync-center"), this.render(), this.unsubscribeLog = this.plugin.syncLog.subscribe(() => this.render());
   }
   async onClose() {
-    this.contentEl.empty();
+    var _a;
+    (_a = this.unsubscribeLog) == null || _a.call(this), this.unsubscribeLog = null, this.contentEl.empty();
   }
   render() {
     renderSyncCenter(this.contentEl, this.plugin, () => this.render());
@@ -4335,10 +4395,11 @@ var BaseStore = class {
 var SyncLog = class {
   constructor(capacity = 500) {
     this.buffer = [];
+    this.subscribers = /* @__PURE__ */ new Set();
     this.capacity = capacity;
   }
   append(entry) {
-    this.buffer.push(entry), this.buffer.length > this.capacity && this.buffer.splice(0, this.buffer.length - this.capacity);
+    this.buffer.push(entry), this.buffer.length > this.capacity && this.buffer.splice(0, this.buffer.length - this.capacity), this.notify();
   }
   entries() {
     return [...this.buffer];
@@ -4347,7 +4408,17 @@ var SyncLog = class {
     return this.buffer.filter((e) => e.result === "error").length;
   }
   clear() {
-    this.buffer.length = 0;
+    this.buffer.length = 0, this.notify();
+  }
+  /** Subscribe to append/clear events. Returns an unsubscribe handle.
+   *  Used by the Sync Center pane to live-render the Activity feed. */
+  subscribe(fn) {
+    return this.subscribers.add(fn), () => {
+      this.subscribers.delete(fn);
+    };
+  }
+  notify() {
+    for (let fn of this.subscribers) fn();
   }
 };
 
