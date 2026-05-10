@@ -811,3 +811,167 @@
 	height: 18px;
 	stroke: #ffffff;
 }
+
+/* ───────────── Sync Center pane ───────────── */
+
+.engram-sync-center {
+	padding: 12px 14px;
+	font-size: var(--font-ui-small);
+}
+
+.engram-sync-center-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	margin-bottom: 12px;
+}
+
+.engram-sync-center-dot {
+	font-size: 14px;
+	line-height: 1;
+}
+
+.engram-sync-center-dot.is-idle {
+	color: var(--color-green);
+}
+
+.engram-sync-center-dot.is-syncing {
+	color: var(--color-blue);
+}
+
+.engram-sync-center-dot.is-offline,
+.engram-sync-center-dot.is-error {
+	color: var(--color-red);
+}
+
+.engram-sync-center-title {
+	font-weight: 600;
+	flex: 1;
+}
+
+.engram-sync-center-issue-badge {
+	background: var(--background-modifier-error);
+	color: var(--text-on-accent);
+	border-radius: 10px;
+	padding: 2px 8px;
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.engram-sync-center-actions {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	margin-bottom: 16px;
+}
+
+.engram-sync-center-action-btn {
+	flex: 1;
+	min-width: 80px;
+}
+
+.engram-sync-center-section {
+	margin-bottom: 18px;
+}
+
+.engram-sync-center-section h3 {
+	margin: 0 0 8px;
+	font-size: var(--font-ui-medium);
+	color: var(--text-muted);
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+}
+
+.engram-sync-center-section-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.engram-sync-center-empty {
+	color: var(--text-muted);
+	font-style: italic;
+	margin: 0;
+}
+
+.engram-sync-center-group {
+	margin-bottom: 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.engram-sync-center-group-head {
+	margin: 0;
+	padding: 8px 10px;
+	background: var(--background-secondary);
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+	cursor: pointer;
+	user-select: none;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.engram-sync-center-group-head:hover {
+	background: var(--background-modifier-hover);
+}
+
+.engram-sync-center-group-toggle {
+	color: var(--text-muted);
+	font-size: 10px;
+}
+
+.engram-sync-center-issue-list {
+	display: flex;
+	flex-direction: column;
+}
+
+.engram-sync-center-issue-list.is-collapsed {
+	display: none;
+}
+
+.engram-sync-center-issue-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 10px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.engram-sync-center-issue-row:first-child {
+	border-top: none;
+}
+
+.engram-sync-center-issue-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.engram-sync-center-issue-path {
+	font-family: var(--font-monospace);
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.engram-sync-center-issue-meta {
+	color: var(--text-muted);
+	font-size: 11px;
+	margin-top: 2px;
+}
+
+.engram-sync-center-issue-actions {
+	display: flex;
+	gap: 4px;
+}
+
+.engram-sync-center-issue-actions button {
+	font-size: 11px;
+	padding: 3px 8px;
+}
