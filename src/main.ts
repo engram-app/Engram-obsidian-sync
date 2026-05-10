@@ -497,8 +497,14 @@ export default class EngramSyncPlugin extends Plugin {
 				this.settings.userEmail ?? null,
 				refreshFn,
 				(newToken) => {
+					// Token rotation must NOT call saveSettings — that path
+					// disconnects + reconnects the WebSocket, which triggers a
+					// fresh refresh, which rotates again, which... loops forever.
+					// Persist the new refresh token in place and write to disk
+					// without reconfiguring the api/channel.
 					this.settings.refreshToken = newToken;
-					this.saveSettings();
+					rlog().info("auth", "Refresh token rotated — persisting only");
+					void this.savePluginData(this.syncEngine.getLastSync());
 				},
 			);
 		}

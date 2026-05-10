@@ -1100,10 +1100,7 @@ var NO_AUTH_RECONNECT_MS = 3e4, NoteChannel = class {
     );
   }
   setAuthProvider(provider) {
-    this.authProvider = provider, rlog().info(
-      "channel",
-      `setAuthProvider \u2014 type=${provider.constructor.name}`
-    );
+    this.authProvider = provider, rlog().info("channel", `setAuthProvider \u2014 type=${provider.constructor.name}`);
   }
   async getAuthToken() {
     return this.authProvider ? { token: await this.authProvider.getToken(), source: this.authProvider.constructor.name } : { token: this.apiKey, source: "apiKey-fallback" };
@@ -4758,7 +4755,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian19.Plugin
         (_a = this.settings.userEmail) != null ? _a : null,
         refreshFn,
         (newToken) => {
-          this.settings.refreshToken = newToken, this.saveSettings();
+          this.settings.refreshToken = newToken, rlog().info("auth", "Refresh token rotated \u2014 persisting only"), this.savePluginData(this.syncEngine.getLastSync());
         }
       );
     }
