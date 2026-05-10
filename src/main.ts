@@ -26,7 +26,7 @@ import { destroyDevLog, devLog, initDevLog } from "./dev-log";
 import { destroyRemoteLog, initRemoteLog, rlog } from "./remote-log";
 import { SyncLog } from "./sync-log";
 import { SyncLogModal } from "./sync-log-modal";
-import type { QueueEntry } from "./types";
+import type { QueueEntry, SyncIssue } from "./types";
 
 /** Generate a stable client ID for vault registration.
  *  Uses SHA-256 of the vault's absolute path (desktop) or name (mobile fallback). */
@@ -51,6 +51,8 @@ interface PluginData {
 	syncState?: Record<string, FileSyncState>;
 	/** @deprecated Legacy hash-only format. Kept for rollback safety (dual-write). */
 	syncedHashes?: Record<string, number>;
+	/** Persistent failures surfaced in the Sync Center "Issues" panel. */
+	syncIssues?: SyncIssue[];
 }
 
 export default class EngramSyncPlugin extends Plugin {
@@ -150,6 +152,7 @@ export default class EngramSyncPlugin extends Plugin {
 			this.syncEngine.importHashes(saved.syncedHashes);
 			devLog().log("lifecycle", "Migrated legacy syncedHashes → syncState");
 		}
+		this.syncEngine.issues.hydrate(saved?.syncIssues);
 
 		// Register settings tab
 		this.addSettingTab(new EngramSyncSettingTab(this.app, this));
@@ -446,6 +449,7 @@ export default class EngramSyncPlugin extends Plugin {
 			syncState: this.syncEngine.exportSyncState(),
 			// Dual-write legacy format for rollback safety (remove after one release cycle)
 			syncedHashes: this.syncEngine.exportHashes(),
+			syncIssues: this.syncEngine.issues.serialize(),
 		} as PluginData);
 	}
 

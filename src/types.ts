@@ -264,6 +264,25 @@ export interface SyncLogEntry {
 	details?: string;
 }
 
+export type SyncIssueCategory = "too_large" | "auth" | "server" | "network" | "conflict" | "other";
+
+/** A file the sync engine could not push or pull. Persisted across reloads
+ *  so the user has a stable list of "what's broken and why" instead of
+ *  failures vanishing into the offline queue. */
+export interface SyncIssue {
+	path: string;
+	kind: "note" | "attachment";
+	category: SyncIssueCategory;
+	/** HTTP status if the failure was an HTTP response. */
+	status?: number;
+	message: string;
+	/** File size in bytes — set when category is "too_large". */
+	sizeBytes?: number;
+	firstFailedAt: number;
+	lastFailedAt: number;
+	attempts: number;
+}
+
 /** Vault information returned by GET /vaults */
 export interface VaultInfo {
 	id: number;

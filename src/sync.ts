@@ -5,6 +5,7 @@ import { type App, Notice, type TAbstractFile, TFile, TFolder, normalizePath } f
 import { type EngramApi, arrayBufferToBase64, base64ToArrayBuffer } from "./api";
 import type { BaseStore } from "./base-store";
 import { devLog } from "./dev-log";
+import { IssueStore, categorizeError } from "./issue-store";
 import { OfflineQueue } from "./offline-queue";
 import { rlog } from "./remote-log";
 import type { SyncLog } from "./sync-log";
@@ -143,6 +144,11 @@ export class SyncEngine {
 
 	/** Optional sync log — receives an entry for each push/pull outcome. */
 	syncLog: SyncLog | null = null;
+
+	/** Persistent record of files that failed to sync, with reason. Surfaced
+	 *  in the Sync Center "Issues" panel and used to short-circuit the offline
+	 *  queue for terminal failures (e.g. 413 Payload Too Large). */
+	readonly issues: IssueStore = new IssueStore();
 
 	constructor(
 		private app: App,
@@ -678,6 +684,7 @@ export class SyncEngine {
 				}
 			}
 			success = true;
+			this.issues.clear(file.path);
 			devLog().log("push", `ok: ${file.path}`);
 			rlog().info("push", `Push ok: ${file.path} | type=${isBinary ? "attachment" : "note"}`);
 			this.goOnline();
@@ -685,23 +692,41 @@ export class SyncEngine {
 			// biome-ignore lint/suspicious/noConsole: error boundary
 			console.error(`Engram Sync: failed to push ${file.path}`, e);
 			const errMsg = e instanceof Error ? e.message : String(e);
-			devLog().log("error", `push failed: ${file.path} — ${errMsg}`);
+			const classified = categorizeError(e);
+			const now = Date.now();
+			this.issues.record({
+				path: file.path,
+				kind: isBinary ? "attachment" : "note",
+				category: classified.category,
+				status: classified.status,
+				message: errMsg,
+				sizeBytes: classified.category === "too_large" ? file.stat.size : undefined,
+				firstFailedAt: now,
+				lastFailedAt: now,
+				attempts: 1,
+			});
+			devLog().log("error", `push failed: ${file.path} — ${errMsg} (${classified.category})`);
 			rlog().error(
 				"push",
-				`Push failed: ${file.path} — ${errMsg}`,
+				`Push failed: ${file.path} — ${errMsg} | category=${classified.category}`,
 				e instanceof Error ? e.stack : undefined,
 			);
-			this.logEntry("push", file.path, "error", errMsg);
-			// Queue for retry — content-free to avoid O(n²) serialization.
-			// Content will be re-read from vault when flushing.
-			await this.enqueueChange({
-				path: file.path,
-				action: "upsert",
-				kind: isBinary ? "attachment" : "note",
-				mtime: file.stat.mtime / 1000,
-				timestamp: Date.now(),
-				vaultId: this.settings.vaultId ?? undefined,
-			});
+			this.logEntry("push", file.path, "error", errMsg, classified.category);
+			// Terminal failures (e.g. 413) skip the offline queue — retrying will
+			// just hit the same error. The user must take action via the Sync
+			// Center (ignore, shrink the file, or wait for the server limit to rise).
+			if (!classified.terminal) {
+				// Queue for retry — content-free to avoid O(n²) serialization.
+				// Content will be re-read from vault when flushing.
+				await this.enqueueChange({
+					path: file.path,
+					action: "upsert",
+					kind: isBinary ? "attachment" : "note",
+					mtime: file.stat.mtime / 1000,
+					timestamp: Date.now(),
+					vaultId: this.settings.vaultId ?? undefined,
+				});
+			}
 		} finally {
 			this.pushing.delete(file.path);
 			this.releasePushSlot();

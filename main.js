@@ -2588,6 +2588,72 @@ function destroyDevLog() {
   instance = noopLog;
 }
 
+// src/issue-store.ts
+var IssueStore = class {
+  constructor() {
+    this.issues = /* @__PURE__ */ new Map();
+  }
+  /** Record a new failure or merge into the existing one for `path`. */
+  record(issue) {
+    let existing = this.issues.get(issue.path);
+    if (existing) {
+      this.issues.set(issue.path, {
+        ...issue,
+        firstFailedAt: existing.firstFailedAt,
+        attempts: existing.attempts + 1
+      });
+      return;
+    }
+    this.issues.set(issue.path, { ...issue });
+  }
+  /** Remove the issue for `path` (called on successful push/pull). */
+  clear(path) {
+    this.issues.delete(path);
+  }
+  clearAll() {
+    this.issues.clear();
+  }
+  all() {
+    return Array.from(this.issues.values());
+  }
+  count(category) {
+    if (!category) return this.issues.size;
+    let n = 0;
+    for (let issue of this.issues.values())
+      issue.category === category && n++;
+    return n;
+  }
+  byCategory() {
+    var _a;
+    let groups = {};
+    for (let issue of this.issues.values()) {
+      let bucket = (_a = groups[issue.category]) != null ? _a : [];
+      bucket.push(issue), groups[issue.category] = bucket;
+    }
+    return groups;
+  }
+  /** Plain-JSON snapshot for persistence. */
+  serialize() {
+    return this.all();
+  }
+  /** Rebuild from persisted JSON. Tolerant of unknown/malformed input. */
+  hydrate(data) {
+    if (this.issues.clear(), !!Array.isArray(data))
+      for (let raw of data)
+        isPersistedIssue(raw) && this.issues.set(raw.path, raw);
+  }
+};
+function categorizeError(err) {
+  var _a;
+  let status = typeof err == "object" && err !== null && (_a = err.status) != null ? _a : void 0, message = err instanceof Error ? err.message : String(err);
+  return status === 413 ? { category: "too_large", status, message, terminal: !0 } : status === 401 || status === 403 ? { category: "auth", status, message, terminal: !1 } : status !== void 0 && status >= 500 ? { category: "server", status, message, terminal: !1 } : status === void 0 ? { category: "network", message, terminal: !1 } : { category: "other", status, message, terminal: !1 };
+}
+function isPersistedIssue(value) {
+  if (typeof value != "object" || value === null) return !1;
+  let v = value;
+  return typeof v.path == "string" && (v.kind === "note" || v.kind === "attachment") && typeof v.category == "string" && typeof v.message == "string" && typeof v.firstFailedAt == "number" && typeof v.lastFailedAt == "number" && typeof v.attempts == "number";
+}
+
 // src/offline-queue.ts
 function dedupKey(pathOrEntry, vaultId) {
   return typeof pathOrEntry == "object" ? pathOrEntry.vaultId ? `${pathOrEntry.vaultId}:${pathOrEntry.path}` : pathOrEntry.path : vaultId ? `${vaultId}:${pathOrEntry}` : pathOrEntry;
@@ -2786,6 +2852,10 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     this.onSyncProgress = null;
     /** Optional sync log — receives an entry for each push/pull outcome. */
     this.syncLog = null;
+    /** Persistent record of files that failed to sync, with reason. Surfaced
+     *  in the Sync Center "Issues" panel and used to short-circuit the offline
+     *  queue for terminal failures (e.g. 413 Payload Too Large). */
+    this.issues = new IssueStore();
     /** When true, vault delete events are suppressed (used during local wipe). */
     this.suppressDeletes = !1;
     /** Paths modified during a pull that need pushing once pull completes. */
@@ -3103,15 +3173,25 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
         } else
           this.syncState.set((0, import_obsidian15.normalizePath)(file.path), { hash, version: serverVersion }), serverVersion != null && ((_h = this.baseStore) == null || _h.set((0, import_obsidian15.normalizePath)(file.path), content, serverVersion));
       }
-      success = !0, devLog().log("push", `ok: ${file.path}`), rlog().info("push", `Push ok: ${file.path} | type=${isBinary ? "attachment" : "note"}`), this.goOnline();
+      success = !0, this.issues.clear(file.path), devLog().log("push", `ok: ${file.path}`), rlog().info("push", `Push ok: ${file.path} | type=${isBinary ? "attachment" : "note"}`), this.goOnline();
     } catch (e) {
       console.error(`Engram Sync: failed to push ${file.path}`, e);
-      let errMsg = e instanceof Error ? e.message : String(e);
-      devLog().log("error", `push failed: ${file.path} \u2014 ${errMsg}`), rlog().error(
+      let errMsg = e instanceof Error ? e.message : String(e), classified = categorizeError(e), now = Date.now();
+      this.issues.record({
+        path: file.path,
+        kind: isBinary ? "attachment" : "note",
+        category: classified.category,
+        status: classified.status,
+        message: errMsg,
+        sizeBytes: classified.category === "too_large" ? file.stat.size : void 0,
+        firstFailedAt: now,
+        lastFailedAt: now,
+        attempts: 1
+      }), devLog().log("error", `push failed: ${file.path} \u2014 ${errMsg} (${classified.category})`), rlog().error(
         "push",
-        `Push failed: ${file.path} \u2014 ${errMsg}`,
+        `Push failed: ${file.path} \u2014 ${errMsg} | category=${classified.category}`,
         e instanceof Error ? e.stack : void 0
-      ), this.logEntry("push", file.path, "error", errMsg), await this.enqueueChange({
+      ), this.logEntry("push", file.path, "error", errMsg, classified.category), classified.terminal || await this.enqueueChange({
         path: file.path,
         action: "upsert",
         kind: isBinary ? "attachment" : "note",
@@ -4163,7 +4243,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
       await this.savePluginData(this.syncEngine.getLastSync(), entries);
     });
     let saved = await this.loadData();
-    saved != null && saved.lastSync && this.syncEngine.setLastSync(saved.lastSync), (_a = saved == null ? void 0 : saved.offlineQueue) != null && _a.length && this.syncEngine.queue.load(saved.offlineQueue), saved != null && saved.syncState ? this.syncEngine.importSyncState(saved.syncState) : saved != null && saved.syncedHashes && (this.syncEngine.importHashes(saved.syncedHashes), devLog().log("lifecycle", "Migrated legacy syncedHashes \u2192 syncState")), this.addSettingTab(new EngramSyncSettingTab(this.app, this)), this.registerEvent(
+    saved != null && saved.lastSync && this.syncEngine.setLastSync(saved.lastSync), (_a = saved == null ? void 0 : saved.offlineQueue) != null && _a.length && this.syncEngine.queue.load(saved.offlineQueue), saved != null && saved.syncState ? this.syncEngine.importSyncState(saved.syncState) : saved != null && saved.syncedHashes && (this.syncEngine.importHashes(saved.syncedHashes), devLog().log("lifecycle", "Migrated legacy syncedHashes \u2192 syncState")), this.syncEngine.issues.hydrate(saved == null ? void 0 : saved.syncIssues), this.addSettingTab(new EngramSyncSettingTab(this.app, this)), this.registerEvent(
       this.app.vault.on("modify", (file) => {
         this.syncEngine.handleModify(file);
       })
@@ -4328,7 +4408,8 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
       offlineQueue: offlineQueue != null ? offlineQueue : this.syncEngine.queue.all(),
       syncState: this.syncEngine.exportSyncState(),
       // Dual-write legacy format for rollback safety (remove after one release cycle)
-      syncedHashes: this.syncEngine.exportHashes()
+      syncedHashes: this.syncEngine.exportHashes(),
+      syncIssues: this.syncEngine.issues.serialize()
     });
   }
   createAuthProvider() {
