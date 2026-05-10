@@ -1097,14 +1097,12 @@
 .engram-sync-center-stats-grid {
 	display: grid;
 	grid-template-columns: repeat(2, 1fr);
-	gap: 8px;
+	column-gap: 16px;
+	row-gap: 8px;
 }
 
 .engram-sync-center-stat {
-	background: var(--background-primary);
-	border-radius: 6px;
-	padding: 8px 10px;
-	border: 1px solid var(--background-modifier-border);
+	padding: 4px 0;
 }
 
 .engram-sync-center-stat-label {

@@ -2638,19 +2638,21 @@ function renderActivityRow(parent, entry) {
   }), entry.error && parent.createDiv({ cls: "engram-sync-center-activity-error" }).setText(entry.error);
 }
 function renderStats(parent, plugin) {
-  sectionHeading(parent, "Stats");
-  let allFiles = plugin.app.vault.getFiles(), noteCount = 0, attCount = 0;
+  let section = parent.createDiv({ cls: "engram-sync-center-section" });
+  sectionHeading(section, "Stats");
+  let grid = section.createDiv({ cls: "engram-sync-center-section-body" }).createDiv({ cls: "engram-sync-center-stats-grid" }), allFiles = plugin.app.vault.getFiles(), noteCount = 0, attCount = 0;
   for (let f of allFiles)
     plugin.syncEngine.isSyncable(f) && (plugin.syncEngine.shouldIgnore(f.path) || (plugin.syncEngine.isBinaryFile(f) ? attCount++ : noteCount++));
   let lastSync = plugin.syncEngine.getLastSync(), vaultId = plugin.settings.vaultId;
-  addStatRow(parent, "Local notes", String(noteCount)), addStatRow(parent, "Local attachments", String(attCount)), addStatRow(parent, "Vault", plugin.app.vault.getName()), addStatRow(parent, "Vault ID", vaultId ? String(vaultId) : "\u2014"), addStatRow(
-    parent,
+  addStat(grid, "Local notes", String(noteCount)), addStat(grid, "Local attachments", String(attCount)), addStat(grid, "Vault", plugin.app.vault.getName()), addStat(grid, "Vault ID", vaultId ? String(vaultId) : "\u2014"), addStat(
+    grid,
     "Last sync",
     lastSync ? formatRelative(new Date(lastSync).getTime()) : "never"
-  ), addStatRow(parent, "Live (WebSocket)", plugin.isLiveConnected() ? "connected" : "disconnected"), addStatRow(parent, "Pending in queue", String(plugin.syncEngine.queue.size)), addStatRow(parent, "Issues", String(plugin.syncEngine.issues.count())), addStatRow(parent, "Ignored", String(plugin.syncEngine.ignoredFiles.size()));
+  ), addStat(grid, "Live (WebSocket)", plugin.isLiveConnected() ? "connected" : "disconnected"), addStat(grid, "Pending in queue", String(plugin.syncEngine.queue.size)), addStat(grid, "Issues", String(plugin.syncEngine.issues.count())), addStat(grid, "Ignored", String(plugin.syncEngine.ignoredFiles.size()));
 }
-function addStatRow(parent, label, value) {
-  new import_obsidian14.Setting(parent).setName(label).setDesc(value);
+function addStat(parent, label, value) {
+  let item = parent.createDiv({ cls: "engram-sync-center-stat" });
+  item.createDiv({ cls: "engram-sync-center-stat-label", text: label }), item.createDiv({ cls: "engram-sync-center-stat-value", text: value });
 }
 function formatBytes(bytes) {
   return bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : bytes < 1024 * 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
