@@ -2644,11 +2644,7 @@ function renderStats(parent, plugin) {
   for (let f of allFiles)
     plugin.syncEngine.isSyncable(f) && (plugin.syncEngine.shouldIgnore(f.path) || (plugin.syncEngine.isBinaryFile(f) ? attCount++ : noteCount++));
   let lastSync = plugin.syncEngine.getLastSync(), vaultId = plugin.settings.vaultId;
-  addStat(grid, "Local notes", String(noteCount)), addStat(grid, "Local attachments", String(attCount)), addStat(grid, "Vault", plugin.app.vault.getName()), addStat(grid, "Vault ID", vaultId ? String(vaultId) : "\u2014"), addStat(
-    grid,
-    "Last sync",
-    lastSync ? formatRelative(new Date(lastSync).getTime()) : "never"
-  ), addStat(grid, "Live (WebSocket)", plugin.isLiveConnected() ? "connected" : "disconnected"), addStat(grid, "Pending in queue", String(plugin.syncEngine.queue.size)), addStat(grid, "Issues", String(plugin.syncEngine.issues.count())), addStat(grid, "Ignored", String(plugin.syncEngine.ignoredFiles.size()));
+  addStat(grid, "Local notes", String(noteCount)), addStat(grid, "Local attachments", String(attCount)), addStat(grid, "Vault", plugin.app.vault.getName()), addStat(grid, "Vault ID", vaultId ? String(vaultId) : "\u2014"), addStat(grid, "Last sync", lastSync ? formatRelative(new Date(lastSync).getTime()) : "never"), addStat(grid, "Live (WebSocket)", plugin.isLiveConnected() ? "connected" : "disconnected"), addStat(grid, "Pending in queue", String(plugin.syncEngine.queue.size)), addStat(grid, "Issues", String(plugin.syncEngine.issues.count())), addStat(grid, "Ignored", String(plugin.syncEngine.ignoredFiles.size()));
 }
 function addStat(parent, label, value) {
   let item = parent.createDiv({ cls: "engram-sync-center-stat" });
