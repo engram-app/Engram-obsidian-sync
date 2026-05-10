@@ -326,11 +326,7 @@ function renderActivityRow(parent: HTMLElement, entry: SyncLogEntry): void {
 }
 
 function renderStats(parent: HTMLElement, plugin: EngramSyncPlugin): void {
-	const section = parent.createDiv({ cls: "engram-sync-center-section" });
-	sectionHeading(section, "Stats");
-
-	const body = section.createDiv({ cls: "engram-sync-center-section-body" });
-	const grid = body.createDiv({ cls: "engram-sync-center-stats-grid" });
+	sectionHeading(parent, "Stats");
 
 	const allFiles = plugin.app.vault.getFiles();
 	let noteCount = 0;
@@ -342,29 +338,26 @@ function renderStats(parent: HTMLElement, plugin: EngramSyncPlugin): void {
 		else noteCount++;
 	}
 
-	addStat(grid, "Local notes", String(noteCount));
-	addStat(grid, "Local attachments", String(attCount));
-	addStat(grid, "Vault", plugin.app.vault.getName());
-
-	const vaultId = plugin.settings.vaultId;
-	addStat(grid, "Vault ID", vaultId ? String(vaultId) : "—");
-
 	const lastSync = plugin.syncEngine.getLastSync();
-	addStat(grid, "Last sync", lastSync ? formatRelative(new Date(lastSync).getTime()) : "never");
+	const vaultId = plugin.settings.vaultId;
 
-	addStat(grid, "Live (WebSocket)", plugin.isLiveConnected() ? "connected" : "disconnected");
-
-	const queueSize = plugin.syncEngine.queue.size;
-	addStat(grid, "Pending in queue", String(queueSize));
-
-	addStat(grid, "Issues", String(plugin.syncEngine.issues.count()));
-	addStat(grid, "Ignored", String(plugin.syncEngine.ignoredFiles.size()));
+	addStatRow(parent, "Local notes", String(noteCount));
+	addStatRow(parent, "Local attachments", String(attCount));
+	addStatRow(parent, "Vault", plugin.app.vault.getName());
+	addStatRow(parent, "Vault ID", vaultId ? String(vaultId) : "—");
+	addStatRow(
+		parent,
+		"Last sync",
+		lastSync ? formatRelative(new Date(lastSync).getTime()) : "never",
+	);
+	addStatRow(parent, "Live (WebSocket)", plugin.isLiveConnected() ? "connected" : "disconnected");
+	addStatRow(parent, "Pending in queue", String(plugin.syncEngine.queue.size));
+	addStatRow(parent, "Issues", String(plugin.syncEngine.issues.count()));
+	addStatRow(parent, "Ignored", String(plugin.syncEngine.ignoredFiles.size()));
 }
 
-function addStat(parent: HTMLElement, label: string, value: string): void {
-	const item = parent.createDiv({ cls: "engram-sync-center-stat" });
-	item.createDiv({ cls: "engram-sync-center-stat-label", text: label });
-	item.createDiv({ cls: "engram-sync-center-stat-value", text: value });
+function addStatRow(parent: HTMLElement, label: string, value: string): void {
+	new Setting(parent).setName(label).setDesc(value);
 }
 
 function formatBytes(bytes: number): string {
