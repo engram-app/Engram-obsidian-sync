@@ -63,6 +63,7 @@ export async function applyApiUrlChange(
 	newUrl: string,
 	save: () => Promise<void>,
 ): Promise<boolean> {
+	if (target.settings.apiUrl === newUrl) return false;
 	const cleared = isBackendChange(target.settings.apiUrl, newUrl);
 	if (cleared) {
 		// Mutate in place — withClearedAuth is the single source of truth for
