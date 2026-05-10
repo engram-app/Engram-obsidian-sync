@@ -1070,7 +1070,7 @@ async function destroyRemoteLog() {
 }
 
 // src/channel.ts
-var NoteChannel = class {
+var NO_AUTH_RECONNECT_MS = 3e4, NoteChannel = class {
   constructor(baseUrl, apiKey, userId, vaultId = null) {
     this.ws = null;
     this.ref = 0;
@@ -1111,7 +1111,18 @@ var NoteChannel = class {
   // Private
   // ---------------------------------------------------------------------------
   async openSocket() {
-    let token = await this.getAuthToken(), url = `${this.baseUrl.replace(/^http/, "ws").replace(/^https/, "wss")}/socket/websocket?token=${encodeURIComponent(token)}&vsn=2.0.0`;
+    let token;
+    try {
+      token = await this.getAuthToken();
+    } catch (e) {
+      rlog().warn("channel", `getToken failed \u2014 deferring reconnect: ${e}`), this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
+      return;
+    }
+    if (!token) {
+      rlog().warn("channel", "Skipping WS connect \u2014 no auth token yet"), this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
+      return;
+    }
+    let url = `${this.baseUrl.replace(/^http/, "ws").replace(/^https/, "wss")}/socket/websocket?token=${encodeURIComponent(token)}&vsn=2.0.0`;
     try {
       this.ws = new WebSocket(url);
     } catch (e) {
@@ -1184,11 +1195,11 @@ var NoteChannel = class {
   clearTimers() {
     this.heartbeatTimer && (clearInterval(this.heartbeatTimer), this.heartbeatTimer = null), this.reconnectTimer && (clearTimeout(this.reconnectTimer), this.reconnectTimer = null);
   }
-  scheduleReconnect() {
-    let jitter = Math.random() * this.reconnectMs * 0.5;
+  scheduleReconnect(overrideMs) {
+    let base = overrideMs != null ? overrideMs : this.reconnectMs, jitter = Math.random() * base * 0.5;
     this.reconnectTimer = setTimeout(async () => {
-      this.reconnectMs = Math.min(this.reconnectMs * 2, this.maxReconnectMs), await this.openSocket();
-    }, this.reconnectMs + jitter);
+      overrideMs === void 0 && (this.reconnectMs = Math.min(this.reconnectMs * 2, this.maxReconnectMs)), await this.openSocket();
+    }, base + jitter);
   }
 };
 
