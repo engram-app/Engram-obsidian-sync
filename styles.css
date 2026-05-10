@@ -814,16 +814,20 @@
 
 /* ───────────── Sync Center pane ───────────── */
 
+/* Workspace leaf content defaults to --background-secondary, which would
+   make every section card disappear. Pin the pane to --background-primary
+   so the section cards (in --background-secondary) actually contrast. */
 .engram-sync-center {
 	padding: 12px 14px;
 	font-size: var(--font-ui-small);
+	background-color: var(--background-primary);
 }
 
 .engram-sync-center-header {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	background-color: var(--background-secondary-alt, var(--background-secondary));
+	background-color: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;
 	padding: 10px 14px;
@@ -875,7 +879,7 @@
 	display: flex;
 	gap: 6px;
 	flex-wrap: wrap;
-	background-color: var(--background-secondary-alt, var(--background-secondary));
+	background-color: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;
 	padding: 10px 12px;
@@ -888,7 +892,7 @@
 }
 
 .engram-sync-center-section {
-	background-color: var(--background-secondary-alt, var(--background-secondary));
+	background-color: var(--background-secondary);
 	border-radius: 8px;
 	padding: 6px 14px 14px;
 	margin-bottom: 14px;
