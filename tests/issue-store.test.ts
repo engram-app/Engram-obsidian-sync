@@ -160,9 +160,10 @@ describe("categorizeError", () => {
 		);
 	});
 
-	test("isTerminal — 413 and 4xx (non-retriable) are terminal", () => {
+	test("isTerminal — 413 and auth (401/403) are terminal; 5xx/network retry", () => {
 		expect(categorizeError(Object.assign(new Error(), { status: 413 })).terminal).toBe(true);
-		expect(categorizeError(Object.assign(new Error(), { status: 401 })).terminal).toBe(false);
+		expect(categorizeError(Object.assign(new Error(), { status: 401 })).terminal).toBe(true);
+		expect(categorizeError(Object.assign(new Error(), { status: 403 })).terminal).toBe(true);
 		expect(categorizeError(Object.assign(new Error(), { status: 500 })).terminal).toBe(false);
 		expect(categorizeError(new Error("network")).terminal).toBe(false);
 	});

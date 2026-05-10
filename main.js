@@ -1137,10 +1137,18 @@ var NO_AUTH_RECONNECT_MS = 3e4, NoteChannel = class {
       return;
     }
     if (!token) {
+      let diag = {
+        source,
+        hasProvider: !!this.authProvider,
+        providerType: (_d = (_c = this.authProvider) == null ? void 0 : _c.constructor.name) != null ? _d : "none",
+        apiKeyLen: this.apiKey.length,
+        userId: this.userId,
+        vaultId: this.vaultId
+      };
       rlog().warn(
         "channel",
-        `Empty token \u2014 skip WS connect, defer ${NO_AUTH_RECONNECT_MS}ms \u2014 source=${source} hasProvider=${!!this.authProvider} providerType=${(_d = (_c = this.authProvider) == null ? void 0 : _c.constructor.name) != null ? _d : "none"} apiKeyLen=${this.apiKey.length}`
-      ), this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
+        `Empty token \u2014 skip WS connect, defer ${NO_AUTH_RECONNECT_MS}ms \u2014 ${JSON.stringify(diag)}`
+      ), console.warn("[Engram Sync] empty WS token \u2014 diag:", diag), this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
       return;
     }
     rlog().info(
@@ -2915,7 +2923,7 @@ var IssueStore = class {
 function categorizeError(err) {
   var _a;
   let status = typeof err == "object" && err !== null && (_a = err.status) != null ? _a : void 0, message = err instanceof Error ? err.message : String(err);
-  return status === 413 ? { category: "too_large", status, message, terminal: !0 } : status === 401 || status === 403 ? { category: "auth", status, message, terminal: !1 } : status !== void 0 && status >= 500 ? { category: "server", status, message, terminal: !1 } : status === void 0 ? { category: "network", message, terminal: !1 } : { category: "other", status, message, terminal: !1 };
+  return status === 413 ? { category: "too_large", status, message, terminal: !0 } : status === 401 || status === 403 ? { category: "auth", status, message, terminal: !0 } : status !== void 0 && status >= 500 ? { category: "server", status, message, terminal: !1 } : status === void 0 ? { category: "network", message, terminal: !1 } : { category: "other", status, message, terminal: !1 };
 }
 function isPersistedIssue(value) {
   if (typeof value != "object" || value === null) return !1;

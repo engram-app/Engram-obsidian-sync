@@ -2860,6 +2860,26 @@ describe("SyncEngine IssueStore integration", () => {
 		expect(engine.queue.size).toBe(0);
 	});
 
+	test("401 auth failure records issue and skips offline queue", async () => {
+		const engine = createEngine();
+		const file = new TFile("Notes/forbidden.md", Date.now());
+		(file as any).stat = { mtime: Date.now(), size: 100 };
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.cachedRead.mockResolvedValue("# Hi");
+		(mockApi.pushNote as jest.Mock).mockRejectedValueOnce(
+			Object.assign(new Error("Unauthorized"), { status: 401 }),
+		);
+
+		await (engine as any).pushFile(file, true);
+
+		const issues = engine.issues.all();
+		expect(issues).toHaveLength(1);
+		expect(issues[0].category).toBe("auth");
+		expect(issues[0].status).toBe(401);
+		// Permanent auth failure must NOT loop the offline queue
+		expect(engine.queue.size).toBe(0);
+	});
+
 	test("non-terminal failure (500) records issue AND queues for retry", async () => {
 		const engine = createEngine();
 		const file = new TFile("Notes/flaky.md", Date.now());

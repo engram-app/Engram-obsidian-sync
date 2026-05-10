@@ -90,8 +90,12 @@ export function categorizeError(err: unknown): CategorizedError {
 	const message = err instanceof Error ? err.message : String(err);
 
 	if (status === 413) return { category: "too_large", status, message, terminal: true };
+	// 401/403 are terminal: api.ts already does a single inline refresh-and-retry on
+	// 401, so a status reaching here means the credential is permanently invalid
+	// (revoked key, expired session that won't refresh, wrong vault). Re-enqueueing
+	// would loop forever — user must re-auth via Sync Center.
 	if (status === 401 || status === 403)
-		return { category: "auth", status, message, terminal: false };
+		return { category: "auth", status, message, terminal: true };
 	if (status !== undefined && status >= 500)
 		return { category: "server", status, message, terminal: false };
 	if (status === undefined) return { category: "network", message, terminal: false };
