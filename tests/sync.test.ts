@@ -2836,3 +2836,93 @@ describe("SyncEngine private utilities", () => {
 		expect((engine as any).arrayBuffersEqual(a, b)).toBe(false);
 	});
 });
+
+describe("SyncEngine IssueStore integration", () => {
+	test("413 Payload Too Large records issue and skips offline queue", async () => {
+		const engine = createEngine();
+		const file = new TFile("Health/big.pdf", Date.now());
+		(file as any).stat = { mtime: Date.now(), size: 6_500_000 };
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.readBinary.mockResolvedValue(new ArrayBuffer(8));
+		(mockApi.pushAttachment as jest.Mock).mockRejectedValueOnce(
+			Object.assign(new Error("Request failed, status 413"), { status: 413 }),
+		);
+
+		await (engine as any).pushFile(file, true);
+
+		const issues = engine.issues.all();
+		expect(issues).toHaveLength(1);
+		expect(issues[0].path).toBe("Health/big.pdf");
+		expect(issues[0].category).toBe("too_large");
+		expect(issues[0].status).toBe(413);
+		expect(issues[0].sizeBytes).toBe(6_500_000);
+		// Terminal failure must NOT have re-queued for retry
+		expect(engine.queue.size).toBe(0);
+	});
+
+	test("401 auth failure records issue and skips offline queue", async () => {
+		const engine = createEngine();
+		const file = new TFile("Notes/forbidden.md", Date.now());
+		(file as any).stat = { mtime: Date.now(), size: 100 };
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.cachedRead.mockResolvedValue("# Hi");
+		(mockApi.pushNote as jest.Mock).mockRejectedValueOnce(
+			Object.assign(new Error("Unauthorized"), { status: 401 }),
+		);
+
+		await (engine as any).pushFile(file, true);
+
+		const issues = engine.issues.all();
+		expect(issues).toHaveLength(1);
+		expect(issues[0].category).toBe("auth");
+		expect(issues[0].status).toBe(401);
+		// Permanent auth failure must NOT loop the offline queue
+		expect(engine.queue.size).toBe(0);
+	});
+
+	test("non-terminal failure (500) records issue AND queues for retry", async () => {
+		const engine = createEngine();
+		const file = new TFile("Notes/flaky.md", Date.now());
+		(file as any).stat = { mtime: Date.now(), size: 100 };
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.cachedRead.mockResolvedValue("# Hi");
+		(mockApi.pushNote as jest.Mock).mockRejectedValueOnce(
+			Object.assign(new Error("Internal Server Error"), { status: 500 }),
+		);
+
+		await (engine as any).pushFile(file, true);
+
+		expect(engine.issues.all()).toHaveLength(1);
+		expect(engine.issues.all()[0].category).toBe("server");
+		expect(engine.queue.size).toBe(1);
+	});
+
+	test("successful push clears any prior issue for the same path", async () => {
+		const engine = createEngine();
+		const file = new TFile("Notes/recovers.md", Date.now());
+		(file as any).stat = { mtime: Date.now(), size: 100 };
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.cachedRead.mockResolvedValue("# Hi");
+
+		// Pre-seed an issue (simulating an earlier failure that's now resolved)
+		engine.issues.record({
+			path: "Notes/recovers.md",
+			kind: "note",
+			category: "server",
+			status: 500,
+			message: "earlier 500",
+			firstFailedAt: 1,
+			lastFailedAt: 1,
+			attempts: 1,
+		});
+		expect(engine.issues.count()).toBe(1);
+
+		(mockApi.pushNote as jest.Mock).mockResolvedValueOnce({
+			note: { path: "Notes/recovers.md", version: 1 },
+			chunks_indexed: 1,
+		});
+		await (engine as any).pushFile(file, true);
+
+		expect(engine.issues.count()).toBe(0);
+	});
+});

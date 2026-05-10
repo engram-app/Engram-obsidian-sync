@@ -8,6 +8,7 @@ import { SyncProgressModal } from "./sync-progress-modal";
 import { renderAccountTab } from "./tabs/account-tab";
 import { renderAdvancedTab } from "./tabs/advanced-tab";
 import { renderSelfHostedTab } from "./tabs/self-hosted-tab";
+import { renderSyncCenterTab } from "./tabs/sync-center-tab";
 import type { TabContext } from "./tabs/types";
 
 export class EngramSyncSettingTab extends PluginSettingTab {
@@ -73,6 +74,7 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 		const tabs = [
 			{ id: "account" as const, label: "☁️ Cloud", render: renderAccountTab },
 			{ id: "self-hosted" as const, label: "🖥️ Self-hosted", render: renderSelfHostedTab },
+			{ id: "sync-center" as const, label: "🔄 Sync Center", render: renderSyncCenterTab },
 			{ id: "advanced" as const, label: "⚙️ Advanced", render: renderAdvancedTab },
 		];
 

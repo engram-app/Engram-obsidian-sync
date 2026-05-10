@@ -1,5 +1,11 @@
 import type { AuthProvider } from "./auth";
 import { rlog } from "./remote-log";
+
+/** How long to wait before reconnecting when no auth token is available
+ *  (e.g. plugin loaded before OAuth refresh hydrated, or user signed out).
+ *  Long enough to avoid console spam, short enough that re-auth catches up
+ *  within a reasonable user-perceived window. */
+const NO_AUTH_RECONNECT_MS = 30_000;
 /**
  * Phoenix Channel client for Engram real-time sync.
  *
@@ -34,17 +40,23 @@ export class NoteChannel {
 		this.apiKey = apiKey;
 		this.userId = userId;
 		this.vaultId = vaultId;
+		rlog().info(
+			"channel",
+			`NoteChannel ctor — userId=${userId} vaultId=${vaultId ?? "null"} apiKeyLen=${apiKey.length} baseUrl=${this.baseUrl}`,
+		);
 	}
 
 	setAuthProvider(provider: AuthProvider): void {
 		this.authProvider = provider;
+		rlog().info("channel", `setAuthProvider — type=${provider.constructor.name}`);
 	}
 
-	private async getAuthToken(): Promise<string> {
+	private async getAuthToken(): Promise<{ token: string; source: string }> {
 		if (this.authProvider) {
-			return this.authProvider.getToken();
+			const token = await this.authProvider.getToken();
+			return { token, source: this.authProvider.constructor.name };
 		}
-		return this.apiKey;
+		return { token: this.apiKey, source: "apiKey-fallback" };
 	}
 
 	updateConfig(
@@ -89,7 +101,38 @@ export class NoteChannel {
 	// ---------------------------------------------------------------------------
 
 	private async openSocket(): Promise<void> {
-		const token = await this.getAuthToken();
+		let token: string;
+		let source: string;
+		try {
+			const result = await this.getAuthToken();
+			token = result.token;
+			source = result.source;
+		} catch (e) {
+			rlog().warn(
+				"channel",
+				`getToken threw — deferring reconnect ${NO_AUTH_RECONNECT_MS}ms — providerType=${this.authProvider?.constructor.name ?? "none"} err=${e instanceof Error ? e.message : String(e)}`,
+			);
+			this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
+			return;
+		}
+
+		// Empty token would cause the server to reject the upgrade and we'd
+		// loop on close → reconnect → empty token → ... forever, spamming the
+		// console. Defer with a long backoff until auth is hydrated.
+		if (!token) {
+			rlog().warn(
+				"channel",
+				`Empty token — skip WS connect, defer ${NO_AUTH_RECONNECT_MS}ms — source=${source} hasProvider=${!!this.authProvider} providerType=${this.authProvider?.constructor.name ?? "none"} apiKeyLen=${this.apiKey.length}`,
+			);
+			this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
+			return;
+		}
+
+		rlog().info(
+			"channel",
+			`openSocket — token.length=${token.length} source=${source} userId=${this.userId} vaultId=${this.vaultId ?? "null"}`,
+		);
+
 		const wsBase = this.baseUrl.replace(/^http/, "ws").replace(/^https/, "wss");
 		const url = `${wsBase}/socket/websocket?token=${encodeURIComponent(token)}&vsn=2.0.0`;
 
@@ -215,11 +258,14 @@ export class NoteChannel {
 		}
 	}
 
-	private scheduleReconnect(): void {
-		const jitter = Math.random() * this.reconnectMs * 0.5;
+	private scheduleReconnect(overrideMs?: number): void {
+		const base = overrideMs ?? this.reconnectMs;
+		const jitter = Math.random() * base * 0.5;
 		this.reconnectTimer = setTimeout(async () => {
-			this.reconnectMs = Math.min(this.reconnectMs * 2, this.maxReconnectMs);
+			if (overrideMs === undefined) {
+				this.reconnectMs = Math.min(this.reconnectMs * 2, this.maxReconnectMs);
+			}
 			await this.openSocket();
-		}, this.reconnectMs + jitter);
+		}, base + jitter);
 	}
 }

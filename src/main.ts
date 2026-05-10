@@ -14,6 +14,7 @@ import { SearchModal } from "./search-modal";
 import { SEARCH_VIEW_TYPE, SearchView } from "./search-view";
 import { EngramSyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync";
+import { SYNC_CENTER_VIEW_TYPE, SyncCenterView } from "./sync-center-view";
 import {
 	DEFAULT_SETTINGS,
 	type EngramSyncSettings,
@@ -26,7 +27,7 @@ import { destroyDevLog, devLog, initDevLog } from "./dev-log";
 import { destroyRemoteLog, initRemoteLog, rlog } from "./remote-log";
 import { SyncLog } from "./sync-log";
 import { SyncLogModal } from "./sync-log-modal";
-import type { QueueEntry } from "./types";
+import type { QueueEntry, SyncIssue } from "./types";
 
 /** Generate a stable client ID for vault registration.
  *  Uses SHA-256 of the vault's absolute path (desktop) or name (mobile fallback). */
@@ -51,6 +52,10 @@ interface PluginData {
 	syncState?: Record<string, FileSyncState>;
 	/** @deprecated Legacy hash-only format. Kept for rollback safety (dual-write). */
 	syncedHashes?: Record<string, number>;
+	/** Persistent failures surfaced in the Sync Center "Issues" panel. */
+	syncIssues?: SyncIssue[];
+	/** User-explicit per-file ignores (Sync Center "Ignore" button). */
+	ignoredFiles?: string[];
 }
 
 export default class EngramSyncPlugin extends Plugin {
@@ -119,6 +124,7 @@ export default class EngramSyncPlugin extends Plugin {
 
 		this.syncEngine.onStatusChange = (status) => {
 			this.updateStatusBar(status);
+			this.refreshSyncCenter();
 		};
 
 		this.syncEngine.onConflict = async (info) => {
@@ -150,6 +156,8 @@ export default class EngramSyncPlugin extends Plugin {
 			this.syncEngine.importHashes(saved.syncedHashes);
 			devLog().log("lifecycle", "Migrated legacy syncedHashes → syncState");
 		}
+		this.syncEngine.issues.hydrate(saved?.syncIssues);
+		this.syncEngine.ignoredFiles.hydrate(saved?.ignoredFiles);
 
 		// Register settings tab
 		this.addSettingTab(new EngramSyncSettingTab(this.app, this));
@@ -285,6 +293,21 @@ export default class EngramSyncPlugin extends Plugin {
 				await leaf.setViewState({ type: SEARCH_VIEW_TYPE, active: true });
 				this.app.workspace.revealLeaf(leaf);
 			}
+		});
+
+		// Sync Center view + ribbon + command
+		this.registerView(SYNC_CENTER_VIEW_TYPE, (leaf) => new SyncCenterView(leaf, this));
+
+		this.addCommand({
+			id: "engram-open-sync-center",
+			name: "Open Sync Center",
+			callback: async () => {
+				await this.openSyncCenter();
+			},
+		});
+
+		this.addRibbonIcon("refresh-cw", "Engram Sync Center", async () => {
+			await this.openSyncCenter();
 		});
 
 		// Start periodic sync if configured
@@ -446,6 +469,8 @@ export default class EngramSyncPlugin extends Plugin {
 			syncState: this.syncEngine.exportSyncState(),
 			// Dual-write legacy format for rollback safety (remove after one release cycle)
 			syncedHashes: this.syncEngine.exportHashes(),
+			syncIssues: this.syncEngine.issues.serialize(),
+			ignoredFiles: this.syncEngine.ignoredFiles.serialize(),
 		} as PluginData);
 	}
 
@@ -472,8 +497,14 @@ export default class EngramSyncPlugin extends Plugin {
 				this.settings.userEmail ?? null,
 				refreshFn,
 				(newToken) => {
+					// Token rotation must NOT call saveSettings — that path
+					// disconnects + reconnects the WebSocket, which triggers a
+					// fresh refresh, which rotates again, which... loops forever.
+					// Persist the new refresh token in place and write to disk
+					// without reconfiguring the api/channel.
 					this.settings.refreshToken = newToken;
-					this.saveSettings();
+					rlog().info("auth", "Refresh token rotated — persisting only");
+					void this.savePluginData(this.syncEngine.getLastSync());
 				},
 			);
 		}
@@ -533,6 +564,11 @@ export default class EngramSyncPlugin extends Plugin {
 	private connectChannel(attempt = 0): void {
 		const maxAttempts = 5;
 		const baseDelay = 2000;
+
+		rlog().info(
+			"channel",
+			`connectChannel(attempt=${attempt}) — apiKeyLen=${this.settings.apiKey?.length ?? 0} refreshTokenLen=${this.settings.refreshToken?.length ?? 0} hasAuthProvider=${this.authProvider !== null} authProviderType=${this.authProvider?.constructor.name ?? "none"} vaultId=${this.settings.vaultId ?? "null"}`,
+		);
 
 		this.api
 			.getMe()
@@ -629,6 +665,36 @@ export default class EngramSyncPlugin extends Plugin {
 				console.error("Engram Sync: sync failed", e);
 				new Notice("Engram Sync: sync failed — check connection");
 			}
+		}
+	}
+
+	/** Persist current sync engine state (issues, ignored files, etc.) to plugin
+	 *  data. Public so Sync Center button handlers can save without owning a
+	 *  reference to the private savePluginData method. */
+	async persistEngineState(): Promise<void> {
+		await this.savePluginData(this.syncEngine.getLastSync());
+	}
+
+	/** Open the Sync Center pane in the right sidebar (or reveal it if already open). */
+	async openSyncCenter(): Promise<void> {
+		const existing = this.app.workspace.getLeavesOfType(SYNC_CENTER_VIEW_TYPE);
+		if (existing.length) {
+			this.app.workspace.revealLeaf(existing[0]);
+			return;
+		}
+		const leaf = this.app.workspace.getRightLeaf(false);
+		if (leaf) {
+			await leaf.setViewState({ type: SYNC_CENTER_VIEW_TYPE, active: true });
+			this.app.workspace.revealLeaf(leaf);
+		}
+	}
+
+	/** Re-render any open Sync Center view (no-op if not open). Safe to call
+	 *  from any sync-state-change hook. */
+	refreshSyncCenter(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(SYNC_CENTER_VIEW_TYPE)) {
+			const view = leaf.view;
+			if (view instanceof SyncCenterView) view.render();
 		}
 	}
 
