@@ -823,7 +823,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	background-color: var(--background-secondary);
+	background-color: var(--background-secondary-alt, var(--background-secondary));
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;
 	padding: 10px 14px;
@@ -875,7 +875,7 @@
 	display: flex;
 	gap: 6px;
 	flex-wrap: wrap;
-	background-color: var(--background-secondary);
+	background-color: var(--background-secondary-alt, var(--background-secondary));
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;
 	padding: 10px 12px;
@@ -888,37 +888,32 @@
 }
 
 .engram-sync-center-section {
-	background-color: var(--background-secondary);
+	background-color: var(--background-secondary-alt, var(--background-secondary));
 	border-radius: 8px;
-	padding: 12px 14px;
+	padding: 6px 14px 14px;
 	margin-bottom: 14px;
 	border: 1px solid var(--background-modifier-border);
 }
 
-.engram-sync-center-section h3 {
-	margin: 0 0 10px;
+/* Obsidian Setting heading inside our section card — strip its own
+   borders so it reads as the section title, not a separator. */
+.engram-sync-center-section .setting-item-heading {
+	border-top: none;
+	padding-top: 4px;
+	padding-bottom: 4px;
+	margin-bottom: 8px;
+}
+
+.engram-sync-center-section .setting-item-heading .setting-item-name {
 	font-size: var(--font-ui-small);
 	color: var(--text-muted);
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.6px;
-	padding-bottom: 6px;
-	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.engram-sync-center-section-head {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	margin: 0 0 10px;
-	padding-bottom: 6px;
-	border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.engram-sync-center-section-head h3 {
-	margin: 0;
-	padding: 0;
-	border: none;
+.engram-sync-center-section-body {
+	display: block;
 }
 
 .engram-sync-center-empty {

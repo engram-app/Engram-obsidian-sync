@@ -6,9 +6,15 @@
  *  in-pane button clicks can re-render the same surface they were clicked
  *  from.
  */
-import { Notice, normalizePath } from "obsidian";
+import { Notice, Setting, normalizePath } from "obsidian";
 import type EngramSyncPlugin from "./main";
 import type { SyncIssue, SyncIssueCategory, SyncLogEntry } from "./types";
+
+/** Build an Obsidian Setting heading inside `parent` so the section title
+ *  matches the visual style of the Cloud / Self-hosted / Advanced tabs. */
+function sectionHeading(parent: HTMLElement, title: string): Setting {
+	return new Setting(parent).setName(title).setHeading();
+}
 
 const CATEGORY_LABEL: Record<SyncIssueCategory, string> = {
 	too_large: "Too large — server max 5 MB",
@@ -105,11 +111,12 @@ function makeActionButton(
 
 function renderIssues(parent: HTMLElement, plugin: EngramSyncPlugin, refresh: () => void): void {
 	const section = parent.createDiv({ cls: "engram-sync-center-section" });
-	section.createEl("h3", { text: `Issues (${plugin.syncEngine.issues.count()})` });
+	sectionHeading(section, `Issues (${plugin.syncEngine.issues.count()})`);
 
+	const body = section.createDiv({ cls: "engram-sync-center-section-body" });
 	const issues = plugin.syncEngine.issues.all();
 	if (issues.length === 0) {
-		section.createEl("p", {
+		body.createEl("p", {
 			cls: "engram-sync-center-empty",
 			text: "No sync failures. Everything pushed cleanly.",
 		});
@@ -120,7 +127,7 @@ function renderIssues(parent: HTMLElement, plugin: EngramSyncPlugin, refresh: ()
 	for (const category of CATEGORY_ORDER) {
 		const list = grouped[category];
 		if (!list || list.length === 0) continue;
-		renderCategoryGroup(section, plugin, refresh, category, list);
+		renderCategoryGroup(body, plugin, refresh, category, list);
 	}
 }
 
@@ -179,17 +186,18 @@ function renderIssueRow(
 function renderIgnored(parent: HTMLElement, plugin: EngramSyncPlugin, refresh: () => void): void {
 	const ignored = plugin.syncEngine.ignoredFiles.all();
 	const section = parent.createDiv({ cls: "engram-sync-center-section" });
-	section.createEl("h3", { text: `Ignored (${ignored.length})` });
+	sectionHeading(section, `Ignored (${ignored.length})`);
 
+	const body = section.createDiv({ cls: "engram-sync-center-section-body" });
 	if (ignored.length === 0) {
-		section.createEl("p", {
+		body.createEl("p", {
 			cls: "engram-sync-center-empty",
 			text: "No files ignored. Use the Ignore button on a failure row to stop syncing it.",
 		});
 		return;
 	}
 
-	const list = section.createDiv({ cls: "engram-sync-center-issue-list" });
+	const list = body.createDiv({ cls: "engram-sync-center-issue-list" });
 	for (const path of ignored) {
 		renderIgnoredRow(list, plugin, refresh, path);
 	}
@@ -270,30 +278,27 @@ const RESULT_CLASS: Record<SyncLogEntry["result"], string> = {
 
 function renderActivity(parent: HTMLElement, plugin: EngramSyncPlugin, refresh: () => void): void {
 	const section = parent.createDiv({ cls: "engram-sync-center-section" });
-	const head = section.createDiv({ cls: "engram-sync-center-section-head" });
 	const all = plugin.syncLog.entries();
-	head.createEl("h3", { text: `Activity (${all.length})` });
-
+	const heading = sectionHeading(section, `Activity (${all.length})`);
 	if (all.length > 0) {
-		const clearBtn = head.createEl("button", {
-			text: "Clear",
-			cls: "engram-sync-center-clear-btn",
-		});
-		clearBtn.addEventListener("click", () => {
-			plugin.syncLog.clear();
-			refresh();
-		});
+		heading.addButton((btn) =>
+			btn.setButtonText("Clear").onClick(() => {
+				plugin.syncLog.clear();
+				refresh();
+			}),
+		);
 	}
 
+	const body = section.createDiv({ cls: "engram-sync-center-section-body" });
 	if (all.length === 0) {
-		section.createEl("p", {
+		body.createEl("p", {
 			cls: "engram-sync-center-empty",
 			text: "No activity yet. Push or pull to see entries here.",
 		});
 		return;
 	}
 
-	const list = section.createDiv({ cls: "engram-sync-center-activity-list" });
+	const list = body.createDiv({ cls: "engram-sync-center-activity-list" });
 	const recent = all.slice(-ACTIVITY_LIMIT).reverse();
 	for (const entry of recent) {
 		renderActivityRow(list, entry);
@@ -322,9 +327,10 @@ function renderActivityRow(parent: HTMLElement, entry: SyncLogEntry): void {
 
 function renderStats(parent: HTMLElement, plugin: EngramSyncPlugin): void {
 	const section = parent.createDiv({ cls: "engram-sync-center-section" });
-	section.createEl("h3", { text: "Stats" });
+	sectionHeading(section, "Stats");
 
-	const grid = section.createDiv({ cls: "engram-sync-center-stats-grid" });
+	const body = section.createDiv({ cls: "engram-sync-center-section-body" });
+	const grid = body.createDiv({ cls: "engram-sync-center-stats-grid" });
 
 	const allFiles = plugin.app.vault.getFiles();
 	let noteCount = 0;
