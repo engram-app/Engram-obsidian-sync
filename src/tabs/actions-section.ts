@@ -6,7 +6,7 @@ import type { TabContext } from "./types";
  *  the Cloud and Self-hosted tabs. All preview + execution now happens in the
  *  Sync Center (sidebar leaf or settings-tab mirror). */
 export function renderSyncCenterCta(ctx: TabContext): void {
-	const { containerEl, plugin } = ctx;
+	const { containerEl, plugin, switchToTab } = ctx;
 
 	const hasAuth = !!plugin.settings.apiKey || !!plugin.settings.refreshToken;
 	if (!hasAuth) return;
@@ -15,13 +15,13 @@ export function renderSyncCenterCta(ctx: TabContext): void {
 
 	new Setting(containerEl)
 		.setName("Sync Center")
-		.setDesc("Sync, Push all, and Pull all live here now. Opens in the sidebar.")
+		.setDesc("Sync, Push all, and Pull all live here now.")
 		.addButton((btn) =>
 			btn
 				.setButtonText("Open Sync Center")
 				.setCta()
 				.onClick(() => {
-					void plugin.openSyncCenter();
+					switchToTab("sync-center");
 				}),
 		);
 }

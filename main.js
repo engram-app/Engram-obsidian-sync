@@ -1923,10 +1923,10 @@ async function applyApiUrlChange(target, newUrl, save) {
 // src/tabs/actions-section.ts
 var import_obsidian7 = require("obsidian");
 function renderSyncCenterCta(ctx) {
-  let { containerEl, plugin } = ctx;
-  (plugin.settings.apiKey || plugin.settings.refreshToken) && (new import_obsidian7.Setting(containerEl).setName("Actions").setHeading(), new import_obsidian7.Setting(containerEl).setName("Sync Center").setDesc("Sync, Push all, and Pull all live here now. Opens in the sidebar.").addButton(
+  let { containerEl, plugin, switchToTab } = ctx;
+  (plugin.settings.apiKey || plugin.settings.refreshToken) && (new import_obsidian7.Setting(containerEl).setName("Actions").setHeading(), new import_obsidian7.Setting(containerEl).setName("Sync Center").setDesc("Sync, Push all, and Pull all live here now.").addButton(
     (btn) => btn.setButtonText("Open Sync Center").setCta().onClick(() => {
-      plugin.openSyncCenter();
+      switchToTab("sync-center");
     })
   ));
 }
