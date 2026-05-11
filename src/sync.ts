@@ -1851,13 +1851,37 @@ export class SyncEngine {
 		// Files only local → need to push (not on server at all). Check the
 		// inventory set, not the delta — a long-synced file is absent from the
 		// delta but present in the inventory, and we must not re-push it.
+		// Then, for files that ARE on the server but absent from the delta,
+		// compare the current local hash against the last-synced hash so a
+		// locally-edited note shows up in the preview as toPush. Skip paths
+		// already handled by the delta (pull/conflict branches above) to
+		// avoid double-counting.
 		const toPushNotes: string[] = [];
 		for (const path of localNotes) {
 			if (!serverNoteInventory.has(path)) {
 				toPushNotes.push(path);
+				continue;
+			}
+			if (serverNotes.has(path)) continue;
+			const file = this.app.vault.getFileByPath(path);
+			if (!file) continue;
+			const content = await this.app.vault.cachedRead(file);
+			const localHash = fnv1a(content);
+			const synced = this.syncState.get(path);
+			if (synced?.hash !== undefined && synced.hash !== localHash) {
+				// Local content changed since last sync. We only flag this
+				// when syncState is present — a fresh install (no syncState)
+				// with the same paths on both sides is treated as clean
+				// because we have no way to verify content without a plugin-
+				// computable server hash (Tier 3 work).
+				toPushNotes.push(path);
 			}
 		}
 
+		// Attachments are binary — we don't hash them locally yet, so we only
+		// detect "exists on server" vs "not on server" for now. A locally-
+		// modified attachment is still picked up by the event handlers during
+		// real sync; the preview just won't list it.
 		const toPushAttachments: string[] = [];
 		for (const path of localAttachments) {
 			if (!serverAttachmentInventory.has(path)) {

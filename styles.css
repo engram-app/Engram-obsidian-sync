@@ -729,6 +729,12 @@
 	margin-top: 8px;
 }
 
+.engram-sync-uptodate {
+	color: var(--text-success);
+	margin-top: 8px;
+	font-weight: 500;
+}
+
 .engram-button-row {
 	display: flex;
 	justify-content: flex-end;

@@ -378,6 +378,112 @@ describe("SyncEngine.computeSyncPlan", () => {
 		expect(plan.serverNoteCount).toBe(1);
 	});
 
+	test("locally modified file (same path on server) is flagged toPush", async () => {
+		const engine = createEngine();
+		engine.setLastSync("2026-01-01T00:00:00Z");
+		const file = makeTFile("Notes/edited.md");
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.getFileByPath.mockReturnValue(file);
+		mockApp.vault.cachedRead.mockResolvedValue("# Edited content");
+		// Last synced hash differs from current content — local was edited.
+		engine.importHashes({ "Notes/edited.md": fnv1a("# Original content") });
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [{ path: "Notes/edited.md", content_hash: "irrelevant-server-hash" }],
+			attachments: [],
+			total_notes: 1,
+			total_attachments: 0,
+		});
+		(mockApi.getChanges as jest.Mock).mockResolvedValue({
+			changes: [],
+			server_time: "2026-01-01T00:00:00Z",
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.toPush.notes).toContain("Notes/edited.md");
+		expect(plan.conflicts).not.toContain("Notes/edited.md");
+	});
+
+	test("locally unmodified file (hash matches syncState) is NOT flagged toPush", async () => {
+		const engine = createEngine();
+		engine.setLastSync("2026-01-01T00:00:00Z");
+		const content = "# Same content";
+		const file = makeTFile("Notes/clean.md");
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.getFileByPath.mockReturnValue(file);
+		mockApp.vault.cachedRead.mockResolvedValue(content);
+		engine.importHashes({ "Notes/clean.md": fnv1a(content) });
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [{ path: "Notes/clean.md", content_hash: "h1" }],
+			attachments: [],
+			total_notes: 1,
+			total_attachments: 0,
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.toPush.notes).toEqual([]);
+	});
+
+	test("local file with no syncState entry on a manifest-present path is treated as clean (Tier 2 limit)", async () => {
+		const engine = createEngine();
+		engine.setLastSync("2026-01-01T00:00:00Z");
+		const file = makeTFile("Notes/no-syncstate.md");
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.getFileByPath.mockReturnValue(file);
+		mockApp.vault.cachedRead.mockResolvedValue("# Fresh");
+		// No syncState entry — common on a fresh install where both sides
+		// already have the same paths. Without a plugin-computable server
+		// hash we can't verify content, so we treat as clean rather than
+		// causing a spurious push storm. Tier 3 will fix this.
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [{ path: "Notes/no-syncstate.md", content_hash: "h1" }],
+			attachments: [],
+			total_notes: 1,
+			total_attachments: 0,
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.toPush.notes).toEqual([]);
+	});
+
+	test("file in delta (server changed) is NOT also added by modified-locally path", async () => {
+		const engine = createEngine();
+		engine.setLastSync("2026-01-01T00:00:00Z");
+		const file = makeTFile("Notes/server-changed.md");
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.getFileByPath.mockReturnValue(file);
+		mockApp.vault.cachedRead.mockResolvedValue("# Local original");
+		engine.importHashes({ "Notes/server-changed.md": fnv1a("# Local original") });
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [{ path: "Notes/server-changed.md", content_hash: "h1" }],
+			attachments: [],
+			total_notes: 1,
+			total_attachments: 0,
+		});
+		(mockApi.getChanges as jest.Mock).mockResolvedValue({
+			changes: [
+				{
+					path: "Notes/server-changed.md",
+					title: "Server-changed",
+					content: "# New server content",
+					folder: "Notes",
+					tags: [],
+					mtime: Date.now() / 1000,
+					updated_at: new Date().toISOString(),
+					deleted: false,
+				},
+			],
+			server_time: "2026-01-01T00:00:00Z",
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.toPull.notes).toContain("Notes/server-changed.md");
+		expect(plan.toPush.notes).not.toContain("Notes/server-changed.md");
+	});
+
 	test("ignored files (.obsidian/) are excluded from plan", async () => {
 		const engine = createEngine();
 		const files = [
