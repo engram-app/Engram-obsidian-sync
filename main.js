@@ -1044,7 +1044,7 @@ var ApiKeyAuth = class {
     var _a;
     try {
       let result = await this.refreshFn(this.refreshToken);
-      return this.accessToken = result.access_token, this.refreshToken = result.refresh_token, this.expiresAt = Date.now() + result.expires_in * 1e3, this.authenticated = !0, (_a = this.onTokenRotated) == null || _a.call(this, result.refresh_token), rlog().info(
+      return this.accessToken = result.access_token, this.refreshToken = result.refresh_token, this.expiresAt = Date.now() + result.expires_in * 1e3, this.authenticated = !0, await ((_a = this.onTokenRotated) == null ? void 0 : _a.call(this, result.refresh_token)), rlog().info(
         "auth",
         `OAuth refresh ok \u2014 accessTokenLen=${result.access_token.length} expiresInS=${result.expires_in}`
       ), this.accessToken;
@@ -4750,8 +4750,8 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian19.Plugin
         this.settings.vaultId,
         (_a = this.settings.userEmail) != null ? _a : null,
         refreshFn,
-        (newToken) => {
-          this.settings.refreshToken = newToken, rlog().info("auth", "Refresh token rotated \u2014 persisting only"), this.savePluginData(this.syncEngine.getLastSync());
+        async (newToken) => {
+          this.settings.refreshToken = newToken, rlog().info("auth", "Refresh token rotated \u2014 persisting only"), await this.savePluginData(this.syncEngine.getLastSync());
         }
       );
     }
