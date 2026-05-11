@@ -120,10 +120,20 @@ export class NoteChannel {
 		// loop on close → reconnect → empty token → ... forever, spamming the
 		// console. Defer with a long backoff until auth is hydrated.
 		if (!token) {
+			const diag = {
+				source,
+				hasProvider: !!this.authProvider,
+				providerType: this.authProvider?.constructor.name ?? "none",
+				apiKeyLen: this.apiKey.length,
+				userId: this.userId,
+				vaultId: this.vaultId,
+			};
 			rlog().warn(
 				"channel",
-				`Empty token — skip WS connect, defer ${NO_AUTH_RECONNECT_MS}ms — source=${source} hasProvider=${!!this.authProvider} providerType=${this.authProvider?.constructor.name ?? "none"} apiKeyLen=${this.apiKey.length}`,
+				`Empty token — skip WS connect, defer ${NO_AUTH_RECONNECT_MS}ms — ${JSON.stringify(diag)}`,
 			);
+			// biome-ignore lint/suspicious/noConsole: diagnostic for empty-token WS spam
+			console.warn("[Engram Sync] empty WS token — diag:", diag);
 			this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
 			return;
 		}

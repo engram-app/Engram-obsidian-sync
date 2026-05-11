@@ -15,6 +15,7 @@ import { SEARCH_VIEW_TYPE, SearchView } from "./search-view";
 import { EngramSyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync";
 import { SYNC_CENTER_VIEW_TYPE, SyncCenterView } from "./sync-center-view";
+import { SyncProgressModal } from "./sync-progress-modal";
 import {
 	DEFAULT_SETTINGS,
 	type EngramSyncSettings,
@@ -673,6 +674,21 @@ export default class EngramSyncPlugin extends Plugin {
 	 *  reference to the private savePluginData method. */
 	async persistEngineState(): Promise<void> {
 		await this.savePluginData(this.syncEngine.getLastSync());
+	}
+
+	/** Open a progress modal and wire it to the sync engine's progress
+	 *  callback. Shared by the Sync Center view (sidebar leaf) and the
+	 *  settings-page mirror so both surfaces show identical progress. */
+	async openProgressModal(): Promise<SyncProgressModal> {
+		const modal = new SyncProgressModal(this.app);
+		const prevCallback = this.syncEngine.onSyncProgress;
+		this.syncEngine.onSyncProgress = (progress) => {
+			modal.update(progress);
+			prevCallback?.(progress);
+		};
+		modal.open();
+		await new Promise((resolve) => requestAnimationFrame(resolve));
+		return modal;
 	}
 
 	/** Open the Sync Center pane in the right sidebar (or reveal it if already open). */

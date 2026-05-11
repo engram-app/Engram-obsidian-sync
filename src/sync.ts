@@ -1724,14 +1724,41 @@ export class SyncEngine {
 	 */
 	async computeSyncPlan(mode: "push-all" | "pull-all" | "full"): Promise<SyncPlan> {
 		const epoch = "1970-01-01T00:00:00Z";
-		const since = mode === "full" ? this.lastSync || epoch : epoch;
+
+		// Manifest is the authoritative server INVENTORY (path + hash, no body).
+		// The /changes feed is a DELTA — fine for pull/conflict content compare,
+		// but it cannot answer "does the server already have this file?" when the
+		// file was uploaded long before lastSync. Confusing the two led to the
+		// "0 server notes, 299 to push" preview bug.
+		const manifest = await this.api.getManifest();
+
+		// If we have a manifest, the delta is only used for pull/conflict
+		// detection, so the cheap `since=lastSync` is fine. Without a manifest
+		// we MUST pull the full inventory via the changes feed (since=epoch)
+		// even in "full" mode, otherwise inventory is wrong.
+		const since = manifest ? this.lastSync || epoch : epoch;
 
 		const [noteResp, attachResp] = await Promise.all([
 			this.api.getChanges(since),
 			this.api.getAttachmentChanges(since),
 		]);
 
-		// Build lookup sets from server state
+		// Build lookup sets from server state. Two complementary sources:
+		//   serverNoteInventory — every path the server currently has (manifest
+		//     when available, else delta-from-epoch which carries the same set).
+		//   serverNoteChanges — items in the delta, used for pull/conflict and
+		//     to recognise server-side deletions.
+		const serverNoteInventory = new Set<string>(
+			manifest
+				? manifest.notes.map((m) => m.path)
+				: noteResp.changes.filter((c) => !c.deleted).map((c) => c.path),
+		);
+		const serverAttachmentInventory = new Set<string>(
+			manifest
+				? manifest.attachments.map((m) => m.path)
+				: attachResp.changes.filter((c) => !c.deleted).map((c) => c.path),
+		);
+
 		const serverNotes = new Map<string, { deleted: boolean }>();
 		for (const c of noteResp.changes) {
 			serverNotes.set(c.path, { deleted: c.deleted });
@@ -1821,24 +1848,26 @@ export class SyncEngine {
 			}
 		}
 
-		// Files only local → need to push (not on server at all)
+		// Files only local → need to push (not on server at all). Check the
+		// inventory set, not the delta — a long-synced file is absent from the
+		// delta but present in the inventory, and we must not re-push it.
 		const toPushNotes: string[] = [];
 		for (const path of localNotes) {
-			if (!serverNotes.has(path)) {
+			if (!serverNoteInventory.has(path)) {
 				toPushNotes.push(path);
 			}
 		}
 
 		const toPushAttachments: string[] = [];
 		for (const path of localAttachments) {
-			if (!serverAttachments.has(path)) {
+			if (!serverAttachmentInventory.has(path)) {
 				toPushAttachments.push(path);
 			}
 		}
 
 		return {
 			vaultName: this.app.vault.getName(),
-			serverNoteCount: [...serverNotes.values()].filter((v) => !v.deleted).length,
+			serverNoteCount: serverNoteInventory.size,
 			localNoteCount: localNotes.length,
 			localAttachmentCount: localAttachments.length,
 			toPush: {

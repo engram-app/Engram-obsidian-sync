@@ -4,7 +4,6 @@
 import { type App, PluginSettingTab, Setting } from "obsidian";
 import { DeviceFlowModal } from "./device-flow-modal";
 import type EngramSyncPlugin from "./main";
-import { SyncProgressModal } from "./sync-progress-modal";
 import { renderAccountTab } from "./tabs/account-tab";
 import { renderAdvancedTab } from "./tabs/advanced-tab";
 import { renderSelfHostedTab } from "./tabs/self-hosted-tab";
@@ -99,7 +98,7 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 			plugin: this.plugin,
 			redisplay: () => this.display(),
 			startDeviceFlow: () => this.startDeviceFlow(),
-			openProgressModal: () => this.openProgressModal(),
+			openProgressModal: () => this.plugin.openProgressModal(),
 			switchToTab: (id) => activateTab(id),
 		};
 
@@ -115,20 +114,6 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 		// Activate the remembered tab (or default to "account")
 		const startTab = tabs.find((t) => t.id === this.activeTab) ? this.activeTab : "account";
 		activateTab(startTab);
-	}
-
-	/** Open a progress modal and wire it to the sync engine's progress callback. */
-	async openProgressModal(): Promise<SyncProgressModal> {
-		const modal = new SyncProgressModal(this.app);
-		const prevCallback = this.plugin.syncEngine.onSyncProgress;
-		this.plugin.syncEngine.onSyncProgress = (progress) => {
-			modal.update(progress);
-			prevCallback?.(progress);
-		};
-		modal.open();
-		// Yield to allow the modal to render before sync starts
-		await new Promise((resolve) => requestAnimationFrame(resolve));
-		return modal;
 	}
 
 	async startDeviceFlow(): Promise<void> {

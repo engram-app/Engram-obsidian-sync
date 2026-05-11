@@ -1,7 +1,7 @@
 import { Notice, Setting, setIcon } from "obsidian";
 import { applyApiUrlChange } from "../auth-state";
 import { VaultSwitchModal } from "../vault-switch-modal";
-import { renderActionsSection } from "./actions-section";
+import { renderSyncCenterCta } from "./actions-section";
 import type { TabContext } from "./types";
 import { ENGRAM_CLOUD_URL } from "./urls";
 
@@ -56,7 +56,7 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 
 	renderAuthSection(ctx);
 	renderVaultSection(ctx);
-	renderActionsSection(ctx);
+	renderSyncCenterCta(ctx);
 	renderTestConnection(ctx);
 	renderSupportSection(ctx);
 }

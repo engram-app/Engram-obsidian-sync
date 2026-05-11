@@ -80,6 +80,7 @@ beforeEach(() => {
 	(mockApi.getAttachmentChanges as jest.Mock)
 		.mockReset()
 		.mockResolvedValue({ changes: [], server_time: "2026-01-01T00:00:00Z" });
+	(mockApi.getManifest as jest.Mock).mockReset().mockResolvedValue(null);
 	mockApp.vault.getFiles.mockReset().mockReturnValue([]);
 });
 
@@ -268,6 +269,113 @@ describe("SyncEngine.computeSyncPlan", () => {
 
 		expect(plan.toPull.notes).toContain("Notes/server-updated.md");
 		expect(plan.conflicts).not.toContain("Notes/server-updated.md");
+	});
+
+	test("uses manifest for serverNoteCount when manifest is available", async () => {
+		const engine = createEngine();
+		engine.setLastSync("2026-01-01T00:00:00Z");
+		mockApp.vault.getFiles.mockReturnValue([]);
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: Array.from({ length: 50 }, (_, i) => ({
+				path: `Notes/n${i}.md`,
+				content_hash: `h${i}`,
+			})),
+			attachments: [],
+			total_notes: 50,
+			total_attachments: 0,
+		});
+		(mockApi.getChanges as jest.Mock).mockResolvedValue({
+			changes: [],
+			server_time: "2026-01-01T00:00:00Z",
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.serverNoteCount).toBe(50);
+	});
+
+	test("does not flag manifest-present files as toPush even when delta is empty", async () => {
+		const engine = createEngine();
+		engine.setLastSync("2026-01-01T00:00:00Z");
+		const files = [makeTFile("Notes/synced-a.md"), makeTFile("Notes/synced-b.md")];
+		mockApp.vault.getFiles.mockReturnValue(files);
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [
+				{ path: "Notes/synced-a.md", content_hash: "h1" },
+				{ path: "Notes/synced-b.md", content_hash: "h2" },
+			],
+			attachments: [],
+			total_notes: 2,
+			total_attachments: 0,
+		});
+		// Server has nothing NEW since last sync (delta empty) — files are
+		// already on server, plan must not propose pushing them.
+		(mockApi.getChanges as jest.Mock).mockResolvedValue({
+			changes: [],
+			server_time: "2026-01-01T00:00:00Z",
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.toPush.notes).toEqual([]);
+		expect(plan.serverNoteCount).toBe(2);
+	});
+
+	test("does not flag manifest-present attachments as toPush", async () => {
+		const engine = createEngine();
+		engine.setLastSync("2026-01-01T00:00:00Z");
+		const att = makeTFile("Attachments/img.png");
+		(att as unknown as { extension: string }).extension = "png";
+		mockApp.vault.getFiles.mockReturnValue([att]);
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [],
+			attachments: [{ path: "Attachments/img.png", content_hash: "h1" }],
+			total_notes: 0,
+			total_attachments: 1,
+		});
+		(mockApi.getAttachmentChanges as jest.Mock).mockResolvedValue({
+			changes: [],
+			server_time: "2026-01-01T00:00:00Z",
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.toPush.attachments).toEqual([]);
+	});
+
+	test("manifest absent (server too old) still produces correct inventory", async () => {
+		const engine = createEngine();
+		engine.setLastSync("2026-01-01T00:00:00Z");
+		const file = makeTFile("Notes/synced.md");
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		(mockApi.getManifest as jest.Mock).mockResolvedValue(null);
+		// When manifest is absent, the engine must fetch the full server
+		// inventory (since=epoch) so already-synced files aren't flagged.
+		(mockApi.getChanges as jest.Mock).mockImplementation((since: string) => {
+			if (since === "1970-01-01T00:00:00Z") {
+				return Promise.resolve({
+					changes: [
+						{
+							path: "Notes/synced.md",
+							title: "Synced",
+							content: "# Synced",
+							folder: "Notes",
+							tags: [],
+							mtime: Date.now() / 1000,
+							updated_at: new Date().toISOString(),
+							deleted: false,
+						},
+					],
+					server_time: "2026-01-01T00:00:00Z",
+				});
+			}
+			return Promise.resolve({ changes: [], server_time: "2026-01-01T00:00:00Z" });
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.toPush.notes).toEqual([]);
+		expect(plan.serverNoteCount).toBe(1);
 	});
 
 	test("ignored files (.obsidian/) are excluded from plan", async () => {
