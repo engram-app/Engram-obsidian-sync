@@ -4531,7 +4531,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian19.Plugin
   }
   async onload() {
     var _a;
-    initDevLog(), devLog().log("lifecycle", "plugin loading"), await this.loadSettings(), this.api = new EngramApi(this.settings.apiUrl, this.settings.apiKey), this.settings.vaultId && this.api.setVaultId(this.settings.vaultId), this.authProvider = this.createAuthProvider(), this.authProvider && this.api.setAuthProvider(this.authProvider);
+    initDevLog(), devLog().log("lifecycle", "plugin loading"), rlog().info("lifecycle", `onload start \u2014 v${this.manifest.version}`), await this.loadSettings(), this.api = new EngramApi(this.settings.apiUrl, this.settings.apiKey), this.settings.vaultId && this.api.setVaultId(this.settings.vaultId), this.authProvider = this.createAuthProvider(), this.authProvider && this.api.setAuthProvider(this.authProvider);
     let remoteLogger = initRemoteLog();
     remoteLogger.configure(
       (entries) => this.api.pushLogs(entries),
