@@ -22,15 +22,18 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 		.setDesc("Engram is the backend that powers sync and semantic search. Get it here → ");
 	repoSetting.settingEl.addClass("engram-setup-cta");
 	repoSetting.descEl.createEl("a", {
+		// eslint-disable-next-line obsidianmd/ui/sentence-case -- literal GitHub URL, canonical casing
 		text: "github.com/Rasbandit/engram",
 		href: "https://github.com/Rasbandit/engram",
 	});
 
 	new Setting(containerEl)
 		.setName("Engram URL")
+		// eslint-disable-next-line obsidianmd/ui/sentence-case -- lowercase URL scheme per RFC 3986
 		.setDesc("Full URL to your engram instance (e.g. http://10.0.20.214:8000).")
 		.addText((text) =>
 			text
+				// eslint-disable-next-line obsidianmd/ui/sentence-case -- lowercase URL scheme per RFC 3986
 				.setPlaceholder("http://localhost:8000")
 				.setValue(plugin.settings.apiUrl)
 				.onChange(async (value) => {
@@ -60,7 +63,7 @@ export function renderSelfHostedTab(ctx: TabContext): void {
  *  Cloud tab to manage Cloud auth. */
 function renderCloudLockBanner(containerEl: HTMLElement): void {
 	const banner = containerEl.createDiv({ cls: "engram-mode-lock-banner" });
-	banner.createEl("p", { text: "You're connected to Engram cloud." });
+	banner.createEl("p", { text: "You're connected to engram cloud." });
 	banner.createEl("p", {
 		text: "To set up a self-hosted engram server, sign out from the cloud tab first. That will release the connection so you can point the plugin at your own server.",
 	});
@@ -85,6 +88,7 @@ export function renderAuthSection(ctx: TabContext): void {
 	if (isOAuth) {
 		new Setting(containerEl)
 			.setName(`Signed in as ${plugin.settings.userEmail ?? "unknown"}`)
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- "OAuth" is canonical casing per RFC 6749
 			.setDesc("Authenticated via engram account (OAuth).")
 			.addButton((btn) =>
 				btn.setButtonText("Sign out").onClick(async () => {
@@ -140,6 +144,7 @@ export function renderAuthSection(ctx: TabContext): void {
 		.setName("API key")
 		.setDesc("Bearer token from engram (starts with engram_).")
 		.addText((text) => {
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- literal token format example (tokens start with "engram_")
 			text.setPlaceholder("engram_abc123...").onChange((value) => {
 				pendingKey = value;
 			});

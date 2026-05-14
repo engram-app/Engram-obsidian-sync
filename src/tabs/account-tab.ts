@@ -22,7 +22,7 @@ export async function renderAccountTab(ctx: TabContext): Promise<void> {
 			() => plugin.saveSettings(),
 		);
 		if (cleared) {
-			new Notice("Switched to Engram cloud — sign in to continue.");
+			new Notice("Switched to engram cloud — sign in to continue.");
 			redisplay();
 			return;
 		}
