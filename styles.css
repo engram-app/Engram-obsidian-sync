@@ -626,7 +626,8 @@
 
 .engram-tab-bar {
 	display: flex;
-	gap: 12px;
+	flex-wrap: wrap;
+	gap: 8px 12px;
 	border-bottom: 1px solid var(--background-modifier-border);
 	margin-bottom: 16px;
 }
@@ -639,6 +640,19 @@
 	color: var(--text-muted);
 	cursor: pointer;
 	font-size: var(--font-ui-small);
+}
+
+/* Phone-width breakpoint — 4 tabs fit comfortably above ~600px */
+@media (max-width: 600px) {
+	.engram-tab-bar {
+		justify-content: center;
+	}
+
+	.engram-tab {
+		flex: 1 1 calc(50% - 12px);
+		padding: 8px 10px;
+		text-align: center;
+	}
 }
 
 .engram-tab:hover {
