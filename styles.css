@@ -642,7 +642,7 @@
 	font-size: var(--font-ui-small);
 }
 
-/* Phone-width breakpoint: 4 tabs fit comfortably above ~600px */
+/* Phone-width breakpoint — 4 tabs fit comfortably above ~600px */
 @media (max-width: 600px) {
 	.engram-tab-bar {
 		justify-content: center;
