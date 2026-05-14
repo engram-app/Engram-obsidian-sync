@@ -23,7 +23,7 @@ export class SyncLogModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass("engram-sync-log-modal");
 
-		contentEl.createEl("h2", { text: "Sync Log" });
+		contentEl.createEl("h2", { text: "Sync log" });
 
 		const entries = this.syncLog.entries();
 		const errorCount = this.syncLog.errorCount();

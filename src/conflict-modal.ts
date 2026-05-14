@@ -127,10 +127,10 @@ export class ConflictModal extends Modal {
 		if (this.hunks.length > 0) {
 			const bulkGroup = bar.createEl("span", { cls: "engram-conflict-bulk" });
 			const allLocalBtn = bulkGroup.createEl("button", {
-				text: "All Local",
+				text: "All local",
 				cls: "mod-warning",
 			});
-			const allRemoteBtn = bulkGroup.createEl("button", { text: "All Remote" });
+			const allRemoteBtn = bulkGroup.createEl("button", { text: "All remote" });
 
 			allLocalBtn.addEventListener("click", () => {
 				for (const h of this.hunks) {
@@ -284,11 +284,11 @@ export class ConflictModal extends Modal {
 		});
 
 		const localBtn = controls.createEl("button", {
-			text: "Use Local",
+			text: "Use local",
 			cls: hunk.choice === "local" ? "is-active mod-warning" : "",
 		});
 		const remoteBtn = controls.createEl("button", {
-			text: "Use Remote",
+			text: "Use remote",
 			cls: hunk.choice === "remote" ? "is-active" : "",
 		});
 
@@ -314,7 +314,7 @@ export class ConflictModal extends Modal {
 	private renderMergeEditor(root: HTMLElement): void {
 		const section = root.createEl("section", { cls: "engram-conflict-merge" });
 		const header = section.createEl("header", { cls: "engram-conflict-merge-header" });
-		header.createEl("h3", { text: "Merge Result" });
+		header.createEl("h3", { text: "Merge result" });
 		header.createEl("span", {
 			text: "Edit the merged content below, or use hunk controls above",
 			cls: "engram-conflict-merge-hint",
@@ -336,7 +336,7 @@ export class ConflictModal extends Modal {
 	private renderActions(root: HTMLElement): void {
 		const bar = root.createEl("footer", { cls: "engram-conflict-actions" });
 
-		const applyMerge = bar.createEl("button", { text: "Apply Merge", cls: "mod-cta" });
+		const applyMerge = bar.createEl("button", { text: "Apply merge", cls: "mod-cta" });
 		applyMerge.addEventListener("click", () => {
 			this.resolvePromise({
 				choice: "merge",
@@ -345,19 +345,19 @@ export class ConflictModal extends Modal {
 			this.close();
 		});
 
-		const keepLocal = bar.createEl("button", { text: "Keep Local", cls: "mod-warning" });
+		const keepLocal = bar.createEl("button", { text: "Keep local", cls: "mod-warning" });
 		keepLocal.addEventListener("click", () => {
 			this.resolvePromise({ choice: "keep-local" });
 			this.close();
 		});
 
-		const keepRemote = bar.createEl("button", { text: "Keep Remote" });
+		const keepRemote = bar.createEl("button", { text: "Keep remote" });
 		keepRemote.addEventListener("click", () => {
 			this.resolvePromise({ choice: "keep-remote" });
 			this.close();
 		});
 
-		const keepBoth = bar.createEl("button", { text: "Keep Both" });
+		const keepBoth = bar.createEl("button", { text: "Keep both" });
 		keepBoth.addEventListener("click", () => {
 			this.resolvePromise({ choice: "keep-both" });
 			this.close();

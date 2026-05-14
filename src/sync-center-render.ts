@@ -80,7 +80,7 @@ function renderActions(parent: HTMLElement, plugin: EngramSyncPlugin, refresh: (
 			const plan = await plugin.syncEngine.computeSyncPlan("full");
 			const confirmed = await new PreSyncModal(plugin.app, plan).awaitConfirmation();
 			if (!confirmed) return;
-			new Notice("Engram Sync: syncing...");
+			new Notice("Engram sync: syncing...");
 			const { pulled, pushed } = await plugin.syncEngine.fullSync();
 			new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
 		} catch (e) {
@@ -222,7 +222,7 @@ function renderIgnored(parent: HTMLElement, plugin: EngramSyncPlugin, refresh: (
 	if (ignored.length === 0) {
 		body.createEl("p", {
 			cls: "engram-sync-center-empty",
-			text: "No files ignored. Use the Ignore button on a failure row to stop syncing it.",
+			text: "No files ignored. Use the ignore button on a failure row to stop syncing it.",
 		});
 		return;
 	}

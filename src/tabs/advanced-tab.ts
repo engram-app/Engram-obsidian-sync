@@ -65,7 +65,7 @@ export function renderAdvancedTab(ctx: TabContext): void {
 	const ignoreSetting = new Setting(containerEl)
 		.setName("Custom patterns")
 		.setDesc(
-			"Paths to skip (one per line). Folder patterns end with /. Built-in: .obsidian/, .trash/, .git/",
+			`Paths to skip (one per line). Folder patterns end with /. Built-in: ${app.vault.configDir}/, .trash/, .git/`,
 		)
 		.addTextArea((text) => {
 			text.setPlaceholder("drafts/\nsecret.md")
@@ -104,6 +104,7 @@ export function renderAdvancedTab(ctx: TabContext): void {
 	const repoItem = aboutList.createEl("li");
 	repoItem.createSpan({ text: "Source: " });
 	repoItem.createEl("a", {
+		// eslint-disable-next-line obsidianmd/ui/sentence-case -- literal GitHub URL, canonical casing
 		text: "github.com/Rasbandit/Engram-obsidian-sync",
 		href: "https://github.com/Rasbandit/Engram-obsidian-sync",
 	});

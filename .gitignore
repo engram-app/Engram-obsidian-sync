@@ -24,3 +24,6 @@ data.json
 
 # Local Claude state
 .claude/
+
+# Local-only obsidianmd reviewer eslint config (uses absolute /tmp paths)
+.eslint-obsidian.config.mjs

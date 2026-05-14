@@ -18,7 +18,7 @@ export class FirstSyncModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		contentEl.createEl("h2", { text: "Engram Sync — First Sync" });
+		contentEl.createEl("h2", { text: "Engram sync — first sync" });
 
 		contentEl.createEl("p", {
 			text: `Your vault has ${this.localCount} markdown files. How would you like to sync?`,
@@ -26,13 +26,13 @@ export class FirstSyncModal extends Modal {
 
 		const btnContainer = contentEl.createDiv({ cls: "engram-button-row-start" });
 
-		const pushBtn = btnContainer.createEl("button", { text: "Push All", cls: "mod-warning" });
+		const pushBtn = btnContainer.createEl("button", { text: "Push all", cls: "mod-warning" });
 		pushBtn.addEventListener("click", () => {
 			this.resolve("push-all");
 			this.close();
 		});
 
-		const pullBtn = btnContainer.createEl("button", { text: "Pull Only" });
+		const pullBtn = btnContainer.createEl("button", { text: "Pull only" });
 		pullBtn.addEventListener("click", () => {
 			this.resolve("pull-only");
 			this.close();

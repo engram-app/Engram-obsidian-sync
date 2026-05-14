@@ -20,8 +20,8 @@ export class NoteChannel {
 	private ws: WebSocket | null = null;
 	private ref = 0;
 	private readonly joinRef = "1";
-	private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	private heartbeatTimer: number | null = null;
+	private reconnectTimer: number | null = null;
 	private reconnectMs = 1000;
 	private readonly maxReconnectMs = 60_000;
 	private connected = false;
@@ -173,7 +173,7 @@ export class NoteChannel {
 	}
 
 	private startHeartbeat(): void {
-		this.heartbeatTimer = setInterval(() => {
+		this.heartbeatTimer = window.setInterval(() => {
 			if (this.ws?.readyState === WebSocket.OPEN) {
 				this.send([null, String(++this.ref), "phoenix", "heartbeat", {}]);
 			}
@@ -215,7 +215,7 @@ export class NoteChannel {
 		}
 
 		if (event === "note_changed" && payload) {
-			const p = payload as Record<string, unknown>;
+			const p = payload;
 			const streamEvent: NoteStreamEvent = {
 				event_type: p.event_type as "upsert" | "delete",
 				path: p.path as string,
@@ -249,11 +249,11 @@ export class NoteChannel {
 
 	private clearTimers(): void {
 		if (this.heartbeatTimer) {
-			clearInterval(this.heartbeatTimer);
+			window.clearInterval(this.heartbeatTimer);
 			this.heartbeatTimer = null;
 		}
 		if (this.reconnectTimer) {
-			clearTimeout(this.reconnectTimer);
+			window.clearTimeout(this.reconnectTimer);
 			this.reconnectTimer = null;
 		}
 	}
@@ -261,7 +261,7 @@ export class NoteChannel {
 	private scheduleReconnect(overrideMs?: number): void {
 		const base = overrideMs ?? this.reconnectMs;
 		const jitter = Math.random() * base * 0.5;
-		this.reconnectTimer = setTimeout(async () => {
+		this.reconnectTimer = window.setTimeout(async () => {
 			if (overrideMs === undefined) {
 				this.reconnectMs = Math.min(this.reconnectMs * 2, this.maxReconnectMs);
 			}

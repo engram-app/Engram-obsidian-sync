@@ -10,7 +10,7 @@ export class SearchModal extends Modal {
 	private inputEl!: HTMLInputElement;
 	private folderEl!: HTMLInputElement;
 	private resultsEl!: HTMLElement;
-	private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+	private debounceTimer: number | null = null;
 	private results: SearchResult[] = [];
 	private selectedIndex = -1;
 
@@ -40,8 +40,8 @@ export class SearchModal extends Modal {
 		this.renderEmpty();
 
 		const scheduleSearch = () => {
-			if (this.debounceTimer) clearTimeout(this.debounceTimer);
-			this.debounceTimer = setTimeout(() => this.doSearch(), 300);
+			if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
+			this.debounceTimer = window.setTimeout(() => this.doSearch(), 300);
 		};
 
 		this.inputEl.addEventListener("input", scheduleSearch);
@@ -64,7 +64,7 @@ export class SearchModal extends Modal {
 	}
 
 	onClose(): void {
-		if (this.debounceTimer) clearTimeout(this.debounceTimer);
+		if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
 		this.contentEl.empty();
 	}
 

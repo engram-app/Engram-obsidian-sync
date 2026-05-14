@@ -182,8 +182,8 @@ export default class EngramSyncPlugin extends Plugin {
 		);
 
 		// Flush remote logs when app goes to background (mobile)
-		this.registerDomEvent(document, "visibilitychange", () => {
-			if (document.visibilityState === "hidden") {
+		this.registerDomEvent(activeDocument, "visibilitychange", () => {
+			if (activeDocument.visibilityState === "hidden") {
 				rlog().flush();
 				void this.savePluginData(this.syncEngine.getLastSync());
 				this.baseStore?.save();
@@ -192,10 +192,10 @@ export default class EngramSyncPlugin extends Plugin {
 
 		// Add commands
 		this.addCommand({
-			id: "engram-sync-now",
+			id: "sync-now",
 			name: "Sync now",
 			callback: async () => {
-				new Notice("Engram Sync: syncing...");
+				new Notice("Engram sync: syncing...");
 				const { pulled, pushed } = await this.syncEngine.fullSync();
 				new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
 			},
@@ -214,17 +214,17 @@ export default class EngramSyncPlugin extends Plugin {
 			id: "engram-check-sync",
 			name: "Check sync status",
 			callback: async () => {
-				new Notice("Engram Sync: checking...");
+				new Notice("Engram sync: checking...");
 				const result = await this.syncEngine.reconcile();
 				if (!result) {
 					new Notice(
-						"Engram Sync: server does not support reconciliation (update backend)",
+						"Engram sync: server does not support reconciliation (update backend)",
 					);
 					return;
 				}
 				const { missing, diverged, extraOnServer } = result;
 				if (missing.length === 0 && diverged.length === 0 && extraOnServer.length === 0) {
-					new Notice("Engram Sync: everything in sync");
+					new Notice("Engram sync: everything in sync");
 				} else {
 					const parts: string[] = [];
 					if (missing.length > 0) parts.push(`${missing.length} missing on server`);
@@ -240,7 +240,7 @@ export default class EngramSyncPlugin extends Plugin {
 			id: "engram-pull-all",
 			name: "Pull all from server (force overwrite)",
 			callback: async () => {
-				new Notice("Engram Sync: pulling all from server...");
+				new Notice("Engram sync: pulling all from server...");
 				const count = await this.syncEngine.pullAll();
 				new Notice(`Engram Sync: pulled ${count} files from server`);
 			},
@@ -282,7 +282,7 @@ export default class EngramSyncPlugin extends Plugin {
 			},
 		});
 
-		this.addRibbonIcon("search", "Engram Search", async () => {
+		this.addRibbonIcon("search", "Engram search", async () => {
 			const existing = this.app.workspace.getLeavesOfType(SEARCH_VIEW_TYPE);
 			if (existing.length) {
 				this.app.workspace.revealLeaf(existing[0]);
@@ -300,13 +300,13 @@ export default class EngramSyncPlugin extends Plugin {
 
 		this.addCommand({
 			id: "engram-open-sync-center",
-			name: "Open Sync Center",
+			name: "Open sync center",
 			callback: async () => {
 				await this.openSyncCenter();
 			},
 		});
 
-		this.addRibbonIcon("refresh-cw", "Engram Sync Center", async () => {
+		this.addRibbonIcon("refresh-cw", "Engram sync center", async () => {
 			await this.openSyncCenter();
 		});
 
@@ -320,7 +320,7 @@ export default class EngramSyncPlugin extends Plugin {
 
 		this.registerDomEvent(this.statusBarEl, "click", () => {
 			if (this.settings.apiUrl && this.settings.apiKey) {
-				new Notice("Engram Sync: syncing...");
+				new Notice("Engram sync: syncing...");
 				this.syncEngine
 					.fullSync()
 					.then(({ pulled, pushed }) => {
@@ -334,7 +334,7 @@ export default class EngramSyncPlugin extends Plugin {
 							`Manual sync failed: ${e instanceof Error ? e.message : e}`,
 							e instanceof Error ? e.stack : undefined,
 						);
-						new Notice("Engram Sync: sync failed");
+						new Notice("Engram sync: sync failed");
 					});
 			}
 		});
@@ -382,7 +382,7 @@ export default class EngramSyncPlugin extends Plugin {
 		this.syncEngine?.destroy();
 		this.noteStream?.disconnect();
 		if (this.syncInterval) {
-			clearInterval(this.syncInterval);
+			window.clearInterval(this.syncInterval);
 			this.syncInterval = null;
 		}
 		destroyRemoteLog();
@@ -447,7 +447,7 @@ export default class EngramSyncPlugin extends Plugin {
 			return true;
 		} catch (e: unknown) {
 			if (typeof e === "object" && e !== null && (e as { status?: number }).status === 402) {
-				new Notice("Engram: Upgrade to Pro for multi-vault sync.");
+				new Notice("Engram: Upgrade to pro for multi-vault sync.");
 				rlog().info("lifecycle", "Vault registration blocked — vault limit reached (402)");
 				return false;
 			}
@@ -471,7 +471,7 @@ export default class EngramSyncPlugin extends Plugin {
 			syncedHashes: this.syncEngine.exportHashes(),
 			syncIssues: this.syncEngine.issues.serialize(),
 			ignoredFiles: this.syncEngine.ignoredFiles.serialize(),
-		} as PluginData);
+		});
 	}
 
 	private createAuthProvider(): AuthProvider | null {
@@ -626,7 +626,7 @@ export default class EngramSyncPlugin extends Plugin {
 
 				if (attempt < maxAttempts - 1) {
 					const delay = baseDelay * 2 ** attempt;
-					setTimeout(() => this.connectChannel(attempt + 1), delay);
+					window.setTimeout(() => this.connectChannel(attempt + 1), delay);
 				}
 			});
 	}
@@ -652,7 +652,7 @@ export default class EngramSyncPlugin extends Plugin {
 				const pushed = await this.syncEngine.pushAll();
 				new Notice(`Engram Sync: pushed ${pushed} files`);
 			} else {
-				new Notice("Engram Sync: pull complete. Local notes were not pushed.");
+				new Notice("Engram sync: pull complete. Local notes were not pushed.");
 			}
 		} else {
 			try {
@@ -663,7 +663,7 @@ export default class EngramSyncPlugin extends Plugin {
 			} catch (e) {
 				// biome-ignore lint/suspicious/noConsole: error boundary
 				console.error("Engram Sync: sync failed", e);
-				new Notice("Engram Sync: sync failed — check connection");
+				new Notice("Engram sync: sync failed — check connection");
 			}
 		}
 	}
@@ -746,7 +746,7 @@ export default class EngramSyncPlugin extends Plugin {
 
 	private startSyncInterval(): void {
 		if (this.syncInterval) {
-			clearInterval(this.syncInterval);
+			window.clearInterval(this.syncInterval);
 			this.syncInterval = null;
 		}
 

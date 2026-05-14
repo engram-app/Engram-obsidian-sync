@@ -30,6 +30,7 @@ const mockApi = {
 // Mock the Obsidian App
 const mockApp = {
 	vault: {
+		configDir: ".obsidian",
 		read: mock().mockResolvedValue("# Test\n\nContent"),
 		cachedRead: mock().mockResolvedValue("# Test\n\nContent"),
 		readBinary: mock().mockResolvedValue(new ArrayBuffer(3)),
@@ -49,6 +50,9 @@ const mockApp = {
 		trash: mock().mockResolvedValue(undefined),
 		rename: mock().mockResolvedValue(undefined),
 		getName: mock().mockReturnValue("Test Vault"),
+	},
+	fileManager: {
+		trashFile: mock().mockResolvedValue(undefined),
 	},
 	workspace: {
 		getActiveViewOfType: mock().mockReturnValue(null),
@@ -360,7 +364,7 @@ describe("SyncEngine.pushAll with progress", () => {
 		await engine.wipePullAll();
 
 		// Both local files should have been trashed
-		expect(mockApp.vault.trash).toHaveBeenCalledTimes(2);
+		expect(mockApp.fileManager.trashFile).toHaveBeenCalledTimes(2);
 
 		// Sync log should have delete entries for the wipe
 		const deleteEntries = engine.syncLog.entries().filter((e) => e.action === "delete");

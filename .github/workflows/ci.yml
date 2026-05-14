@@ -21,8 +21,11 @@ jobs:
       - name: Security audit
         run: bun audit
 
-      - name: Lint
+      - name: Lint (biome)
         run: bunx biome check src tests
+
+      - name: Lint (Obsidian community reviewer rules)
+        run: bun run lint:obsidian
 
       - name: Type-check and build
         run: bun run build
