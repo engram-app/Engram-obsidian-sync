@@ -827,6 +827,19 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
+	width: 100%;
+}
+
+.engram-support-buttons > a {
+	flex: 1 1 0;
+	justify-content: center;
+}
+
+/* Let the support row use the full Setting width instead of hugging the right side */
+.setting-item:has(.engram-support-buttons) {
+	flex-direction: column;
+	align-items: stretch;
+	gap: 12px;
 }
 
 .engram-sponsor-button {
