@@ -707,6 +707,10 @@
 	.engram-api-key-input {
 		width: 100%;
 	}
+
+	.engram-vault-current-name {
+		text-align: center;
+	}
 }
 
 .engram-tab:hover {
