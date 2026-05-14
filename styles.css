@@ -653,6 +653,17 @@
 		padding: 8px 10px;
 		text-align: center;
 	}
+
+	/* Stack API key input above Save button — too cramped side-by-side */
+	.setting-item:has(.engram-api-key-input) .setting-item-control {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 8px;
+	}
+
+	.engram-api-key-input {
+		width: 100%;
+	}
 }
 
 .engram-tab:hover {
