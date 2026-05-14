@@ -21,8 +21,9 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 	new Setting(containerEl).setName("Setup").setHeading();
 
 	const repoSetting = new Setting(containerEl)
-		.setName("Engram server")
+		.setName("How to set up and run Engram")
 		.setDesc("Engram is the backend that powers sync and semantic search. Run it yourself:");
+	repoSetting.settingEl.addClass("engram-setup-cta");
 	repoSetting.descEl.createEl("br");
 	repoSetting.descEl.createEl("a", {
 		text: "github.com/Rasbandit/engram",

@@ -521,6 +521,32 @@
 	font-family: var(--font-monospace);
 }
 
+/* Prominent "how to set up Engram" CTA in the Self-hosted Setup section */
+.engram-setup-cta {
+	padding: 16px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	margin-bottom: 1em;
+}
+
+.engram-setup-cta .setting-item-name {
+	font-size: 1.15em;
+	font-weight: 700;
+}
+
+.engram-setup-cta .setting-item-description {
+	font-size: 1em;
+	color: var(--text-normal);
+	line-height: 1.5;
+	margin-top: 4px;
+}
+
+.engram-setup-cta .setting-item-description a {
+	font-weight: 600;
+	color: var(--text-accent);
+}
+
 .engram-auth-divider {
 	display: flex;
 	align-items: center;
