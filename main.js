@@ -2201,14 +2201,14 @@ function renderVaultSection(ctx) {
 function renderSupportSection(ctx) {
   let { containerEl } = ctx;
   new import_obsidian9.Setting(containerEl).setName("Support development").setHeading();
-  let kofiLink = new import_obsidian9.Setting(containerEl).setDesc(
+  let sponsorLink = new import_obsidian9.Setting(containerEl).setDesc(
     "If this plugin saves you time, consider supporting development."
   ).controlEl.createEl("a", {
-    cls: "engram-kofi-button",
-    href: "https://ko-fi.com/rasbandit",
+    cls: "engram-sponsor-button",
+    href: "https://github.com/sponsors/Rasbandit",
     attr: { target: "_blank", rel: "noopener" }
-  }), iconSpan = kofiLink.createSpan({ cls: "engram-kofi-icon" });
-  (0, import_obsidian9.setIcon)(iconSpan, "coffee"), kofiLink.createSpan({ text: "Support on Ko-fi" });
+  }), iconSpan = sponsorLink.createSpan({ cls: "engram-sponsor-icon" });
+  (0, import_obsidian9.setIcon)(iconSpan, "heart"), sponsorLink.createSpan({ text: "Sponsor on GitHub" });
 }
 function describeListVaultsError(e) {
   let err = e, status = err == null ? void 0 : err.status;

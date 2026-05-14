@@ -268,7 +268,7 @@ export function renderVaultSection(ctx: TabContext): void {
 		});
 }
 
-/** Render the Ko-fi support section. */
+/** Render the GitHub Sponsors support section. */
 export function renderSupportSection(ctx: TabContext): void {
 	const { containerEl } = ctx;
 
@@ -278,14 +278,14 @@ export function renderSupportSection(ctx: TabContext): void {
 		"If this plugin saves you time, consider supporting development.",
 	);
 
-	const kofiLink = supportSetting.controlEl.createEl("a", {
-		cls: "engram-kofi-button",
-		href: "https://ko-fi.com/rasbandit",
+	const sponsorLink = supportSetting.controlEl.createEl("a", {
+		cls: "engram-sponsor-button",
+		href: "https://github.com/sponsors/Rasbandit",
 		attr: { target: "_blank", rel: "noopener" },
 	});
-	const iconSpan = kofiLink.createSpan({ cls: "engram-kofi-icon" });
-	setIcon(iconSpan, "coffee");
-	kofiLink.createSpan({ text: "Support on Ko-fi" });
+	const iconSpan = sponsorLink.createSpan({ cls: "engram-sponsor-icon" });
+	setIcon(iconSpan, "heart");
+	sponsorLink.createSpan({ text: "Sponsor on GitHub" });
 }
 
 /** Map a `listVaults()` rejection to a short human label suitable for a

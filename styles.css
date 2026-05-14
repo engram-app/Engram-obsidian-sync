@@ -656,10 +656,20 @@
 
 	/* Stack cramped setting rows on phone — input/value above its button */
 	.setting-item:has(.engram-api-key-input) .setting-item-control,
-	.setting-item:has(.engram-vault-current-name) .setting-item-control {
+	.setting-item:has(.engram-vault-current-name) .setting-item-control,
+	.setting-item:has(.engram-sponsor-button) {
 		flex-direction: column;
 		align-items: stretch;
 		gap: 8px;
+	}
+
+	.setting-item:has(.engram-sponsor-button) .setting-item-info,
+	.setting-item:has(.engram-sponsor-button) .setting-item-control {
+		width: 100%;
+	}
+
+	.engram-sponsor-button {
+		align-self: flex-start;
 	}
 
 	.engram-api-key-input {
@@ -806,35 +816,36 @@
 	color: var(--text-accent);
 }
 
-/* Ko-fi support button */
-.engram-kofi-button {
+/* GitHub Sponsors support button */
+.engram-sponsor-button {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
 	padding: 8px 16px;
-	background: linear-gradient(135deg, #ff5e5b 0%, #ff8d6b 100%);
+	background: linear-gradient(135deg, #db61a2 0%, #f178b6 100%);
 	color: #ffffff !important;
 	border-radius: 8px;
 	text-decoration: none !important;
 	font-weight: 600;
 	font-size: 0.95em;
-	box-shadow: 0 2px 6px rgba(255, 94, 91, 0.25);
+	box-shadow: 0 2px 6px rgba(219, 97, 162, 0.25);
 	transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.engram-kofi-button:hover {
+.engram-sponsor-button:hover {
 	transform: translateY(-1px);
-	box-shadow: 0 4px 14px rgba(255, 94, 91, 0.4);
+	box-shadow: 0 4px 14px rgba(219, 97, 162, 0.4);
 }
 
-.engram-kofi-button .engram-kofi-icon {
+.engram-sponsor-button .engram-sponsor-icon {
 	display: inline-flex;
 	align-items: center;
 }
 
-.engram-kofi-button .engram-kofi-icon svg {
+.engram-sponsor-button .engram-sponsor-icon svg {
 	width: 18px;
 	height: 18px;
+	fill: #ffffff;
 	stroke: #ffffff;
 }
 
