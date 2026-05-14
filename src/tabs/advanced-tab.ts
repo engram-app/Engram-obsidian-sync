@@ -105,8 +105,8 @@ export function renderAdvancedTab(ctx: TabContext): void {
 	repoItem.createSpan({ text: "Source: " });
 	repoItem.createEl("a", {
 		// eslint-disable-next-line obsidianmd/ui/sentence-case -- literal GitHub URL, canonical casing
-		text: "github.com/Rasbandit/Engram-obsidian-sync",
-		href: "https://github.com/Rasbandit/Engram-obsidian-sync",
+		text: "github.com/engram-app/Engram-obsidian-sync",
+		href: "https://github.com/engram-app/Engram-obsidian-sync",
 	});
 
 	const licenseItem = aboutList.createEl("li");

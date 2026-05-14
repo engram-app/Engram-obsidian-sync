@@ -11,7 +11,7 @@ How to submit (and re-submit new versions of) the Engram Sync plugin to the offi
 ## Environment
 - Submission flow: Obsidian Community site (https://community.obsidian.md/)
 - Requires: Obsidian account + GitHub account linked
-- Repo currently at `Rasbandit/Engram-obsidian-sync` — planned migration to `Engram-App/...` org (re-submit with new `repo` field after move)
+- Repo currently at `engram-app/Engram-obsidian-sync` — planned migration to `Engram-App/...` org (re-submit with new `repo` field after move)
 - Reviewer runs `eslint-plugin-obsidianmd` automated rules on every release tag
 
 ## Connection
@@ -76,8 +76,8 @@ If/when v0.4+ ships, replace our `no-restricted-imports` block with `"obsidianmd
 
 ### 6 known false positives in our UI strings
 The `obsidianmd/ui/sentence-case` rule misfires on URLs / canonical literals. Suppressed per-line with justification comments — see source for full reasoning:
-1. `src/tabs/advanced-tab.ts:107` — `github.com/Rasbandit/Engram-obsidian-sync` (literal URL)
-2. `src/tabs/self-hosted-tab.ts:25` — `github.com/Rasbandit/engram` (literal URL)
+1. `src/tabs/advanced-tab.ts:107` — `github.com/engram-app/Engram-obsidian-sync` (literal URL)
+2. `src/tabs/self-hosted-tab.ts:25` — `github.com/engram-app/engram` (literal URL)
 3. `src/tabs/self-hosted-tab.ts:31` — `http://10.0.20.214:8000` (lowercase scheme per RFC 3986)
 4. `src/tabs/self-hosted-tab.ts:34` — `http://localhost:8000` placeholder (lowercase scheme)
 5. `src/tabs/self-hosted-tab.ts:88` — `OAuth` (canonical per RFC 6749, rule wants `OAUTH`)
