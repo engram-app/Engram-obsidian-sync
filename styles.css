@@ -521,6 +521,32 @@
 	font-family: var(--font-monospace);
 }
 
+/* Prominent "how to set up Engram" CTA in the Self-hosted Setup section */
+.engram-setup-cta {
+	padding: 16px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	margin-bottom: 1em;
+}
+
+.engram-setup-cta .setting-item-name {
+	font-size: 1.15em;
+	font-weight: 700;
+}
+
+.engram-setup-cta .setting-item-description {
+	font-size: 1em;
+	color: var(--text-normal);
+	line-height: 1.5;
+	margin-top: 4px;
+}
+
+.engram-setup-cta .setting-item-description a {
+	font-weight: 600;
+	color: var(--text-accent);
+}
+
 .engram-auth-divider {
 	display: flex;
 	align-items: center;
@@ -566,7 +592,8 @@
 }
 
 .engram-vault-current-name {
-	font-weight: 500;
+	font-family: var(--font-monospace);
+	color: var(--text-accent);
 	margin-right: 0.75em;
 }
 
@@ -651,6 +678,38 @@
 	.engram-tab {
 		flex: 1 1 calc(50% - 12px);
 		padding: 8px 10px;
+		text-align: center;
+	}
+
+	/* Stack cramped setting rows on phone — input/value above its button */
+	.setting-item:has(.engram-api-key-input) .setting-item-control,
+	.setting-item:has(.engram-vault-current-name) .setting-item-control,
+	.setting-item:has(.engram-sponsor-button) {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 8px;
+	}
+
+	.setting-item:has(.engram-sponsor-button) .setting-item-info,
+	.setting-item:has(.engram-sponsor-button) .setting-item-control {
+		width: 100%;
+	}
+
+	.engram-support-buttons {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.engram-sponsor-button,
+	.engram-kofi-button {
+		justify-content: center;
+	}
+
+	.engram-api-key-input {
+		width: 100%;
+	}
+
+	.engram-vault-current-name {
 		text-align: center;
 	}
 }
@@ -794,7 +853,58 @@
 	color: var(--text-accent);
 }
 
-/* Ko-fi support button */
+/* Support buttons (GitHub Sponsors + Ko-fi) */
+.engram-support-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	width: 100%;
+}
+
+.engram-support-buttons > a {
+	flex: 1 1 0;
+	justify-content: center;
+}
+
+/* Let the support row use the full Setting width instead of hugging the right side */
+.setting-item:has(.engram-support-buttons) {
+	flex-direction: column;
+	align-items: stretch;
+	gap: 12px;
+}
+
+.engram-sponsor-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 16px;
+	background: linear-gradient(135deg, #db61a2 0%, #f178b6 100%);
+	color: #ffffff !important;
+	border-radius: 8px;
+	text-decoration: none !important;
+	font-weight: 600;
+	font-size: 0.95em;
+	box-shadow: 0 2px 6px rgba(219, 97, 162, 0.25);
+	transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.engram-sponsor-button:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 14px rgba(219, 97, 162, 0.4);
+}
+
+.engram-sponsor-button .engram-sponsor-icon {
+	display: inline-flex;
+	align-items: center;
+}
+
+.engram-sponsor-button .engram-sponsor-icon svg {
+	width: 18px;
+	height: 18px;
+	fill: #ffffff;
+	stroke: #ffffff;
+}
+
 .engram-kofi-button {
 	display: inline-flex;
 	align-items: center;

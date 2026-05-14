@@ -1,7 +1,6 @@
 import { Notice, Setting, setIcon } from "obsidian";
 import { applyApiUrlChange } from "../auth-state";
 import { VaultSwitchModal } from "../vault-switch-modal";
-import { renderActionsSection } from "./actions-section";
 import type { TabContext } from "./types";
 import { ENGRAM_CLOUD_URL } from "./urls";
 
@@ -18,13 +17,10 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 		return;
 	}
 
-	// ── Setup ──
-	new Setting(containerEl).setName("Setup").setHeading();
-
 	const repoSetting = new Setting(containerEl)
-		.setName("Engram server")
-		.setDesc("Engram is the backend that powers sync and semantic search. Run it yourself:");
-	repoSetting.descEl.createEl("br");
+		.setName("Run your own Engram server")
+		.setDesc("Engram is the backend that powers sync and semantic search. Get it here → ");
+	repoSetting.settingEl.addClass("engram-setup-cta");
 	repoSetting.descEl.createEl("a", {
 		text: "github.com/Rasbandit/engram",
 		href: "https://github.com/Rasbandit/engram",
@@ -56,8 +52,6 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 
 	renderAuthSection(ctx);
 	renderVaultSection(ctx);
-	renderActionsSection(ctx);
-	renderTestConnection(ctx);
 	renderSupportSection(ctx);
 }
 
@@ -70,24 +64,6 @@ function renderCloudLockBanner(containerEl: HTMLElement): void {
 	banner.createEl("p", {
 		text: "To set up a self-hosted Engram server, sign out from the Cloud tab first. That will release the connection so you can point the plugin at your own server.",
 	});
-}
-
-/** Render the "Test connection" row. Hidden when no auth is configured —
- *  there is nothing to test against an empty backend. */
-export function renderTestConnection(ctx: TabContext): void {
-	const { containerEl, plugin } = ctx;
-	const hasAuth = !!plugin.settings.refreshToken || !!plugin.settings.apiKey;
-	if (!hasAuth) return;
-
-	new Setting(containerEl)
-		.setName("Test connection")
-		.setDesc("Check if Engram is reachable and credentials are valid.")
-		.addButton((btn) =>
-			btn.setButtonText("Test").onClick(async () => {
-				const { ok, error } = await plugin.api.ping();
-				new Notice(ok ? "Engram: connected!" : `Engram: ${error}`);
-			}),
-		);
 }
 
 /** Render Authentication section — OAuth status / API key / sign-in CTAs.
@@ -191,7 +167,7 @@ export function renderAuthSection(ctx: TabContext): void {
  *
  *  Two modes:
  *    - First-time (no vaultId): dropdown directly so the user can pick.
- *    - Locked-in (vaultId set): read-only "Sync vault: <name>" + Change button
+ *    - Locked-in (vaultId set): read-only "Vault Selection: <name>" + Change button
  *      that opens VaultSwitchModal. Vault switching is destructive (retargets
  *      sync at a different server vault), so it lives behind a confirm modal. */
 export function renderVaultSection(ctx: TabContext): void {
@@ -202,7 +178,7 @@ export function renderVaultSection(ctx: TabContext): void {
 	new Setting(containerEl).setName("Vault").setHeading();
 
 	const setting = new Setting(containerEl)
-		.setName("Sync vault")
+		.setName("Vault Selection")
 		.setDesc("Select which vault this plugin syncs with.");
 
 	const placeholderEl = setting.controlEl.createSpan({ text: "Loading vaults..." });
@@ -270,7 +246,7 @@ export function renderVaultSection(ctx: TabContext): void {
 		});
 }
 
-/** Render the Ko-fi support section. */
+/** Render the GitHub Sponsors + Ko-fi support section. */
 export function renderSupportSection(ctx: TabContext): void {
 	const { containerEl } = ctx;
 
@@ -280,13 +256,24 @@ export function renderSupportSection(ctx: TabContext): void {
 		"If this plugin saves you time, consider supporting development.",
 	);
 
-	const kofiLink = supportSetting.controlEl.createEl("a", {
+	const buttonRow = supportSetting.controlEl.createDiv({ cls: "engram-support-buttons" });
+
+	const sponsorLink = buttonRow.createEl("a", {
+		cls: "engram-sponsor-button",
+		href: "https://github.com/sponsors/Rasbandit",
+		attr: { target: "_blank", rel: "noopener" },
+	});
+	const sponsorIcon = sponsorLink.createSpan({ cls: "engram-sponsor-icon" });
+	setIcon(sponsorIcon, "heart");
+	sponsorLink.createSpan({ text: "Sponsor on GitHub" });
+
+	const kofiLink = buttonRow.createEl("a", {
 		cls: "engram-kofi-button",
 		href: "https://ko-fi.com/rasbandit",
 		attr: { target: "_blank", rel: "noopener" },
 	});
-	const iconSpan = kofiLink.createSpan({ cls: "engram-kofi-icon" });
-	setIcon(iconSpan, "coffee");
+	const kofiIcon = kofiLink.createSpan({ cls: "engram-kofi-icon" });
+	setIcon(kofiIcon, "coffee");
 	kofiLink.createSpan({ text: "Support on Ko-fi" });
 }
 
