@@ -268,7 +268,7 @@ export function renderVaultSection(ctx: TabContext): void {
 		});
 }
 
-/** Render the GitHub Sponsors support section. */
+/** Render the GitHub Sponsors + Ko-fi support section. */
 export function renderSupportSection(ctx: TabContext): void {
 	const { containerEl } = ctx;
 
@@ -278,14 +278,25 @@ export function renderSupportSection(ctx: TabContext): void {
 		"If this plugin saves you time, consider supporting development.",
 	);
 
-	const sponsorLink = supportSetting.controlEl.createEl("a", {
+	const buttonRow = supportSetting.controlEl.createDiv({ cls: "engram-support-buttons" });
+
+	const sponsorLink = buttonRow.createEl("a", {
 		cls: "engram-sponsor-button",
 		href: "https://github.com/sponsors/Rasbandit",
 		attr: { target: "_blank", rel: "noopener" },
 	});
-	const iconSpan = sponsorLink.createSpan({ cls: "engram-sponsor-icon" });
-	setIcon(iconSpan, "heart");
+	const sponsorIcon = sponsorLink.createSpan({ cls: "engram-sponsor-icon" });
+	setIcon(sponsorIcon, "heart");
 	sponsorLink.createSpan({ text: "Sponsor on GitHub" });
+
+	const kofiLink = buttonRow.createEl("a", {
+		cls: "engram-kofi-button",
+		href: "https://ko-fi.com/rasbandit",
+		attr: { target: "_blank", rel: "noopener" },
+	});
+	const kofiIcon = kofiLink.createSpan({ cls: "engram-kofi-icon" });
+	setIcon(kofiIcon, "coffee");
+	kofiLink.createSpan({ text: "Support on Ko-fi" });
 }
 
 /** Map a `listVaults()` rejection to a short human label suitable for a

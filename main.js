@@ -2201,14 +2201,20 @@ function renderVaultSection(ctx) {
 function renderSupportSection(ctx) {
   let { containerEl } = ctx;
   new import_obsidian9.Setting(containerEl).setName("Support development").setHeading();
-  let sponsorLink = new import_obsidian9.Setting(containerEl).setDesc(
+  let buttonRow = new import_obsidian9.Setting(containerEl).setDesc(
     "If this plugin saves you time, consider supporting development."
-  ).controlEl.createEl("a", {
+  ).controlEl.createDiv({ cls: "engram-support-buttons" }), sponsorLink = buttonRow.createEl("a", {
     cls: "engram-sponsor-button",
     href: "https://github.com/sponsors/Rasbandit",
     attr: { target: "_blank", rel: "noopener" }
-  }), iconSpan = sponsorLink.createSpan({ cls: "engram-sponsor-icon" });
-  (0, import_obsidian9.setIcon)(iconSpan, "heart"), sponsorLink.createSpan({ text: "Sponsor on GitHub" });
+  }), sponsorIcon = sponsorLink.createSpan({ cls: "engram-sponsor-icon" });
+  (0, import_obsidian9.setIcon)(sponsorIcon, "heart"), sponsorLink.createSpan({ text: "Sponsor on GitHub" });
+  let kofiLink = buttonRow.createEl("a", {
+    cls: "engram-kofi-button",
+    href: "https://ko-fi.com/rasbandit",
+    attr: { target: "_blank", rel: "noopener" }
+  }), kofiIcon = kofiLink.createSpan({ cls: "engram-kofi-icon" });
+  (0, import_obsidian9.setIcon)(kofiIcon, "coffee"), kofiLink.createSpan({ text: "Support on Ko-fi" });
 }
 function describeListVaultsError(e) {
   let err = e, status = err == null ? void 0 : err.status;

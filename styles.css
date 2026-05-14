@@ -668,8 +668,14 @@
 		width: 100%;
 	}
 
-	.engram-sponsor-button {
-		align-self: flex-start;
+	.engram-support-buttons {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.engram-sponsor-button,
+	.engram-kofi-button {
+		justify-content: center;
 	}
 
 	.engram-api-key-input {
@@ -816,7 +822,13 @@
 	color: var(--text-accent);
 }
 
-/* GitHub Sponsors support button */
+/* Support buttons (GitHub Sponsors + Ko-fi) */
+.engram-support-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
 .engram-sponsor-button {
 	display: inline-flex;
 	align-items: center;
@@ -846,6 +858,37 @@
 	width: 18px;
 	height: 18px;
 	fill: #ffffff;
+	stroke: #ffffff;
+}
+
+.engram-kofi-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 16px;
+	background: linear-gradient(135deg, #ff5e5b 0%, #ff8d6b 100%);
+	color: #ffffff !important;
+	border-radius: 8px;
+	text-decoration: none !important;
+	font-weight: 600;
+	font-size: 0.95em;
+	box-shadow: 0 2px 6px rgba(255, 94, 91, 0.25);
+	transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.engram-kofi-button:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 14px rgba(255, 94, 91, 0.4);
+}
+
+.engram-kofi-button .engram-kofi-icon {
+	display: inline-flex;
+	align-items: center;
+}
+
+.engram-kofi-button .engram-kofi-icon svg {
+	width: 18px;
+	height: 18px;
 	stroke: #ffffff;
 }
 
