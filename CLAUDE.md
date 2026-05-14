@@ -16,6 +16,7 @@ For backend REST API (all endpoints, pipelines, auth, config), read `../engram-w
 For cross-project debugging workflows, read `../engram-workspace/docs/debugging.md`.
 For Obsidian API best practices and correct usage patterns, read `docs/context/obsidian-api-reference.md`.
 For audit of API misuses and improvement opportunities, read `docs/context/obsidian-api-audit.md`.
+For submitting to the Community Plugins directory (new flow as of 2026-05-12), read `docs/context/obsidian-community-submission.md`.
 
 ## What This Plugin Does
 
