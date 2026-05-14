@@ -2092,22 +2092,13 @@ function renderSelfHostedTab(ctx) {
         () => plugin.saveSettings()
       ) && (new import_obsidian9.Notice("Engram backend changed \u2014 sign in again to continue."), redisplay());
     })
-  ), renderAuthSection(ctx), renderVaultSection(ctx), renderTestConnection(ctx), renderSupportSection(ctx);
+  ), renderAuthSection(ctx), renderVaultSection(ctx), renderSupportSection(ctx);
 }
 function renderCloudLockBanner(containerEl) {
   let banner = containerEl.createDiv({ cls: "engram-mode-lock-banner" });
   banner.createEl("p", { text: "You're connected to Engram Cloud." }), banner.createEl("p", {
     text: "To set up a self-hosted Engram server, sign out from the Cloud tab first. That will release the connection so you can point the plugin at your own server."
   });
-}
-function renderTestConnection(ctx) {
-  let { containerEl, plugin } = ctx;
-  (plugin.settings.refreshToken || plugin.settings.apiKey) && new import_obsidian9.Setting(containerEl).setName("Test connection").setDesc("Check if Engram is reachable and credentials are valid.").addButton(
-    (btn) => btn.setButtonText("Test").onClick(async () => {
-      let { ok, error } = await plugin.api.ping();
-      new import_obsidian9.Notice(ok ? "Engram: connected!" : `Engram: ${error}`);
-    })
-  );
 }
 function renderAuthSection(ctx) {
   var _a;
@@ -2244,7 +2235,7 @@ async function renderAccountTab(ctx) {
     text: "engram.page",
     href: ENGRAM_MARKETING_URL,
     attr: { target: "_blank", rel: "noopener" }
-  }), aboutSetting.descEl.appendText("."), renderAuthSection(ctx), renderVaultSection(ctx), renderTestConnection(ctx);
+  }), aboutSetting.descEl.appendText("."), renderAuthSection(ctx), renderVaultSection(ctx);
 }
 
 // src/tabs/advanced-tab.ts

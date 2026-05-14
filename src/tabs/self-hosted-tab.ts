@@ -52,7 +52,6 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 
 	renderAuthSection(ctx);
 	renderVaultSection(ctx);
-	renderTestConnection(ctx);
 	renderSupportSection(ctx);
 }
 
@@ -65,24 +64,6 @@ function renderCloudLockBanner(containerEl: HTMLElement): void {
 	banner.createEl("p", {
 		text: "To set up a self-hosted Engram server, sign out from the Cloud tab first. That will release the connection so you can point the plugin at your own server.",
 	});
-}
-
-/** Render the "Test connection" row. Hidden when no auth is configured —
- *  there is nothing to test against an empty backend. */
-export function renderTestConnection(ctx: TabContext): void {
-	const { containerEl, plugin } = ctx;
-	const hasAuth = !!plugin.settings.refreshToken || !!plugin.settings.apiKey;
-	if (!hasAuth) return;
-
-	new Setting(containerEl)
-		.setName("Test connection")
-		.setDesc("Check if Engram is reachable and credentials are valid.")
-		.addButton((btn) =>
-			btn.setButtonText("Test").onClick(async () => {
-				const { ok, error } = await plugin.api.ping();
-				new Notice(ok ? "Engram: connected!" : `Engram: ${error}`);
-			}),
-		);
 }
 
 /** Render Authentication section — OAuth status / API key / sign-in CTAs.
