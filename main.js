@@ -2076,8 +2076,8 @@ function renderSelfHostedTab(ctx) {
     renderCloudLockBanner(containerEl);
     return;
   }
-  let repoSetting = new import_obsidian9.Setting(containerEl).setName("How to set up and run Engram").setDesc("Engram is the backend that powers sync and semantic search. Run it yourself:");
-  repoSetting.settingEl.addClass("engram-setup-cta"), repoSetting.descEl.createEl("br"), repoSetting.descEl.createEl("a", {
+  let repoSetting = new import_obsidian9.Setting(containerEl).setName("Run your own Engram server").setDesc("Engram is the backend that powers sync and semantic search. Get it here \u2192 ");
+  repoSetting.settingEl.addClass("engram-setup-cta"), repoSetting.descEl.createEl("a", {
     text: "github.com/Rasbandit/engram",
     href: "https://github.com/Rasbandit/engram"
   }), new import_obsidian9.Setting(containerEl).setName("Engram URL").setDesc("Full URL to your Engram instance (e.g. http://10.0.20.214:8000).").addText(
