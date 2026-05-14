@@ -592,7 +592,8 @@
 }
 
 .engram-vault-current-name {
-	font-weight: 500;
+	font-family: var(--font-monospace);
+	color: var(--text-accent);
 	margin-right: 0.75em;
 }
 
