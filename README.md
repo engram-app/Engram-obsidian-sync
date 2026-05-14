@@ -1,6 +1,6 @@
 # Engram Sync
 
-Bidirectional sync between your Obsidian vault and an [Engram](https://github.com/Rasbandit/engram) server, with AI-powered semantic search.
+Bidirectional sync between your Obsidian vault and an [Engram](https://github.com/engram-app/engram) server, with AI-powered semantic search.
 
 > **Engram is required.** This plugin is a sync client — it does not run AI locally. You need access to an Engram instance, either self-hosted or via a hosted plan (coming soon). Without an Engram server, this plugin does nothing.
 
@@ -39,14 +39,14 @@ All note content is sent to the Engram URL you configure. Nothing is sent to any
 
 ### Manual
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/Rasbandit/Engram-obsidian-sync/releases/latest).
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/engram-app/Engram-obsidian-sync/releases/latest).
 2. Create a folder at `<your vault>/.obsidian/plugins/engram-sync/`.
 3. Copy the three files into that folder.
 4. Restart Obsidian and enable the plugin in **Settings → Community plugins**.
 
 ### BRAT (beta channel)
 
-For pre-release builds, install via [BRAT](https://github.com/TfTHacker/obsidian42-brat) and add `Rasbandit/Engram-obsidian-sync`.
+For pre-release builds, install via [BRAT](https://github.com/TfTHacker/obsidian42-brat) and add `engram-app/Engram-obsidian-sync`.
 
 ## Configuration
 

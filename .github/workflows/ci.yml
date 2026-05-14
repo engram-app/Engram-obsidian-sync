@@ -39,10 +39,19 @@ jobs:
     if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
+      - name: Generate App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.ENGRAM_CI_APP_ID }}
+          private-key: ${{ secrets.ENGRAM_CI_APP_PRIVATE_KEY }}
+          owner: engram-app
+          repositories: Engram
+
       - name: Trigger backend E2E
         run: |
           curl --fail -X POST \
             -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.CROSS_REPO_PAT }}" \
-            https://api.github.com/repos/Rasbandit/Engram/dispatches \
+            -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
+            https://api.github.com/repos/engram-app/Engram/dispatches \
             -d '{"event_type":"plugin-e2e-trigger","client_payload":{"plugin_ref":"${{ github.sha }}","plugin_branch":"${{ github.ref_name }}"}}'

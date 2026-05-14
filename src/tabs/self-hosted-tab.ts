@@ -23,8 +23,8 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 	repoSetting.settingEl.addClass("engram-setup-cta");
 	repoSetting.descEl.createEl("a", {
 		// eslint-disable-next-line obsidianmd/ui/sentence-case -- literal GitHub URL, canonical casing
-		text: "github.com/Rasbandit/engram",
-		href: "https://github.com/Rasbandit/engram",
+		text: "github.com/engram-app/engram",
+		href: "https://github.com/engram-app/engram",
 	});
 
 	new Setting(containerEl)
