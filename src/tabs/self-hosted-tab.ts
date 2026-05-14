@@ -17,9 +17,6 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 		return;
 	}
 
-	// ── Setup ──
-	new Setting(containerEl).setName("Setup").setHeading();
-
 	const repoSetting = new Setting(containerEl)
 		.setName("How to set up and run Engram")
 		.setDesc("Engram is the backend that powers sync and semantic search. Run it yourself:");
