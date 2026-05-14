@@ -54,8 +54,9 @@ class DevLogBuffer {
 	}
 
 	stats(): Record<string, unknown> {
-		// biome-ignore lint/suspicious/noExplicitAny: performance.memory is non-standard
-		const mem = (performance as any).memory;
+		const mem = (
+			performance as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }
+		).memory;
 		return {
 			heapMB: mem ? Math.round(mem.usedJSHeapSize / 1024 / 1024) : "N/A",
 			heapLimitMB: mem ? Math.round(mem.jsHeapSizeLimit / 1024 / 1024) : "N/A",
@@ -91,8 +92,7 @@ let instance: DevLog = noopLog;
 export function initDevLog(): DevLog {
 	if (DEV_MODE) {
 		instance = new DevLogBuffer();
-		// biome-ignore lint/suspicious/noExplicitAny: globalThis extension for CDP debug access
-		(globalThis as any).__engramLog = instance;
+		(window as unknown as { __engramLog: DevLog }).__engramLog = instance;
 	}
 	return instance;
 }
@@ -103,9 +103,8 @@ export function devLog(): DevLog {
 
 export function destroyDevLog(): void {
 	if (DEV_MODE) {
-		// biome-ignore lint/suspicious/noExplicitAny: globalThis extension for CDP debug access
 		// biome-ignore lint/performance/noDelete: intentional cleanup of debug global
-		delete (globalThis as any).__engramLog;
+		delete (window as unknown as { __engramLog?: DevLog }).__engramLog;
 	}
 	instance = noopLog;
 }

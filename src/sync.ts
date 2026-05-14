@@ -40,8 +40,10 @@ const ECHO_COOLDOWN_MS = 5000;
 /** How often (ms) to check connectivity when offline. */
 const HEALTH_CHECK_INTERVAL_MS = 30_000;
 
-/** Paths that are always ignored regardless of user settings. */
-const ALWAYS_IGNORED = [".obsidian/", ".trash/", ".git/"];
+/** Paths that are always ignored regardless of user settings.
+ *  Note: Obsidian's config dir defaults to `.obsidian` but can be customized;
+ *  shouldIgnore() reads `app.vault.configDir` at runtime to handle that. */
+const ALWAYS_IGNORED = [".trash/", ".git/"];
 
 /** If we have no sync hash and the local file's mtime is older than the remote
  *  mtime by at least this many seconds, treat the file as stale (not locally
@@ -107,15 +109,15 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 export class SyncEngine {
-	private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+	private debounceTimers: Map<string, number> = new Map();
 	private ignorePatterns: string[] = [];
 	private pushing: Set<string> = new Set();
-	private recentlyPushed: Map<string, ReturnType<typeof setTimeout>> = new Map();
+	private recentlyPushed: Map<string, number> = new Map();
 	private pulling = false;
 	private lastSync = "";
 	private lastError = "";
 	private offline = false;
-	private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
+	private healthCheckTimer: number | null = null;
 	private ready = false;
 	private activePushCount = 0;
 	private maxConcurrentPushes = 5;
@@ -268,6 +270,10 @@ export class SyncEngine {
 
 	shouldIgnore(path: string): boolean {
 		// Hardcoded ignores — always enforced, cannot be overridden
+		const configDir = `${this.app.vault.configDir}/`;
+		if (path.startsWith(configDir) || path.includes(`/${configDir}`)) {
+			return true;
+		}
 		for (const pattern of ALWAYS_IGNORED) {
 			if (path.startsWith(pattern) || path.includes(`/${pattern}`)) {
 				return true;
@@ -288,7 +294,7 @@ export class SyncEngine {
 	}
 
 	/** Check if a file should be synced (markdown, canvas, or binary attachment). */
-	isSyncable(file: TAbstractFile): boolean {
+	isSyncable(file: TAbstractFile): file is TFile {
 		if (!(file instanceof TFile)) return false;
 		return TEXT_EXTENSIONS.has(file.extension) || BINARY_EXTENSIONS.has(file.extension);
 	}
@@ -320,11 +326,11 @@ export class SyncEngine {
 
 		// Clear existing debounce timer for this file
 		const existing = this.debounceTimers.get(file.path);
-		if (existing) clearTimeout(existing);
+		if (existing) window.clearTimeout(existing);
 
-		const timer = setTimeout(async () => {
+		const timer = window.setTimeout(async () => {
 			this.debounceTimers.delete(file.path);
-			await this.pushFile(file as TFile);
+			await this.pushFile(file);
 		}, this.settings.debounceMs);
 
 		this.debounceTimers.set(file.path, timer);
@@ -346,7 +352,7 @@ export class SyncEngine {
 		// Cancel any pending push for this file
 		const existing = this.debounceTimers.get(file.path);
 		if (existing) {
-			clearTimeout(existing);
+			window.clearTimeout(existing);
 			this.debounceTimers.delete(file.path);
 		}
 
@@ -416,7 +422,7 @@ export class SyncEngine {
 
 		// Push new path if it isn't ignored
 		if (!this.shouldIgnore(file.path)) {
-			await this.pushFile(file as TFile);
+			await this.pushFile(file);
 		}
 	}
 
@@ -493,7 +499,7 @@ export class SyncEngine {
 			"pacer",
 			`Throttled: ${this.requestTimestamps.length}/${this.rateLimitRPM} RPM, waiting ${waitMs}ms`,
 		);
-		await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+		await new Promise<void>((resolve) => window.setTimeout(resolve, waitMs));
 
 		// Prune again and record
 		this.requestTimestamps = this.requestTimestamps.filter((t) => t > Date.now() - windowMs);
@@ -547,7 +553,7 @@ export class SyncEngine {
 
 				// 409 = version conflict — server has a newer version
 				if ("conflict" in resp) {
-					const serverNote = (resp as VersionConflictResponse).server_note;
+					const serverNote = resp.server_note;
 					devLog().log(
 						"push",
 						`version conflict: ${file.path} (local=${existing?.version} server=${serverNote.version})`,
@@ -750,8 +756,8 @@ export class SyncEngine {
 	/** Suppress WebSocket echoes for a path for ECHO_COOLDOWN_MS after push. */
 	private markRecentlyPushed(path: string): void {
 		const existing = this.recentlyPushed.get(path);
-		if (existing) clearTimeout(existing);
-		const timer = setTimeout(() => {
+		if (existing) window.clearTimeout(existing);
+		const timer = window.setTimeout(() => {
 			this.recentlyPushed.delete(path);
 		}, ECHO_COOLDOWN_MS);
 		this.recentlyPushed.set(path, timer);
@@ -900,7 +906,7 @@ export class SyncEngine {
 			this.suppressDeletes = true;
 			devLog().log("pull", "wipePullAll: deleting all local syncable files");
 			rlog().info("pull", "WipePullAll started — deleting local files");
-			const files = this.app.vault.getFiles() as TFile[];
+			const files = this.app.vault.getFiles();
 			const syncable = files.filter((f) => this.isSyncable(f) && !this.shouldIgnore(f.path));
 			const wipeTotal = syncable.length;
 			this.onSyncProgress?.({ phase: "deleting", current: 0, total: wipeTotal, failed: 0 });
@@ -908,7 +914,7 @@ export class SyncEngine {
 			for (let i = 0; i < syncable.length; i++) {
 				const file = syncable[i];
 				try {
-					await this.app.vault.trash(file, true);
+					await this.app.fileManager.trashFile(file);
 					this.logEntry("delete", file.path, "ok", undefined, "wipe");
 				} catch (e) {
 					wipeFailed++;
@@ -924,7 +930,7 @@ export class SyncEngine {
 				});
 				// Yield to UI thread periodically so progress modal can repaint
 				if ((i + 1) % 20 === 0) {
-					await new Promise((resolve) => setTimeout(resolve, 0));
+					await new Promise((resolve) => window.setTimeout(resolve, 0));
 				}
 			}
 			// Reset sync state — everything will be re-synced from server
@@ -1163,7 +1169,7 @@ export class SyncEngine {
 			const normalized = normalizePath(event.path);
 			const existing = this.app.vault.getFileByPath(normalized);
 			if (existing) {
-				await this.app.vault.trash(existing, true);
+				await this.app.fileManager.trashFile(existing);
 				await this.removeEmptyFolders(normalized);
 			}
 			return;
@@ -1235,7 +1241,7 @@ export class SyncEngine {
 			// Delete local file if it exists
 			const existing = this.app.vault.getFileByPath(normalized);
 			if (existing) {
-				await this.app.vault.trash(existing, true);
+				await this.app.fileManager.trashFile(existing);
 				await this.removeEmptyFolders(normalized);
 				this.syncState.delete(normalized);
 				this.baseStore?.delete(normalized);
@@ -1494,7 +1500,7 @@ export class SyncEngine {
 		if (change.deleted) {
 			const existing = this.app.vault.getFileByPath(normalized);
 			if (existing) {
-				await this.app.vault.trash(existing, true);
+				await this.app.fileManager.trashFile(existing);
 				await this.removeEmptyFolders(normalized);
 				rlog().info("pull", `Attachment deleted: ${change.path}`);
 				return true;
@@ -1634,7 +1640,7 @@ export class SyncEngine {
 			if (!(existing instanceof TFolder)) break;
 			if (existing.children.length > 0) break;
 
-			await this.app.vault.trash(existing, true);
+			await this.app.fileManager.trashFile(existing);
 
 			// Walk up to parent
 			folder = folder.includes("/") ? folder.substring(0, folder.lastIndexOf("/")) : "";
@@ -1743,7 +1749,7 @@ export class SyncEngine {
 		}
 
 		// Enumerate local files
-		const allFiles = this.app.vault.getFiles() as TFile[];
+		const allFiles = this.app.vault.getFiles();
 		const syncable = allFiles.filter((f) => this.isSyncable(f) && !this.shouldIgnore(f.path));
 
 		const localNotes: string[] = [];
@@ -2046,7 +2052,7 @@ export class SyncEngine {
 	/** Start periodic health checks while offline. */
 	private startHealthCheck(): void {
 		if (this.healthCheckTimer) return;
-		this.healthCheckTimer = setInterval(async () => {
+		this.healthCheckTimer = window.setInterval(async () => {
 			try {
 				const ok = await this.api.health();
 				if (ok) {
@@ -2061,7 +2067,7 @@ export class SyncEngine {
 	/** Stop periodic health checks. */
 	private stopHealthCheck(): void {
 		if (this.healthCheckTimer) {
-			clearInterval(this.healthCheckTimer);
+			window.clearInterval(this.healthCheckTimer);
 			this.healthCheckTimer = null;
 		}
 	}
@@ -2165,11 +2171,11 @@ export class SyncEngine {
 	/** Cancel all pending debounce, cooldown, and health check timers. */
 	destroy(): void {
 		for (const timer of this.debounceTimers.values()) {
-			clearTimeout(timer);
+			window.clearTimeout(timer);
 		}
 		this.debounceTimers.clear();
 		for (const timer of this.recentlyPushed.values()) {
-			clearTimeout(timer);
+			window.clearTimeout(timer);
 		}
 		this.recentlyPushed.clear();
 		this.pendingPostPullPushes.clear();

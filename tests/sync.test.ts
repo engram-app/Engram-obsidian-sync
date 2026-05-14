@@ -62,6 +62,7 @@ const mockActiveView = {
 
 const mockApp = {
 	vault: {
+		configDir: ".obsidian",
 		read: mock().mockResolvedValue("# Test\n\nContent"),
 		cachedRead: mock().mockResolvedValue("# Test\n\nContent"),
 		readBinary: mock().mockResolvedValue(new ArrayBuffer(3)),
@@ -81,6 +82,9 @@ const mockApp = {
 		trash: mock().mockResolvedValue(undefined),
 		rename: mock().mockResolvedValue(undefined),
 		getName: mock().mockReturnValue("Test Vault"),
+	},
+	fileManager: {
+		trashFile: mock().mockResolvedValue(undefined),
 	},
 	workspace: {
 		getActiveViewOfType: mock().mockReturnValue(null),
@@ -354,7 +358,7 @@ describe("SyncEngine.pull", () => {
 
 		await engine.pull();
 
-		expect(mockApp.vault.trash).toHaveBeenCalledWith(existingFile, true);
+		expect(mockApp.fileManager.trashFile).toHaveBeenCalledWith(existingFile);
 	});
 });
 
@@ -448,7 +452,7 @@ describe("SyncEngine.handleStreamEvent", () => {
 			timestamp: 1709345678,
 		});
 
-		expect(mockApp.vault.trash).toHaveBeenCalledWith(existingFile, true);
+		expect(mockApp.fileManager.trashFile).toHaveBeenCalledWith(existingFile);
 		expect(mockApi.getNote).not.toHaveBeenCalled();
 	});
 
@@ -1107,7 +1111,7 @@ describe("SyncEngine conflict resolution", () => {
 		await engine.applyChange(makeChange({ deleted: true, mtime: REMOTE_MTIME }));
 
 		expect(conflictCalled).toBe(false);
-		expect(mockApp.vault.trash).toHaveBeenCalled();
+		expect(mockApp.fileManager.trashFile).toHaveBeenCalled();
 	});
 
 	test("no conflict when firstSync and local file is stale (mtime older than remote)", async () => {
@@ -1882,7 +1886,7 @@ describe("SyncEngine WebSocket with kind routing", () => {
 			kind: "attachment",
 		});
 
-		expect(mockApp.vault.trash).toHaveBeenCalledWith(existingFile, true);
+		expect(mockApp.fileManager.trashFile).toHaveBeenCalledWith(existingFile);
 	});
 });
 

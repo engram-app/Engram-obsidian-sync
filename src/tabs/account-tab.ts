@@ -22,16 +22,16 @@ export async function renderAccountTab(ctx: TabContext): Promise<void> {
 			() => plugin.saveSettings(),
 		);
 		if (cleared) {
-			new Notice("Switched to Engram Cloud — sign in to continue.");
+			new Notice("Switched to Engram cloud — sign in to continue.");
 			redisplay();
 			return;
 		}
 	}
 
-	new Setting(containerEl).setName("Engram Cloud").setHeading();
+	new Setting(containerEl).setName("Engram cloud").setHeading();
 
 	const aboutSetting = new Setting(containerEl)
-		.setName("New to Engram?")
+		.setName("New to engram?")
 		.setDesc("Create an account, read the docs, and learn more at ");
 	aboutSetting.descEl.createEl("a", {
 		text: "engram.page",

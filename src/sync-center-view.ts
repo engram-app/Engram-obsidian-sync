@@ -21,7 +21,7 @@ export class SyncCenterView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return "Engram Sync";
+		return "Engram sync";
 	}
 
 	getIcon(): string {

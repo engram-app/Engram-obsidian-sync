@@ -68,7 +68,7 @@ export class SyncProgressModal extends Modal {
 		});
 
 		const buttons = contentEl.createDiv({ cls: "engram-progress-buttons" });
-		this.bgBtn = buttons.createEl("button", { text: "Run in Background" });
+		this.bgBtn = buttons.createEl("button", { text: "Run in background" });
 		this.bgBtn.addEventListener("click", () => this.close());
 
 		this.closeBtn = buttons.createEl("button", {
@@ -129,7 +129,7 @@ export class SyncProgressModal extends Modal {
 		if (this.displayedPhase !== this.latest.phase) {
 			this.displayedPhase = this.latest.phase;
 			this.phaseStartTime = now;
-			this.barInner.style.width = "0%";
+			this.barInner.setCssStyles({ width: "0%" });
 		}
 		this.renderProgress(this.latest);
 	}
@@ -147,7 +147,7 @@ export class SyncProgressModal extends Modal {
 			this.phaseEl.setText("Sync complete");
 			this.countEl.setText("");
 			this.pathEl.setText("");
-			this.barInner.style.width = "100%";
+			this.barInner.setCssStyles({ width: "100%" });
 			this.barInner.addClass("is-complete");
 			this.bgBtn.addClass("engram-hidden");
 			this.closeBtn.removeClass("engram-hidden");

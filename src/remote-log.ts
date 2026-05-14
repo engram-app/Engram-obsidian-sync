@@ -23,7 +23,7 @@ const FLUSH_THRESHOLD = 20;
 
 export class RemoteLogger {
 	private buffer: RemoteLogEntry[] = [];
-	private flushTimer: ReturnType<typeof setInterval> | null = null;
+	private flushTimer: number | null = null;
 	private pushFn: PushFn | null = null;
 	private enabled = false;
 	private pluginVersion = "";
@@ -117,12 +117,12 @@ export class RemoteLogger {
 
 	private startTimer(): void {
 		this.stopTimer();
-		this.flushTimer = setInterval(() => this.flush(), FLUSH_INTERVAL_MS);
+		this.flushTimer = window.setInterval(() => this.flush(), FLUSH_INTERVAL_MS);
 	}
 
 	private stopTimer(): void {
 		if (this.flushTimer) {
-			clearInterval(this.flushTimer);
+			window.clearInterval(this.flushTimer);
 			this.flushTimer = null;
 		}
 	}

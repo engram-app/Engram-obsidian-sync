@@ -127,7 +127,7 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 		};
 		modal.open();
 		// Yield to allow the modal to render before sync starts
-		await new Promise((resolve) => requestAnimationFrame(resolve));
+		await new Promise((resolve) => window.requestAnimationFrame(resolve));
 		return modal;
 	}
 

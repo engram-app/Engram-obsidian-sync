@@ -47,7 +47,7 @@ export class PreSyncModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass("engram-pre-sync-modal");
 
-		contentEl.createEl("h2", { text: "Sync Preview" });
+		contentEl.createEl("h2", { text: "Sync preview" });
 
 		contentEl.createEl("pre", {
 			text: formatPlanSummary(this.plan),
@@ -72,7 +72,7 @@ export class PreSyncModal extends Modal {
 
 		if (this.showWipePull) {
 			const wipeBtn = buttons.createEl("button", {
-				text: "Wipe & Pull",
+				text: "Wipe & pull",
 				cls: "engram-btn-danger-outline",
 			});
 			wipeBtn.addEventListener("click", () => {
@@ -83,7 +83,7 @@ export class PreSyncModal extends Modal {
 		}
 
 		const confirmBtn = buttons.createEl("button", {
-			text: "Start Sync",
+			text: "Start sync",
 			cls: "mod-cta",
 		});
 		confirmBtn.addEventListener("click", () => {
@@ -142,7 +142,7 @@ export class WipeConfirmModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass("engram-wipe-confirm-modal");
 
-		contentEl.createEl("h2", { text: "⚠ Confirm Wipe & Pull" });
+		contentEl.createEl("h2", { text: "⚠ Confirm wipe & pull" });
 
 		contentEl.createEl("p", {
 			cls: "engram-wipe-warning-strong",
@@ -169,7 +169,7 @@ export class WipeConfirmModal extends Modal {
 		const buttons = contentEl.createDiv({ cls: "engram-button-row" });
 
 		const goBackBtn = buttons.createEl("button", {
-			text: "Go Back",
+			text: "Go back",
 			cls: "mod-cta",
 		});
 		goBackBtn.addEventListener("click", () => {
@@ -179,7 +179,7 @@ export class WipeConfirmModal extends Modal {
 		});
 
 		const confirmBtn = buttons.createEl("button", {
-			text: "Delete Everything & Pull",
+			text: "Delete everything & pull",
 			cls: "engram-btn-danger-solid",
 		});
 		confirmBtn.addEventListener("click", () => {

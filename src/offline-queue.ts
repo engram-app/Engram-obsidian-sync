@@ -22,7 +22,7 @@ function dedupKey(pathOrEntry: string | QueueEntry, vaultId?: string): string {
 export class OfflineQueue {
 	private entries: Map<string, QueueEntry> = new Map();
 	private persistFn: ((entries: QueueEntry[]) => Promise<void>) | null = null;
-	private persistTimer: ReturnType<typeof setTimeout> | null = null;
+	private persistTimer: number | null = null;
 	private persistDelayMs: number;
 
 	constructor(persistDelayMs = 1000) {
@@ -73,7 +73,7 @@ export class OfflineQueue {
 	/** Cancel any pending persist timer. Call on plugin unload. */
 	destroy(): void {
 		if (this.persistTimer) {
-			clearTimeout(this.persistTimer);
+			window.clearTimeout(this.persistTimer);
 			this.persistTimer = null;
 		}
 	}
@@ -81,7 +81,7 @@ export class OfflineQueue {
 	/** Schedule a debounced persist — coalesces rapid enqueues into one write. */
 	private schedulePersist(): void {
 		if (this.persistTimer) return;
-		this.persistTimer = setTimeout(async () => {
+		this.persistTimer = window.setTimeout(async () => {
 			this.persistTimer = null;
 			await this.persistFn?.(this.all());
 		}, this.persistDelayMs);
@@ -90,7 +90,7 @@ export class OfflineQueue {
 	/** Persist immediately (cancels any pending debounced persist). */
 	private async persistNow(): Promise<void> {
 		if (this.persistTimer) {
-			clearTimeout(this.persistTimer);
+			window.clearTimeout(this.persistTimer);
 			this.persistTimer = null;
 		}
 		await this.persistFn?.(this.all());

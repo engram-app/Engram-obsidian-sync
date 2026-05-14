@@ -65,7 +65,7 @@ export function renderAdvancedTab(ctx: TabContext): void {
 	const ignoreSetting = new Setting(containerEl)
 		.setName("Custom patterns")
 		.setDesc(
-			"Paths to skip (one per line). Folder patterns end with /. Built-in: .obsidian/, .trash/, .git/",
+			`Paths to skip (one per line). Folder patterns end with /. Built-in: ${app.vault.configDir}/, .trash/, .git/`,
 		)
 		.addTextArea((text) => {
 			text.setPlaceholder("drafts/\nsecret.md")

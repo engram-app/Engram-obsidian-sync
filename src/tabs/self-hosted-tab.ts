@@ -18,7 +18,7 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 	}
 
 	const repoSetting = new Setting(containerEl)
-		.setName("Run your own Engram server")
+		.setName("Run your own engram server")
 		.setDesc("Engram is the backend that powers sync and semantic search. Get it here → ");
 	repoSetting.settingEl.addClass("engram-setup-cta");
 	repoSetting.descEl.createEl("a", {
@@ -28,7 +28,7 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 
 	new Setting(containerEl)
 		.setName("Engram URL")
-		.setDesc("Full URL to your Engram instance (e.g. http://10.0.20.214:8000).")
+		.setDesc("Full URL to your engram instance (e.g. http://10.0.20.214:8000).")
 		.addText((text) =>
 			text
 				.setPlaceholder("http://localhost:8000")
@@ -60,9 +60,9 @@ export function renderSelfHostedTab(ctx: TabContext): void {
  *  Cloud tab to manage Cloud auth. */
 function renderCloudLockBanner(containerEl: HTMLElement): void {
 	const banner = containerEl.createDiv({ cls: "engram-mode-lock-banner" });
-	banner.createEl("p", { text: "You're connected to Engram Cloud." });
+	banner.createEl("p", { text: "You're connected to Engram cloud." });
 	banner.createEl("p", {
-		text: "To set up a self-hosted Engram server, sign out from the Cloud tab first. That will release the connection so you can point the plugin at your own server.",
+		text: "To set up a self-hosted engram server, sign out from the cloud tab first. That will release the connection so you can point the plugin at your own server.",
 	});
 }
 
@@ -85,7 +85,7 @@ export function renderAuthSection(ctx: TabContext): void {
 	if (isOAuth) {
 		new Setting(containerEl)
 			.setName(`Signed in as ${plugin.settings.userEmail ?? "unknown"}`)
-			.setDesc("Authenticated via Engram account (OAuth).")
+			.setDesc("Authenticated via engram account (OAuth).")
 			.addButton((btn) =>
 				btn.setButtonText("Sign out").onClick(async () => {
 					await plugin.clearOAuthTokens();
@@ -124,8 +124,8 @@ export function renderAuthSection(ctx: TabContext): void {
 
 	// Unauth — show both methods side-by-side via stacked rows + divider.
 	new Setting(containerEl)
-		.setName("Sign in with Engram")
-		.setDesc("Links your Obsidian vault to your Engram account. Opens a browser window.")
+		.setName("Sign in with engram")
+		.setDesc("Links your Obsidian vault to your engram account. Opens a browser window.")
 		.addButton((btn) =>
 			btn
 				.setButtonText("Sign in")
@@ -138,7 +138,7 @@ export function renderAuthSection(ctx: TabContext): void {
 	let pendingKey = "";
 	new Setting(containerEl)
 		.setName("API key")
-		.setDesc("Bearer token from Engram (starts with engram_).")
+		.setDesc("Bearer token from engram (starts with engram_).")
 		.addText((text) => {
 			text.setPlaceholder("engram_abc123...").onChange((value) => {
 				pendingKey = value;
@@ -178,7 +178,7 @@ export function renderVaultSection(ctx: TabContext): void {
 	new Setting(containerEl).setName("Vault").setHeading();
 
 	const setting = new Setting(containerEl)
-		.setName("Vault Selection")
+		.setName("Vault selection")
 		.setDesc("Select which vault this plugin syncs with.");
 
 	const placeholderEl = setting.controlEl.createSpan({ text: "Loading vaults..." });

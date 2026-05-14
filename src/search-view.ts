@@ -13,7 +13,7 @@ export class SearchView extends ItemView {
 	private folderEl!: HTMLInputElement;
 	private resultsEl!: HTMLElement;
 	private previewEl!: HTMLElement;
-	private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+	private debounceTimer: number | null = null;
 	private results: SearchResult[] = [];
 	private selectedIndex = -1;
 
@@ -27,7 +27,7 @@ export class SearchView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return "Engram Search";
+		return "Engram search";
 	}
 
 	getIcon(): string {
@@ -56,8 +56,8 @@ export class SearchView extends ItemView {
 		this.renderEmpty();
 
 		const scheduleSearch = () => {
-			if (this.debounceTimer) clearTimeout(this.debounceTimer);
-			this.debounceTimer = setTimeout(() => this.doSearch(), 300);
+			if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
+			this.debounceTimer = window.setTimeout(() => this.doSearch(), 300);
 		};
 
 		this.registerDomEvent(this.inputEl, "input", scheduleSearch);
@@ -78,7 +78,7 @@ export class SearchView extends ItemView {
 	}
 
 	async onClose(): Promise<void> {
-		if (this.debounceTimer) clearTimeout(this.debounceTimer);
+		if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
 	}
 
 	private renderEmpty(): void {
