@@ -191,7 +191,7 @@ export function renderAuthSection(ctx: TabContext): void {
  *
  *  Two modes:
  *    - First-time (no vaultId): dropdown directly so the user can pick.
- *    - Locked-in (vaultId set): read-only "Sync vault: <name>" + Change button
+ *    - Locked-in (vaultId set): read-only "Vault Selection: <name>" + Change button
  *      that opens VaultSwitchModal. Vault switching is destructive (retargets
  *      sync at a different server vault), so it lives behind a confirm modal. */
 export function renderVaultSection(ctx: TabContext): void {
@@ -202,7 +202,7 @@ export function renderVaultSection(ctx: TabContext): void {
 	new Setting(containerEl).setName("Vault").setHeading();
 
 	const setting = new Setting(containerEl)
-		.setName("Sync vault")
+		.setName("Vault Selection")
 		.setDesc("Select which vault this plugin syncs with.");
 
 	const placeholderEl = setting.controlEl.createSpan({ text: "Loading vaults..." });
