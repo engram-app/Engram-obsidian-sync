@@ -1,6 +1,5 @@
 import { Notice, Setting } from "obsidian";
 import { applyApiUrlChange } from "../auth-state";
-import { renderActionsSection } from "./actions-section";
 import { renderAuthSection, renderTestConnection, renderVaultSection } from "./self-hosted-tab";
 import type { TabContext } from "./types";
 import { ENGRAM_CLOUD_URL, ENGRAM_MARKETING_URL } from "./urls";
@@ -43,6 +42,5 @@ export async function renderAccountTab(ctx: TabContext): Promise<void> {
 
 	renderAuthSection(ctx);
 	renderVaultSection(ctx);
-	renderActionsSection(ctx);
 	renderTestConnection(ctx);
 }
