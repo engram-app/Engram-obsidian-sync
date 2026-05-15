@@ -1,0 +1,24 @@
+{
+	"extends": ["stylelint-config-standard"],
+	"rules": {
+		"color-hex-length": "long",
+		"declaration-no-important": true,
+		"selector-disallowed-list": [
+			["/:has\\(/"],
+			{ "message": "Avoid :has() — broad selector invalidation can hurt Obsidian render performance" }
+		],
+		"property-disallowed-list": [
+			["column-gap", "column-count", "column-width", "columns", "column-rule", "column-rule-width", "column-rule-style", "column-rule-color"],
+			{ "message": "Multicolumn properties are only partially supported in Obsidian. Use shorthand 'gap' for grid/flex, or restructure layout." }
+		],
+		"selector-class-pattern": null,
+		"no-descending-specificity": null,
+		"alpha-value-notation": null,
+		"color-function-notation": null,
+		"color-function-alias-notation": null,
+		"hue-degree-notation": null,
+		"media-feature-range-notation": null,
+		"shorthand-property-no-redundant-values": null
+	},
+	"ignoreFiles": ["main.js", "node_modules/**", "docs/**"]
+}

@@ -136,7 +136,7 @@ export function renderAuthSection(ctx: TabContext): void {
 	containerEl.createDiv({ cls: "engram-auth-divider", text: "or" });
 
 	let pendingKey = "";
-	new Setting(containerEl)
+	const apiKeySetting = new Setting(containerEl)
 		.setName("API key")
 		.setDesc("Bearer token from Engram (starts with Engram_).")
 		.addText((text) => {
@@ -161,6 +161,7 @@ export function renderAuthSection(ctx: TabContext): void {
 					redisplay();
 				}),
 		);
+	apiKeySetting.settingEl.addClass("engram-setting-api-key");
 }
 
 /** Render Vault selection section. No-op when no auth is configured.
@@ -223,6 +224,7 @@ export function renderVaultSection(ctx: TabContext): void {
 			}
 
 			// Locked-in display: vault name + Change button → confirm modal.
+			setting.settingEl.addClass("engram-setting-vault-name");
 			const nameEl = setting.controlEl.createSpan({
 				cls: "engram-vault-current-name",
 				text: current.is_default ? `${current.name} (default)` : current.name,
@@ -255,6 +257,7 @@ export function renderSupportSection(ctx: TabContext): void {
 	const supportSetting = new Setting(containerEl).setDesc(
 		"If this plugin saves you time, consider supporting development.",
 	);
+	supportSetting.settingEl.addClass("engram-setting-support");
 
 	const buttonRow = supportSetting.controlEl.createDiv({ cls: "engram-support-buttons" });
 
