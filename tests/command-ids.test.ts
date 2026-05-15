@@ -5,12 +5,16 @@ import { describe, expect, test } from "bun:test";
  * segment ("engram") since plugin id is "engram-sync" — any leading "engram" is
  * redundant once Obsidian prepends "engram-sync:".
  *
+ * Scans every src/**\/*.ts file so addCommand calls outside main.ts are caught.
+ *
  * https://docs.obsidian.md/Plugins/Releasing/Submission+requirements+for+plugins
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { Glob } from "bun";
 
-const manifest = JSON.parse(readFileSync(join(import.meta.dir, "..", "manifest.json"), "utf8")) as {
+const repoRoot = join(import.meta.dir, "..");
+const manifest = JSON.parse(readFileSync(join(repoRoot, "manifest.json"), "utf8")) as {
 	id: string;
 };
 
@@ -19,23 +23,32 @@ function extractCommandIds(source: string): string[] {
 	return Array.from(source.matchAll(regex), (m) => m[1]);
 }
 
-describe("command ID compliance", () => {
-	const src = readFileSync(join(import.meta.dir, "..", "src", "main.ts"), "utf8");
-	const ids = extractCommandIds(src);
+function collectAllCommandIds(): { file: string; id: string }[] {
+	const glob = new Glob("src/**/*.ts");
+	const found: { file: string; id: string }[] = [];
+	for (const file of glob.scanSync({ cwd: repoRoot })) {
+		const src = readFileSync(join(repoRoot, file), "utf8");
+		for (const id of extractCommandIds(src)) found.push({ file, id });
+	}
+	return found;
+}
 
-	test("at least one command is registered", () => {
-		expect(ids.length).toBeGreaterThan(0);
+describe("command ID compliance", () => {
+	const entries = collectAllCommandIds();
+
+	test("at least one command is registered across src/", () => {
+		expect(entries.length).toBeGreaterThan(0);
 	});
 
-	test.each(ids)("'%s' does not start with full plugin ID", (id) => {
+	test.each(entries)("$file: '$id' does not start with full plugin ID", ({ id }) => {
 		expect(id.startsWith(manifest.id)).toBe(false);
 	});
 
-	test.each(ids)("'%s' does not start with brand prefix 'engram'", (id) => {
+	test.each(entries)("$file: '$id' does not start with brand prefix 'engram'", ({ id }) => {
 		expect(id.toLowerCase().startsWith("engram")).toBe(false);
 	});
 
-	test.each(ids)("'%s' uses kebab-case", (id) => {
+	test.each(entries)("$file: '$id' uses kebab-case", ({ id }) => {
 		expect(id).toMatch(/^[a-z][a-z0-9-]*$/);
 	});
 });
