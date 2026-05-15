@@ -18,22 +18,19 @@ export function renderSelfHostedTab(ctx: TabContext): void {
 	}
 
 	const repoSetting = new Setting(containerEl)
-		.setName("Run your own engram server")
+		.setName("Run your own Engram server")
 		.setDesc("Engram is the backend that powers sync and semantic search. Get it here → ");
 	repoSetting.settingEl.addClass("engram-setup-cta");
 	repoSetting.descEl.createEl("a", {
-		// eslint-disable-next-line obsidianmd/ui/sentence-case -- literal GitHub URL, canonical casing
 		text: "github.com/engram-app/engram",
 		href: "https://github.com/engram-app/engram",
 	});
 
 	new Setting(containerEl)
 		.setName("Engram URL")
-		// eslint-disable-next-line obsidianmd/ui/sentence-case -- lowercase URL scheme per RFC 3986
-		.setDesc("Full URL to your engram instance (e.g. http://10.0.20.214:8000).")
+		.setDesc("Full URL to your Engram instance (e.g. http://10.0.20.214:8000).")
 		.addText((text) =>
 			text
-				// eslint-disable-next-line obsidianmd/ui/sentence-case -- lowercase URL scheme per RFC 3986
 				.setPlaceholder("http://localhost:8000")
 				.setValue(plugin.settings.apiUrl)
 				.onChange(async (value) => {
@@ -63,9 +60,9 @@ export function renderSelfHostedTab(ctx: TabContext): void {
  *  Cloud tab to manage Cloud auth. */
 function renderCloudLockBanner(containerEl: HTMLElement): void {
 	const banner = containerEl.createDiv({ cls: "engram-mode-lock-banner" });
-	banner.createEl("p", { text: "You're connected to engram cloud." });
+	banner.createEl("p", { text: "You're connected to Engram cloud." });
 	banner.createEl("p", {
-		text: "To set up a self-hosted engram server, sign out from the cloud tab first. That will release the connection so you can point the plugin at your own server.",
+		text: "To set up a self-hosted Engram server, sign out from the cloud tab first. That will release the connection so you can point the plugin at your own server.",
 	});
 }
 
@@ -120,7 +117,7 @@ export function renderAuthSection(ctx: TabContext): void {
 					.onClick(async () => {
 						plugin.settings.apiKey = "";
 						await plugin.saveSettings();
-						startDeviceFlow();
+						void startDeviceFlow();
 					}),
 			);
 		return;
@@ -128,8 +125,8 @@ export function renderAuthSection(ctx: TabContext): void {
 
 	// Unauth — show both methods side-by-side via stacked rows + divider.
 	new Setting(containerEl)
-		.setName("Sign in with engram")
-		.setDesc("Links your Obsidian vault to your engram account. Opens a browser window.")
+		.setName("Sign in with Engram")
+		.setDesc("Links your Obsidian vault to your Engram account. Opens a browser window.")
 		.addButton((btn) =>
 			btn
 				.setButtonText("Sign in")
@@ -142,9 +139,8 @@ export function renderAuthSection(ctx: TabContext): void {
 	let pendingKey = "";
 	new Setting(containerEl)
 		.setName("API key")
-		.setDesc("Bearer token from engram (starts with engram_).")
+		.setDesc("Bearer token from Engram (starts with Engram_).")
 		.addText((text) => {
-			// eslint-disable-next-line obsidianmd/ui/sentence-case -- literal token format example (tokens start with "engram_")
 			text.setPlaceholder("engram_abc123...").onChange((value) => {
 				pendingKey = value;
 			});

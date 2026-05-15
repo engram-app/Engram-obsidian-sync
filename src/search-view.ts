@@ -57,7 +57,9 @@ export class SearchView extends ItemView {
 
 		const scheduleSearch = () => {
 			if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
-			this.debounceTimer = window.setTimeout(() => this.doSearch(), 300);
+			this.debounceTimer = window.setTimeout(() => {
+				void this.doSearch();
+			}, 300);
 		};
 
 		this.registerDomEvent(this.inputEl, "input", scheduleSearch);
@@ -187,7 +189,7 @@ export class SearchView extends ItemView {
 			new Notice("Note not synced locally");
 			return;
 		}
-		this.app.workspace.openLinkText(result.source_path, "");
+		void this.app.workspace.openLinkText(result.source_path, "");
 	}
 
 	private async doSearch(): Promise<void> {

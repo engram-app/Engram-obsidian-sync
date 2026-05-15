@@ -1,97 +1,53 @@
-// ESLint config for Obsidian community reviewer rules only.
+// ESLint config — mirrors the Obsidian community dashboard validator.
 //
-// Biome handles formatting + general lint; this config narrowly enforces
-// eslint-plugin-obsidianmd so the obsidian-releases ReviewBot's checks
-// run identically in our own CI.
+// Uses `obsidianmd.configs.recommendedWithLocalesEn` directly so our local
+// `bun run lint:obsidian` reports the same errors and warnings the dashboard
+// shows. This bundles:
+//   - typescript-eslint:recommendedTypeChecked
+//   - @microsoft/eslint-plugin-sdl
+//   - eslint-plugin-no-unsanitized
+//   - eslint-plugin-depend (ban-dependencies for package.json)
+//   - all obsidianmd/* rules at recommended severities
 //
-// We intentionally do NOT extend the plugin's `recommended` config because
-// it bundles typescript-eslint:recommendedTypeChecked + microsoft/sdl, which
-// adds ~150 type-strictness errors that reviewers don't actually enforce.
-// Only obsidianmd/* rules are reproduced below.
-//
-// Run: `bun run lint:obsidian`
-import tsparser from "@typescript-eslint/parser";
+// The dashboard adds an extra check that disallows `eslint-disable` comments
+// for `obsidianmd/ui/sentence-case`. We don't reproduce that locally — instead
+// we configure the rule's `brands`, `acronyms`, and `ignoreRegex` options so
+// strings pass naturally and no disable comments are needed.
 import obsidianmd from "eslint-plugin-obsidianmd";
 
 export default [
+	...obsidianmd.configs.recommendedWithLocalesEn,
 	{
 		files: ["src/**/*.ts"],
-		plugins: { obsidianmd },
 		languageOptions: {
-			parser: tsparser,
-			parserOptions: { project: "./tsconfig.json" },
+			parserOptions: {
+				projectService: true,
+				tsconfigRootDir: import.meta.dirname,
+			},
 		},
 		rules: {
-			// Mirrors `obsidianmd/no-nodejs-modules` (which exists in the plugin's
-			// master branch but is not published in v0.3.0 yet). Blocks Node.js
-			// builtins to keep the plugin mobile-safe (manifest.isDesktopOnly:false).
-			"no-restricted-imports": [
+			"obsidianmd/ui/sentence-case": [
 				"error",
 				{
-					patterns: [
-						{
-							group: ["node:*"],
-							message:
-								"Do not import Node.js built-in modules. Not available on mobile (isDesktopOnly:false). Use Obsidian APIs or guard with Platform.isDesktop + dynamic import.",
-						},
+					enforceCamelCaseLower: true,
+					// Brand names whose canonical casing must be preserved as-is.
+					brands: [
+						"Engram",
+						"Obsidian",
+						"GitHub",
+						"OAuth",
+						"Ollama",
+						"Qdrant",
+						"BRAT",
 					],
-					paths: [
-						"fs",
-						"fs/promises",
-						"path",
-						"os",
-						"crypto",
-						"child_process",
-						"stream",
-						"http",
-						"https",
-						"net",
-						"tls",
-						"util",
-						"url",
-						"querystring",
-						"zlib",
-						"buffer",
-						"events",
-						"assert",
-						"module",
-					].map((m) => ({
-						name: m,
-						message:
-							"Node.js built-in not available on mobile (isDesktopOnly:false). Use Obsidian APIs or guard with Platform.isDesktop + dynamic import.",
-					})),
+					// Skip strings that match any of these patterns (URLs, token examples, etc.)
+					ignoreRegex: [
+						String.raw`https?://\S+`,
+						String.raw`\bgithub\.com/\S+`,
+						String.raw`engram_[A-Za-z0-9_]+`,
+					],
 				},
 			],
-			"obsidianmd/commands/no-command-in-command-id": "error",
-			"obsidianmd/commands/no-command-in-command-name": "error",
-			"obsidianmd/commands/no-default-hotkeys": "error",
-			"obsidianmd/commands/no-plugin-id-in-command-id": "error",
-			"obsidianmd/commands/no-plugin-name-in-command-name": "error",
-			"obsidianmd/settings-tab/no-manual-html-headings": "error",
-			"obsidianmd/settings-tab/no-problematic-settings-headings": "error",
-			"obsidianmd/vault/iterate": "error",
-			"obsidianmd/detach-leaves": "error",
-			"obsidianmd/editor-drop-paste": "error",
-			"obsidianmd/hardcoded-config-path": "error",
-			"obsidianmd/no-forbidden-elements": "error",
-			"obsidianmd/no-global-this": "error",
-			"obsidianmd/no-plugin-as-component": "error",
-			"obsidianmd/no-sample-code": "error",
-			"obsidianmd/no-tfile-tfolder-cast": "error",
-			"obsidianmd/no-static-styles-assignment": "error",
-			"obsidianmd/no-unsupported-api": "error",
-			"obsidianmd/no-view-references-in-plugin": "error",
-			"obsidianmd/object-assign": "error",
-			"obsidianmd/platform": "error",
-			"obsidianmd/prefer-abstract-input-suggest": "error",
-			"obsidianmd/prefer-active-doc": "warn",
-			"obsidianmd/prefer-file-manager-trash-file": "warn",
-			"obsidianmd/prefer-get-language": "error",
-			"obsidianmd/prefer-instanceof": "error",
-			"obsidianmd/prefer-window-timers": "error",
-			"obsidianmd/regex-lookbehind": "error",
-			"obsidianmd/sample-names": "error",
-			"obsidianmd/ui/sentence-case": ["error", { enforceCamelCaseLower: true }],
 		},
 	},
 	{
@@ -102,6 +58,7 @@ export default [
 			"version-bump.mjs",
 			"esbuild.config.mjs",
 			"eslint.config.mjs",
+			"docs/**",
 		],
 	},
 ];

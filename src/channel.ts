@@ -189,7 +189,7 @@ export class NoteChannel {
 			return;
 		}
 
-		const [_joinRef, _ref, _topic, event, payload] = msg as [
+		const [, , , event, payload] = msg as [
 			string | null,
 			string | null,
 			string,
@@ -261,11 +261,11 @@ export class NoteChannel {
 	private scheduleReconnect(overrideMs?: number): void {
 		const base = overrideMs ?? this.reconnectMs;
 		const jitter = Math.random() * base * 0.5;
-		this.reconnectTimer = window.setTimeout(async () => {
+		this.reconnectTimer = window.setTimeout(() => {
 			if (overrideMs === undefined) {
 				this.reconnectMs = Math.min(this.reconnectMs * 2, this.maxReconnectMs);
 			}
-			await this.openSocket();
+			void this.openSocket();
 		}, base + jitter);
 	}
 }

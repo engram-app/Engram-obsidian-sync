@@ -42,7 +42,7 @@ export class RemoteLogger {
 			this.startTimer();
 		} else {
 			this.stopTimer();
-			this.flush();
+			void this.flush();
 		}
 	}
 
@@ -111,13 +111,15 @@ export class RemoteLogger {
 
 		// Flush immediately if threshold reached
 		if (this.buffer.length >= FLUSH_THRESHOLD) {
-			this.flush();
+			void this.flush();
 		}
 	}
 
 	private startTimer(): void {
 		this.stopTimer();
-		this.flushTimer = window.setInterval(() => this.flush(), FLUSH_INTERVAL_MS);
+		this.flushTimer = window.setInterval(() => {
+			void this.flush();
+		}, FLUSH_INTERVAL_MS);
 	}
 
 	private stopTimer(): void {
