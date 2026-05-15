@@ -202,7 +202,7 @@ export default class EngramSyncPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "engram-push-all",
+			id: "push-all",
 			name: "Push entire vault",
 			callback: async () => {
 				const count = await this.syncEngine.pushAll();
@@ -211,7 +211,7 @@ export default class EngramSyncPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "engram-check-sync",
+			id: "check-sync",
 			name: "Check sync status",
 			callback: async () => {
 				new Notice("Engram sync: checking...");
@@ -237,7 +237,7 @@ export default class EngramSyncPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "engram-pull-all",
+			id: "pull-all",
 			name: "Pull all from server (force overwrite)",
 			callback: async () => {
 				new Notice("Engram sync: pulling all from server...");
@@ -247,7 +247,7 @@ export default class EngramSyncPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "engram-show-sync-log",
+			id: "show-sync-log",
 			name: "Show sync log",
 			callback: () => {
 				new SyncLogModal(this.app, this.syncLog).open();
@@ -258,7 +258,7 @@ export default class EngramSyncPlugin extends Plugin {
 		this.registerView(SEARCH_VIEW_TYPE, (leaf) => new SearchView(leaf, this.api));
 
 		this.addCommand({
-			id: "engram-search",
+			id: "search",
 			name: "Semantic search",
 			callback: () => {
 				new SearchModal(this.app, this.api).open();
@@ -266,7 +266,7 @@ export default class EngramSyncPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "engram-search-view",
+			id: "open-search-sidebar",
 			name: "Open search sidebar",
 			callback: async () => {
 				const existing = this.app.workspace.getLeavesOfType(SEARCH_VIEW_TYPE);
@@ -299,7 +299,7 @@ export default class EngramSyncPlugin extends Plugin {
 		this.registerView(SYNC_CENTER_VIEW_TYPE, (leaf) => new SyncCenterView(leaf, this));
 
 		this.addCommand({
-			id: "engram-open-sync-center",
+			id: "open-sync-center",
 			name: "Open sync center",
 			callback: async () => {
 				await this.openSyncCenter();
