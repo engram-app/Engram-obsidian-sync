@@ -1,4 +1,4 @@
-import { type App, Modal } from "obsidian";
+import { Modal } from "obsidian";
 import type { SyncProgress } from "./types";
 
 const PHASE_LABELS: Record<SyncProgress["phase"], string> = {

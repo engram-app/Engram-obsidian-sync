@@ -25,7 +25,6 @@ import type {
 	SyncPlan,
 	SyncProgress,
 	SyncStatus,
-	VersionConflictResponse,
 } from "./types";
 
 /** Check if an error is an HTTP response with the given status code.
@@ -328,9 +327,9 @@ export class SyncEngine {
 		const existing = this.debounceTimers.get(file.path);
 		if (existing) window.clearTimeout(existing);
 
-		const timer = window.setTimeout(async () => {
+		const timer = window.setTimeout(() => {
 			this.debounceTimers.delete(file.path);
-			await this.pushFile(file);
+			void this.pushFile(file);
 		}, this.settings.debounceMs);
 
 		this.debounceTimers.set(file.path, timer);
@@ -2052,15 +2051,17 @@ export class SyncEngine {
 	/** Start periodic health checks while offline. */
 	private startHealthCheck(): void {
 		if (this.healthCheckTimer) return;
-		this.healthCheckTimer = window.setInterval(async () => {
-			try {
-				const ok = await this.api.health();
-				if (ok) {
-					this.goOnline();
+		this.healthCheckTimer = window.setInterval(() => {
+			void (async () => {
+				try {
+					const ok = await this.api.health();
+					if (ok) {
+						this.goOnline();
+					}
+				} catch {
+					// Still offline
 				}
-			} catch {
-				// Still offline
-			}
+			})();
 		}, HEALTH_CHECK_INTERVAL_MS);
 	}
 

@@ -23,7 +23,7 @@ export class DeviceFlowModal extends Modal {
 	async onOpen(): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl("h2", { text: "Link Obsidian to engram" });
+		contentEl.createEl("h2", { text: "Link Obsidian to Engram" });
 		const statusEl = contentEl.createEl("p", { text: "Starting..." });
 
 		try {
@@ -31,7 +31,7 @@ export class DeviceFlowModal extends Modal {
 			this.renderCodeScreen(contentEl, resp);
 			this.startPolling(resp.device_code);
 		} catch {
-			statusEl.setText("Failed to start device flow. Check your engram URL and try again.");
+			statusEl.setText("Failed to start device flow. Check your Engram URL and try again.");
 		}
 	}
 
@@ -70,7 +70,12 @@ export class DeviceFlowModal extends Modal {
 		if (resp.status < 200 || resp.status >= 300) {
 			throw new Error(`HTTP ${resp.status}`);
 		}
-		return resp.json;
+		return resp.json as {
+			device_code: string;
+			user_code: string;
+			verification_url: string;
+			expires_in: number;
+		};
 	}
 
 	private renderCodeScreen(
@@ -78,7 +83,7 @@ export class DeviceFlowModal extends Modal {
 		resp: { user_code: string; verification_url: string },
 	): void {
 		contentEl.empty();
-		contentEl.createEl("h2", { text: "Link Obsidian to engram" });
+		contentEl.createEl("h2", { text: "Link Obsidian to Engram" });
 		contentEl.createEl("p", { text: "Your code:" });
 
 		const codeEl = contentEl.createEl("code", {
@@ -113,7 +118,7 @@ export class DeviceFlowModal extends Modal {
 		let elapsed = 0;
 		const maxSeconds = 300;
 
-		this.pollInterval = window.setInterval(async () => {
+		const poll = async (): Promise<void> => {
 			if (this.aborted) return;
 			elapsed += 5;
 
@@ -151,13 +156,17 @@ export class DeviceFlowModal extends Modal {
 			} catch {
 				// Network error — keep polling
 			}
+		};
+
+		this.pollInterval = window.setInterval(() => {
+			void poll();
 		}, 5000);
 	}
 
 	private renderExpired(): void {
 		const contentEl = this.contentEl;
 		contentEl.empty();
-		contentEl.createEl("h2", { text: "Link Obsidian to engram" });
+		contentEl.createEl("h2", { text: "Link Obsidian to Engram" });
 		contentEl.createEl("p", { text: "Code expired. Please try again." });
 
 		const btnContainer = contentEl.createDiv({ cls: "engram-device-buttons" });
@@ -165,7 +174,7 @@ export class DeviceFlowModal extends Modal {
 		const retryBtn = btnContainer.createEl("button", { text: "Try again", cls: "mod-cta" });
 		retryBtn.addEventListener("click", () => {
 			this.aborted = false;
-			this.onOpen();
+			void this.onOpen();
 		});
 
 		const closeBtn = btnContainer.createEl("button", { text: "Close" });

@@ -81,9 +81,9 @@ export class OfflineQueue {
 	/** Schedule a debounced persist — coalesces rapid enqueues into one write. */
 	private schedulePersist(): void {
 		if (this.persistTimer) return;
-		this.persistTimer = window.setTimeout(async () => {
+		this.persistTimer = window.setTimeout(() => {
 			this.persistTimer = null;
-			await this.persistFn?.(this.all());
+			void this.persistFn?.(this.all());
 		}, this.persistDelayMs);
 	}
 

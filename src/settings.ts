@@ -1,7 +1,7 @@
 /**
  * Settings tab for Engram Sync plugin.
  */
-import { type App, PluginSettingTab, Setting } from "obsidian";
+import { type App, PluginSettingTab } from "obsidian";
 import { DeviceFlowModal } from "./device-flow-modal";
 import type EngramSyncPlugin from "./main";
 import { SyncProgressModal } from "./sync-progress-modal";
@@ -90,7 +90,7 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 			const tab = tabs.find((t) => t.id === tabId) ?? tabs[0];
 			const btn = tabBar.querySelector<HTMLElement>(`[data-tab="${tab.id}"]`);
 			btn?.addClass("is-active");
-			tab.render({ ...ctx, containerEl: contentEl });
+			void tab.render({ ...ctx, containerEl: contentEl });
 		};
 
 		const ctx: TabContext = {

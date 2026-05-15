@@ -41,7 +41,9 @@ export class SearchModal extends Modal {
 
 		const scheduleSearch = () => {
 			if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
-			this.debounceTimer = window.setTimeout(() => this.doSearch(), 300);
+			this.debounceTimer = window.setTimeout(() => {
+				void this.doSearch();
+			}, 300);
 		};
 
 		this.inputEl.addEventListener("input", scheduleSearch);
@@ -134,7 +136,7 @@ export class SearchModal extends Modal {
 			new Notice("Note not synced locally");
 			return;
 		}
-		this.app.workspace.openLinkText(result.source_path, "");
+		void this.app.workspace.openLinkText(result.source_path, "");
 		this.close();
 	}
 

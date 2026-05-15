@@ -50,7 +50,7 @@ interface PluginData {
 	offlineQueue?: QueueEntry[];
 	/** New unified sync state (hash + version per file). */
 	syncState?: Record<string, FileSyncState>;
-	/** @deprecated Legacy hash-only format. Kept for rollback safety (dual-write). */
+	/** Legacy hash-only format. Kept for rollback safety (dual-write). */
 	syncedHashes?: Record<string, number>;
 	/** Persistent failures surfaced in the Sync Center "Issues" panel. */
 	syncIssues?: SyncIssue[];
@@ -128,9 +128,9 @@ export default class EngramSyncPlugin extends Plugin {
 		};
 
 		this.syncEngine.onConflict = async (info) => {
-			const modal = new ConflictModal(this.app, info, this.settings, async (mode) => {
+			const modal = new ConflictModal(this.app, info, this.settings, (mode) => {
 				this.settings.conflictViewMode = mode;
-				await this.saveSettings();
+				void this.saveSettings();
 			});
 			return modal.waitForChoice();
 		};
@@ -141,7 +141,7 @@ export default class EngramSyncPlugin extends Plugin {
 		});
 
 		// Restore last sync timestamp, offline queue, and sync state
-		const saved = await this.loadData();
+		const saved = (await this.loadData()) as Partial<PluginData> | null;
 		if (saved?.lastSync) {
 			this.syncEngine.setLastSync(saved.lastSync);
 		}
@@ -184,9 +184,9 @@ export default class EngramSyncPlugin extends Plugin {
 		// Flush remote logs when app goes to background (mobile)
 		this.registerDomEvent(activeDocument, "visibilitychange", () => {
 			if (activeDocument.visibilityState === "hidden") {
-				rlog().flush();
+				void rlog().flush();
 				void this.savePluginData(this.syncEngine.getLastSync());
-				this.baseStore?.save();
+				void this.baseStore?.save();
 			}
 		});
 
@@ -271,13 +271,13 @@ export default class EngramSyncPlugin extends Plugin {
 			callback: async () => {
 				const existing = this.app.workspace.getLeavesOfType(SEARCH_VIEW_TYPE);
 				if (existing.length) {
-					this.app.workspace.revealLeaf(existing[0]);
+					void this.app.workspace.revealLeaf(existing[0]);
 					return;
 				}
 				const leaf = this.app.workspace.getRightLeaf(false);
 				if (leaf) {
 					await leaf.setViewState({ type: SEARCH_VIEW_TYPE, active: true });
-					this.app.workspace.revealLeaf(leaf);
+					void this.app.workspace.revealLeaf(leaf);
 				}
 			},
 		});
@@ -285,13 +285,13 @@ export default class EngramSyncPlugin extends Plugin {
 		this.addRibbonIcon("search", "Engram search", async () => {
 			const existing = this.app.workspace.getLeavesOfType(SEARCH_VIEW_TYPE);
 			if (existing.length) {
-				this.app.workspace.revealLeaf(existing[0]);
+				void this.app.workspace.revealLeaf(existing[0]);
 				return;
 			}
 			const leaf = this.app.workspace.getRightLeaf(false);
 			if (leaf) {
 				await leaf.setViewState({ type: SEARCH_VIEW_TYPE, active: true });
-				this.app.workspace.revealLeaf(leaf);
+				void this.app.workspace.revealLeaf(leaf);
 			}
 		});
 
@@ -378,19 +378,19 @@ export default class EngramSyncPlugin extends Plugin {
 		// Best-effort save before teardown — hashes must be exported before destroy
 		void this.savePluginData(this.syncEngine.getLastSync());
 		this.baseStore?.prune();
-		this.baseStore?.save();
+		void this.baseStore?.save();
 		this.syncEngine?.destroy();
 		this.noteStream?.disconnect();
 		if (this.syncInterval) {
 			window.clearInterval(this.syncInterval);
 			this.syncInterval = null;
 		}
-		destroyRemoteLog();
+		void destroyRemoteLog();
 		destroyDevLog();
 	}
 
 	async loadSettings(): Promise<void> {
-		const data = await this.loadData();
+		const data = (await this.loadData()) as Partial<PluginData> | null;
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, data?.settings);
 		// Generate stable client ID on first load (persisted forever)
 		if (!this.settings.clientId) {
@@ -455,7 +455,7 @@ export default class EngramSyncPlugin extends Plugin {
 			console.error("Engram Sync: vault registration failed", e);
 			rlog().error(
 				"lifecycle",
-				`Vault registration failed: ${e instanceof Error ? e.message : e}`,
+				`Vault registration failed: ${e instanceof Error ? e.message : String(e)}`,
 			);
 			return false;
 		}
@@ -489,7 +489,11 @@ export default class EngramSyncPlugin extends Plugin {
 				if (resp.status < 200 || resp.status >= 300) {
 					throw new Error(`Refresh failed: ${resp.status}`);
 				}
-				return resp.json;
+				return resp.json as {
+					access_token: string;
+					refresh_token: string;
+					expires_in: number;
+				};
 			};
 			return new OAuthAuth(
 				this.settings.refreshToken,
@@ -614,7 +618,7 @@ export default class EngramSyncPlugin extends Plugin {
 				if (this.authProvider) {
 					this.noteStream.setAuthProvider(this.authProvider);
 				}
-				channel.connect();
+				void channel.connect();
 			})
 			.catch((e) => {
 				// biome-ignore lint/suspicious/noConsole: error boundary
@@ -679,13 +683,13 @@ export default class EngramSyncPlugin extends Plugin {
 	async openSyncCenter(): Promise<void> {
 		const existing = this.app.workspace.getLeavesOfType(SYNC_CENTER_VIEW_TYPE);
 		if (existing.length) {
-			this.app.workspace.revealLeaf(existing[0]);
+			void this.app.workspace.revealLeaf(existing[0]);
 			return;
 		}
 		const leaf = this.app.workspace.getRightLeaf(false);
 		if (leaf) {
 			await leaf.setViewState({ type: SYNC_CENTER_VIEW_TYPE, active: true });
-			this.app.workspace.revealLeaf(leaf);
+			void this.app.workspace.revealLeaf(leaf);
 		}
 	}
 
@@ -752,16 +756,18 @@ export default class EngramSyncPlugin extends Plugin {
 
 		if (!this.settings.apiUrl || !this.settings.apiKey) return;
 
-		this.syncInterval = window.setInterval(async () => {
-			try {
-				const pulled = await this.syncEngine.pull();
-				if (pulled > 0) {
-					new Notice(`Engram Sync: pulled ${pulled} changes`);
+		this.syncInterval = window.setInterval(() => {
+			void (async () => {
+				try {
+					const pulled = await this.syncEngine.pull();
+					if (pulled > 0) {
+						new Notice(`Engram Sync: pulled ${pulled} changes`);
+					}
+				} catch (e) {
+					// biome-ignore lint/suspicious/noConsole: error boundary
+					console.error("Engram Sync: periodic pull failed", e);
 				}
-			} catch (e) {
-				// biome-ignore lint/suspicious/noConsole: error boundary
-				console.error("Engram Sync: periodic pull failed", e);
-			}
+			})();
 		}, EngramSyncPlugin.FALLBACK_POLL_MS);
 		this.registerInterval(this.syncInterval);
 	}

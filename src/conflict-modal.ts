@@ -278,7 +278,7 @@ export class ConflictModal extends Modal {
 
 	private renderHunkControls(parent: HTMLElement, hunk: DiffHunk): void {
 		const controls = parent.createEl("nav", { cls: "engram-conflict-hunk-controls" });
-		const label = controls.createEl("span", {
+		controls.createEl("span", {
 			text: `Hunk ${hunk.id + 1}`,
 			cls: "engram-conflict-hunk-label",
 		});
