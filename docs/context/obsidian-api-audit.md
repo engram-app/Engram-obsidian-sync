@@ -295,7 +295,7 @@ const container = this.contentEl;
 
 **Problem:** BaseStore reads/writes via `vault.adapter.read()` and `vault.adapter.write()` instead of using the Vault API.
 
-**Verdict:** This is **correct and intentional**. The base store file lives in `.obsidian/plugins/engram-sync/sync-bases.json` — a hidden folder that the Vault API cannot access. The adapter is the correct tool for plugin config/data files. The `loadData()`/`saveData()` Plugin methods use the adapter internally too.
+**Verdict:** This is **correct and intentional**. The base store file lives in `.obsidian/plugins/engram-vault-sync/sync-bases.json` — a hidden folder that the Vault API cannot access. The adapter is the correct tool for plugin config/data files. The `loadData()`/`saveData()` Plugin methods use the adapter internally too.
 
 **Status:** ⊘ Won't fix — correct usage for hidden folder access.
 

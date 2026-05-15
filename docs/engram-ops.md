@@ -55,7 +55,7 @@ The `obsidian-devtools` MCP server exposes 27 tools for interacting with the run
 - `() => app.plugins.plugins` — list loaded plugins
 - `() => app.workspace.activeLeaf?.view?.getViewType()` — get active view type
 - `() => app.vault.adapter.read("path/to/note.md")` — read a file via Obsidian's API
-- `() => { const p = app.plugins.plugins["engram-sync"]; return p?.settings; }` — inspect plugin settings at runtime
+- `() => { const p = app.plugins.plugins["engram-vault-sync"]; return p?.settings; }` — inspect plugin settings at runtime
 
 #### UI Interaction
 
@@ -120,7 +120,7 @@ take_screenshot → capture result for verification
 
 **3. Investigate sync issues:**
 ```
-evaluate_script → check app.plugins.plugins["engram-sync"] internals
+evaluate_script → check app.plugins.plugins["engram-vault-sync"] internals
 evaluate_script → read lastSync, pending queue, connection state
 list_console_messages → look for failed HTTP requests or errors
 ```
