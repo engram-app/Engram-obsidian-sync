@@ -37,12 +37,12 @@ All note content is sent to the Engram URL you configure — nothing else. No th
 
 ### BRAT (beta channel)
 
-For pre-release builds, install via [BRAT](https://github.com/TfTHacker/obsidian42-brat) and add `engram-app/Engram-obsidian-sync`.
+For pre-release builds, install via [BRAT](https://github.com/TfTHacker/obsidian42-brat) and add `engram-app/Engram-obsidian`.
 
 ### Manual
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/engram-app/Engram-obsidian-sync/releases/latest).
-2. Create a folder at `<your vault>/.obsidian/plugins/engram-sync/`.
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/engram-app/Engram-obsidian/releases/latest).
+2. Create a folder at `<your vault>/.obsidian/plugins/engram-vault-sync/`.
 3. Copy the three files into that folder.
 4. Restart Obsidian and enable the plugin in **Settings → Community plugins**.
 

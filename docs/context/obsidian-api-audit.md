@@ -6,7 +6,7 @@ _Last verified: 2026-04-12_
 Working — audit complete, all HIGH and MEDIUM fixes applied (commit 5d7304c on fix/oauth-token-refresh).
 
 ## What This Is
-Comprehensive audit of every Obsidian API usage in the engram-obsidian-sync plugin, cross-referenced against official docs at docs.obsidian.md and the obsidian.d.ts type definitions. Identifies misuses, anti-patterns, and improvement opportunities ranked by severity.
+Comprehensive audit of every Obsidian API usage in the engram-obsidian plugin, cross-referenced against official docs at docs.obsidian.md and the obsidian.d.ts type definitions. Identifies misuses, anti-patterns, and improvement opportunities ranked by severity.
 
 ## Environment
 Obsidian desktop + mobile, plugin targets Obsidian v1.5.7+ (based on API usage). Tested against official docs as of April 2026.

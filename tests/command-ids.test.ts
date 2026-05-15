@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 /**
  * Compliance test: Obsidian community guidelines forbid including the plugin ID
  * in command IDs since Obsidian auto-prefixes them. We extend that to the brand
- * segment ("engram") since plugin id is "engram-sync" — any leading "engram" is
+ * segment ("engram") since plugin id is "engram-vault-sync" — any leading "engram" is
  * redundant once Obsidian prepends "engram-sync:".
  *
  * Scans every src/**\/*.ts file so addCommand calls outside main.ts are caught.
