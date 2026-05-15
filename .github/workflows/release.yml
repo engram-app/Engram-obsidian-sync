@@ -129,3 +129,23 @@ jobs:
               "${UPLOAD_URL}?name=${asset}" > /dev/null
           done
           echo "Released $VERSION with main.js manifest.json styles.css"
+
+      - name: Verify release flags
+        if: steps.check.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          META=$(curl --fail -sS \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${VERSION}")
+          PRERELEASE=$(echo "$META" | jq -r '.prerelease')
+          DRAFT=$(echo "$META" | jq -r '.draft')
+          if [ "$PRERELEASE" != "false" ] || [ "$DRAFT" != "false" ]; then
+            echo "::error::Stable release ${VERSION} has prerelease=$PRERELEASE draft=$DRAFT (expected false/false)"
+            exit 1
+          fi
+          echo "Verified ${VERSION} is published as stable (prerelease=false, draft=false)"
