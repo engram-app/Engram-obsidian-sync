@@ -1,46 +1,34 @@
-// ESLint config — mirrors the QuickAdd plugin pattern.
+// ESLint config — mirrors the entire-vc/evc-local-sync-plugin pattern,
+// which passes the Obsidian community dashboard validator cleanly.
 //
-// Background: the Obsidian dashboard validator runs eslint in a sandbox where
-// `obsidian` package types resolved as `any`, which when combined with the
-// type-checked rule preset (recommendedTypeChecked) produced ~600 false
-// `no-unsafe-*` warnings. QuickAdd (100k+ users, live in directory) avoids
-// this entirely by using bare typescript-eslint without the type-checked
-// preset and explicitly turning off the no-unsafe-* family. We do the same.
+// Background: per ClareMacrae [OBSD] in Discord #plugin-dev (2026-03-01):
+// "Obsidian ignores the per-plugin eslint config, to prevent people by-
+// passing the system by disabling rules." Disabling no-unsafe-* family
+// is officially discouraged. Instead, fix unsafe access at the source
+// via `as Type` assertions on deserialization boundaries.
 //
-// Type safety is still enforced by `tsc --noEmit` in the build step.
-import tseslintPlugin from "@typescript-eslint/eslint-plugin";
+// Type safety is enforced both by `tsc --noEmit` in the build step AND
+// by the dashboard validator's own embedded lint pass.
 import tsparser from "@typescript-eslint/parser";
 import { globalIgnores } from "eslint/config";
 import obsidianmd from "eslint-plugin-obsidianmd";
+import tseslint from "typescript-eslint";
 
-export default [
+export default tseslint.config(
+	...obsidianmd.configs.recommended,
 	{
-		files: ["src/**/*.ts"],
+		files: ["**/*.ts", "**/*.tsx"],
 		languageOptions: {
 			parser: tsparser,
 			parserOptions: {
-				ecmaVersion: 2022,
-				sourceType: "module",
+				project: "./tsconfig.json",
+				tsconfigRootDir: import.meta.dirname,
 			},
 		},
-		plugins: {
-			"@typescript-eslint": tseslintPlugin,
-			obsidianmd,
-		},
+	},
+	{
+		files: ["src/**/*.ts"],
 		rules: {
-			...tseslintPlugin.configs.recommended.rules,
-			"no-unused-vars": "off",
-			"@typescript-eslint/no-unused-vars": ["error", { args: "none" }],
-			"@typescript-eslint/ban-ts-comment": "off",
-			"@typescript-eslint/no-empty-function": "off",
-			"@typescript-eslint/no-explicit-any": "off",
-			"@typescript-eslint/no-unsafe-argument": "off",
-			"@typescript-eslint/no-unsafe-assignment": "off",
-			"@typescript-eslint/no-unsafe-call": "off",
-			"@typescript-eslint/no-unsafe-member-access": "off",
-			"@typescript-eslint/no-unsafe-return": "off",
-			"@typescript-eslint/restrict-template-expressions": "off",
-			"no-prototype-builtins": "off",
 			"obsidianmd/ui/sentence-case": [
 				"error",
 				{
@@ -71,4 +59,4 @@ export default [
 		"esbuild.config.mjs",
 		"docs/**",
 	]),
-];
+);
