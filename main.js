@@ -1816,10 +1816,13 @@ var import_obsidian6 = require("obsidian"), DeviceFlowModal = class extends impo
     this.aborted = !1;
     this.plugin = plugin;
   }
-  async onOpen() {
+  onOpen() {
     let { contentEl } = this;
     contentEl.empty(), contentEl.createEl("h2", { text: "Link Obsidian to Engram" });
     let statusEl = contentEl.createEl("p", { text: "Starting..." });
+    this.beginDeviceFlow(contentEl, statusEl);
+  }
+  async beginDeviceFlow(contentEl, statusEl) {
     try {
       let resp = await this.startDeviceFlow();
       this.renderCodeScreen(contentEl, resp), this.startPolling(resp.device_code);

@@ -76,11 +76,45 @@ The dashboard runs `obsidianmd.configs.recommended` (which DOES include `typescr
 
 Local cannot reproduce — tested `projectService`, legacy `parserOptions.project`, `obsidian@1.8.7`, `bun install` vs `npm install`. All produce 0 warnings locally because our TS resolves obsidian's `.d.ts` correctly.
 
-**Fix (copied from `obsidian-tasks-group/obsidian-tasks`, which passes the new dashboard):**
+**Fix attempts (copied from `obsidian-tasks-group/obsidian-tasks`, which passes the new dashboard):**
 1. Added `obsidian-typings@^2.x` devDep + `src/obsidian-typings.d.ts` trigger file. This package augments Obsidian's API with richer internal type definitions.
 2. `eslint.config.mjs` disables the 20 affected typed/unsafe rules with the `on_or_off = 0` pattern so they can be flipped back on incrementally (see `typeCheckedDisables` block).
 3. Uses `obsidianmd.configs.recommended` (not `recommendedWithLocalesEn`) — we don't ship locale files.
 4. Type safety is still enforced via `tsc --noEmit` in the build step.
+
+**Still failing (fresh scan on 874bf41 = ~600 warnings).** Investigation log:
+
+- Validator infra is **closed-source** — not in any `obsidianmd/*` org repo (14 enumerated). Confirmed by GitHub repo enumeration 2026-05-14.
+- `obsidianmd/eslint-plugin@0.3.0` `lib/index.ts:195,218-227` shows `recommended` preset forcibly extends `typescript-eslint:recommendedTypeChecked` for all `**/*.ts`. So `recommendedTypeChecked` IS active in sandbox.
+- Our local `on_or_off = 0` block DOES disable those rules — locally `bun run lint:obsidian` = 0 warnings. So either (a) sandbox doesn't run our `eslint.config.mjs`, or (b) sandbox runs it but a config layer overrides our disables (less likely — eslint flat config later-wins).
+- Most likely (a): sandbox runs its own embedded eslint invocation with different config. Our rule disables never apply.
+
+**Deltas vs `obsidian-tasks` (passes dashboard cleanly):**
+| | obsidian-tasks | engram-obsidian-sync (pre-fix) |
+|---|---|---|
+| Lockfile | `yarn.lock` checked in | `bun.lock` only, no `package-lock.json` |
+| `obsidian` placement | `devDependency`, pinned `1.8.7` | `dependency`, `"latest"` (moved to devDeps 2026-05-14) |
+| `eslint-plugin-obsidianmd` | `0.2.9` | `0.3.0` |
+| `tsconfig` `include` | `["src/**/*", "tests/**/*"]` | `["src/**/*.ts"]` |
+
+**Smoking gun found 2026-05-15:** Running `npm install --package-lock-only` locally exposes a peer-dep conflict that `bun install` silently ignored:
+
+```
+Conflicting peer dependency: eslint@9.39.4
+  peer eslint@"^9" from @microsoft/eslint-plugin-sdl@1.1.0
+    @microsoft/eslint-plugin-sdl@"^1.1.0" from eslint-plugin-obsidianmd@0.3.0
+```
+
+We had `eslint@^10.3.0` in devDeps; `eslint-plugin-obsidianmd@0.3.0` transitively requires `eslint@^9` via `@microsoft/eslint-plugin-sdl@1.1.0`. The sandbox almost certainly runs `npm install` (no `bun.lock` support); without a lockfile + with a peer conflict, npm either fails or installs a broken tree, leaving `obsidian` types unresolved → 600 `no-unsafe-*` warnings.
+
+**Applied fix bundle (one commit, multiple deltas):**
+1. Moved `obsidian` from `dependencies` to `devDependencies`, pinned to `1.8.7` (matches obsidian-tasks).
+2. Added `legacy-peer-deps=true` to `.npmrc` — same resolution behavior as bun, lets npm install proceed despite the eslint@10 vs eslint@^9-peer conflict.
+3. Committed `package-lock.json` — sandbox now uses the exact resolved tree we use locally.
+
+Verified locally: `bun test` (718 pass), `bun run build` (clean), `bun run lint:obsidian` (0 warnings).
+
+**Next:** push, run dashboard preview scan, compare warning count. If still >0 the next lever is downgrading `eslint-plugin-obsidianmd` to `0.2.9` (and probably `eslint` to `^9`) to match obsidian-tasks exactly.
 
 ### CSS validator catches patterns our biome/eslint missed
 Dashboard validates `styles.css` for: `:has()` (broad invalidation hurts render perf), `!important`, multicolumn props (partial Obsidian support), 3-digit hex shorthand. We mirror this locally with `stylelint` + `.stylelintrc.json`. CI step in `ci.yml` is `Lint CSS (stylelint, mirrors dashboard CSS checks)`. To avoid `:has()`, apply parent classes via JS (`setting.settingEl.addClass(...)`) instead of relying on the selector — see `engram-setting-api-key`/`engram-setting-vault-name`/`engram-setting-support` for the pattern.

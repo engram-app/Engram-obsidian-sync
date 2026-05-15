@@ -20,12 +20,16 @@ export class DeviceFlowModal extends Modal {
 		this.plugin = plugin;
 	}
 
-	async onOpen(): Promise<void> {
+	onOpen(): void {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.createEl("h2", { text: "Link Obsidian to Engram" });
 		const statusEl = contentEl.createEl("p", { text: "Starting..." });
 
+		void this.beginDeviceFlow(contentEl, statusEl);
+	}
+
+	private async beginDeviceFlow(contentEl: HTMLElement, statusEl: HTMLElement): Promise<void> {
 		try {
 			const resp = await this.startDeviceFlow();
 			this.renderCodeScreen(contentEl, resp);
