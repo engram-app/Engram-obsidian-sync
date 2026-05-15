@@ -5,6 +5,7 @@ import { type App, Notice, type TAbstractFile, TFile, TFolder, normalizePath } f
 import { type EngramApi, arrayBufferToBase64, base64ToArrayBuffer } from "./api";
 import type { BaseStore } from "./base-store";
 import { devLog } from "./dev-log";
+import { errMsg } from "./error-util";
 import { IgnoredFiles } from "./ignored-files";
 import { IssueStore, categorizeError } from "./issue-store";
 import { OfflineQueue } from "./offline-queue";
@@ -488,7 +489,7 @@ export class SyncEngine {
 		}
 
 		// At capacity — wait until the oldest request exits the window
-		const oldest = this.requestTimestamps[0];
+		const oldest = this.requestTimestamps[0]!;
 		const waitMs = oldest + windowMs - now + 50; // +50ms buffer
 		devLog().log(
 			"pacer",
@@ -704,7 +705,7 @@ export class SyncEngine {
 		} catch (e) {
 			// biome-ignore lint/suspicious/noConsole: error boundary
 			console.error(`Engram Sync: failed to push ${file.path}`, e);
-			const errMsg = e instanceof Error ? e.message : String(e);
+			const msg = errMsg(e);
 			const classified = categorizeError(e);
 			const now = Date.now();
 			this.issues.record({
@@ -712,19 +713,19 @@ export class SyncEngine {
 				kind: isBinary ? "attachment" : "note",
 				category: classified.category,
 				status: classified.status,
-				message: errMsg,
+				message: msg,
 				sizeBytes: classified.category === "too_large" ? file.stat.size : undefined,
 				firstFailedAt: now,
 				lastFailedAt: now,
 				attempts: 1,
 			});
-			devLog().log("error", `push failed: ${file.path} — ${errMsg} (${classified.category})`);
+			devLog().log("error", `push failed: ${file.path} — ${msg} (${classified.category})`);
 			rlog().error(
 				"push",
-				`Push failed: ${file.path} — ${errMsg} | category=${classified.category}`,
+				`Push failed: ${file.path} — ${msg} | category=${classified.category}`,
 				e instanceof Error ? e.stack : undefined,
 			);
-			this.logEntry("push", file.path, "error", errMsg, classified.category);
+			this.logEntry("push", file.path, "error", msg, classified.category);
 			// Terminal failures (e.g. 413) skip the offline queue — retrying will
 			// just hit the same error. The user must take action via the Sync
 			// Center (ignore, shrink the file, or wait for the server limit to rise).
@@ -804,7 +805,7 @@ export class SyncEngine {
 					if (await this.applyChange(change)) applied++;
 				} catch (e) {
 					skipped++;
-					const msg = e instanceof Error ? e.message : String(e);
+					const msg = errMsg(e);
 					// biome-ignore lint/suspicious/noConsole: error boundary
 					console.error(`Engram Sync: skipping note ${change.path}: ${msg}`);
 					devLog().log("error", `apply skipped: ${change.path} — ${msg}`);
@@ -821,7 +822,7 @@ export class SyncEngine {
 					if (await this.applyAttachmentChange(change)) applied++;
 				} catch (e) {
 					skipped++;
-					const msg = e instanceof Error ? e.message : String(e);
+					const msg = errMsg(e);
 					// biome-ignore lint/suspicious/noConsole: error boundary
 					console.error(`Engram Sync: skipping attachment ${change.path}: ${msg}`);
 					devLog().log("error", `apply skipped: ${change.path} — ${msg}`);
@@ -850,10 +851,10 @@ export class SyncEngine {
 		} catch (e) {
 			// biome-ignore lint/suspicious/noConsole: error boundary
 			console.error("Engram Sync: pull failed", e);
-			devLog().log("error", `pull failed: ${e instanceof Error ? e.message : e}`);
+			devLog().log("error", `pull failed: ${errMsg(e)}`);
 			rlog().error(
 				"pull",
-				`Pull failed: ${e instanceof Error ? e.message : e}`,
+				`Pull failed: ${errMsg(e)}`,
 				e instanceof Error ? e.stack : undefined,
 			);
 			this.lastError = e instanceof Error ? `Pull failed: ${e.message}` : "Pull failed";
@@ -911,13 +912,13 @@ export class SyncEngine {
 			this.onSyncProgress?.({ phase: "deleting", current: 0, total: wipeTotal, failed: 0 });
 			let wipeFailed = 0;
 			for (let i = 0; i < syncable.length; i++) {
-				const file = syncable[i];
+				const file = syncable[i]!;
 				try {
 					await this.app.fileManager.trashFile(file);
 					this.logEntry("delete", file.path, "ok", undefined, "wipe");
 				} catch (e) {
 					wipeFailed++;
-					const msg = e instanceof Error ? e.message : String(e);
+					const msg = errMsg(e);
 					this.logEntry("delete", file.path, "error", msg);
 				}
 				this.onSyncProgress?.({
@@ -1030,7 +1031,7 @@ export class SyncEngine {
 			// Pull notes in batches of 10 for parallelism
 			for (let i = 0; i < noteChanges.length; i += 10) {
 				const batch = noteChanges.slice(i, i + 10);
-				const lastPath = batch[batch.length - 1].path;
+				const lastPath = batch[batch.length - 1]!.path;
 				const results = await Promise.all(
 					batch.map(async (change) => {
 						try {
@@ -1048,7 +1049,7 @@ export class SyncEngine {
 							}
 							return ok ? ("ok" as const) : ("skip" as const);
 						} catch (e) {
-							const msg = e instanceof Error ? e.message : String(e);
+							const msg = errMsg(e);
 							rlog().error("pull", `Skipped note: ${change.path} — ${msg}`);
 							this.logEntry("pull", change.path, "error", msg);
 							return "error" as const;
@@ -1071,7 +1072,7 @@ export class SyncEngine {
 			// Pull attachments in batches of 5 (larger files)
 			for (let i = 0; i < attachChanges.length; i += 5) {
 				const batch = attachChanges.slice(i, i + 5);
-				const lastPath = batch[batch.length - 1].path;
+				const lastPath = batch[batch.length - 1]!.path;
 				const results = await Promise.all(
 					batch.map(async (change) => {
 						try {
@@ -1089,7 +1090,7 @@ export class SyncEngine {
 							}
 							return ok ? ("ok" as const) : ("skip" as const);
 						} catch (e) {
-							const msg = e instanceof Error ? e.message : String(e);
+							const msg = errMsg(e);
 							rlog().error("pull", `Skipped attachment: ${change.path} — ${msg}`);
 							this.logEntry("pull", change.path, "error", msg);
 							return "error" as const;
@@ -1128,10 +1129,10 @@ export class SyncEngine {
 		} catch (e) {
 			// biome-ignore lint/suspicious/noConsole: error boundary
 			console.error("Engram Sync: pullAll failed", e);
-			devLog().log("error", `pullAll failed: ${e instanceof Error ? e.message : e}`);
+			devLog().log("error", `pullAll failed: ${errMsg(e)}`);
 			rlog().error(
 				"pull",
-				`PullAll failed: ${e instanceof Error ? e.message : e}`,
+				`PullAll failed: ${errMsg(e)}`,
 				e instanceof Error ? e.stack : undefined,
 			);
 			this.lastError =
@@ -1314,7 +1315,7 @@ export class SyncEngine {
 						} catch (e) {
 							rlog().error(
 								"conflict",
-								`Auto-merge push failed: ${change.path} | err=${e instanceof Error ? e.message : e}`,
+								`Auto-merge push failed: ${change.path} | err=${errMsg(e)}`,
 							);
 						}
 						rlog().info(
@@ -1364,7 +1365,7 @@ export class SyncEngine {
 					} catch (e) {
 						rlog().error(
 							"conflict",
-							`Resolved: ${change.path} → keep-local | pushOk=false | err=${e instanceof Error ? e.message : e}`,
+							`Resolved: ${change.path} → keep-local | pushOk=false | err=${errMsg(e)}`,
 							e instanceof Error ? e.stack : undefined,
 						);
 					}
@@ -1395,7 +1396,7 @@ export class SyncEngine {
 					} catch (e) {
 						rlog().error(
 							"conflict",
-							`Resolved: ${change.path} → keep-both | copyFailed=true | err=${e instanceof Error ? e.message : e}`,
+							`Resolved: ${change.path} → keep-both | copyFailed=true | err=${errMsg(e)}`,
 							e instanceof Error ? e.stack : undefined,
 						);
 					}
@@ -1424,7 +1425,7 @@ export class SyncEngine {
 					} catch (e) {
 						rlog().error(
 							"conflict",
-							`Resolved: ${change.path} → merge | pushOk=false | err=${e instanceof Error ? e.message : e}`,
+							`Resolved: ${change.path} → merge | pushOk=false | err=${errMsg(e)}`,
 							e instanceof Error ? e.stack : undefined,
 						);
 					}
@@ -1561,7 +1562,7 @@ export class SyncEngine {
 			} catch (e) {
 				rlog().error(
 					"conflict",
-					`Failed to create conflict file: ${conflictPath} | err=${e instanceof Error ? e.message : e}`,
+					`Failed to create conflict file: ${conflictPath} | err=${errMsg(e)}`,
 				);
 			}
 			// Keep local as-is, remote saved as conflict copy
@@ -1898,7 +1899,7 @@ export class SyncEngine {
 						return ok;
 					} catch (e) {
 						failed++;
-						const msg = e instanceof Error ? e.message : String(e);
+						const msg = errMsg(e);
 						this.logEntry("push", f.path, "error", msg);
 						return false;
 					}
@@ -1910,7 +1911,7 @@ export class SyncEngine {
 				current: i + batch.length,
 				total,
 				failed,
-				currentPath: batch[batch.length - 1].path,
+				currentPath: batch[batch.length - 1]!.path,
 			});
 		}
 

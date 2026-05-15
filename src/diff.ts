@@ -65,10 +65,10 @@ function myersDiff(a: string[], b: string[]): DiffLine[] {
 			const idx = k + max;
 			let x: number;
 
-			if (k === -d || (k !== d && v[idx - 1] < v[idx + 1])) {
-				x = v[idx + 1]; // move down (insert)
+			if (k === -d || (k !== d && v[idx - 1]! < v[idx + 1]!)) {
+				x = v[idx + 1]!; // move down (insert)
 			} else {
-				x = v[idx - 1] + 1; // move right (delete)
+				x = v[idx - 1]! + 1; // move right (delete)
 			}
 
 			let y = x - k;
@@ -97,18 +97,18 @@ function backtrack(trace: Int32Array[], a: string[], b: string[], max: number): 
 	const ops: DiffLine[] = [];
 
 	for (let d = trace.length - 1; d >= 0; d--) {
-		const v = trace[d];
+		const v = trace[d]!;
 		const k = x - y;
 		const idx = k + max;
 
 		let prevK: number;
-		if (k === -d || (k !== d && v[idx - 1] < v[idx + 1])) {
+		if (k === -d || (k !== d && v[idx - 1]! < v[idx + 1]!)) {
 			prevK = k + 1; // came from insert (down)
 		} else {
 			prevK = k - 1; // came from delete (right)
 		}
 
-		const prevX = v[prevK + max];
+		const prevX = v[prevK + max]!;
 		const prevY = prevX - prevK;
 
 		// Emit diagonal (equal) lines
@@ -117,7 +117,7 @@ function backtrack(trace: Int32Array[], a: string[], b: string[], max: number): 
 			y--;
 			ops.push({
 				type: "equal",
-				content: a[x],
+				content: a[x]!,
 				oldLineNo: x + 1,
 				newLineNo: y + 1,
 			});
@@ -129,7 +129,7 @@ function backtrack(trace: Int32Array[], a: string[], b: string[], max: number): 
 				y--;
 				ops.push({
 					type: "add",
-					content: b[y],
+					content: b[y]!,
 					newLineNo: y + 1,
 				});
 			} else {
@@ -137,7 +137,7 @@ function backtrack(trace: Int32Array[], a: string[], b: string[], max: number): 
 				x--;
 				ops.push({
 					type: "remove",
-					content: a[x],
+					content: a[x]!,
 					oldLineNo: x + 1,
 				});
 			}
@@ -163,7 +163,7 @@ export function groupIntoHunks(diffLines: DiffLine[], contextLines = 3): DiffHun
 	// Find ranges of changed lines
 	const changeIndices: number[] = [];
 	for (let i = 0; i < diffLines.length; i++) {
-		if (diffLines[i].type !== "equal") {
+		if (diffLines[i]!.type !== "equal") {
 			changeIndices.push(i);
 		}
 	}
@@ -172,12 +172,12 @@ export function groupIntoHunks(diffLines: DiffLine[], contextLines = 3): DiffHun
 
 	// Build raw hunk ranges [start, end] inclusive
 	const ranges: Array<[number, number]> = [];
-	let rangeStart = Math.max(0, changeIndices[0] - contextLines);
-	let rangeEnd = Math.min(diffLines.length - 1, changeIndices[0] + contextLines);
+	let rangeStart = Math.max(0, changeIndices[0]! - contextLines);
+	let rangeEnd = Math.min(diffLines.length - 1, changeIndices[0]! + contextLines);
 
 	for (let i = 1; i < changeIndices.length; i++) {
-		const newStart = Math.max(0, changeIndices[i] - contextLines);
-		const newEnd = Math.min(diffLines.length - 1, changeIndices[i] + contextLines);
+		const newStart = Math.max(0, changeIndices[i]! - contextLines);
+		const newEnd = Math.min(diffLines.length - 1, changeIndices[i]! + contextLines);
 
 		if (newStart <= rangeEnd + 1) {
 			// Merge overlapping/adjacent ranges
@@ -226,12 +226,14 @@ export function buildMergedContent(allDiffLines: DiffLine[], hunks: DiffHunk[]):
 	for (const hunk of hunks) {
 		// Find where this hunk's first line appears in allDiffLines
 		const firstLine = hunk.lines[0];
+		if (!firstLine) continue;
 		for (let i = searchFrom; i < allDiffLines.length; i++) {
+			const cur = allDiffLines[i]!;
 			if (
-				allDiffLines[i].type === firstLine.type &&
-				allDiffLines[i].content === firstLine.content &&
-				allDiffLines[i].oldLineNo === firstLine.oldLineNo &&
-				allDiffLines[i].newLineNo === firstLine.newLineNo
+				cur.type === firstLine.type &&
+				cur.content === firstLine.content &&
+				cur.oldLineNo === firstLine.oldLineNo &&
+				cur.newLineNo === firstLine.newLineNo
 			) {
 				hunkRanges.push({
 					start: i,
@@ -248,18 +250,17 @@ export function buildMergedContent(allDiffLines: DiffLine[], hunks: DiffHunk[]):
 	let hunkIdx = 0;
 
 	for (let i = 0; i < allDiffLines.length; i++) {
-		const line = allDiffLines[i];
+		const line = allDiffLines[i]!;
 
 		// Check if we're inside a hunk
+		const activeHunk = hunkRanges[hunkIdx];
 		const currentHunk =
-			hunkIdx < hunkRanges.length &&
-			i >= hunkRanges[hunkIdx].start &&
-			i <= hunkRanges[hunkIdx].end
-				? hunkRanges[hunkIdx]
+			activeHunk && i >= activeHunk.start && i <= activeHunk.end
+				? activeHunk
 				: null;
 
 		// Advance hunk pointer
-		if (hunkIdx < hunkRanges.length && i > hunkRanges[hunkIdx].end) {
+		if (activeHunk && i > activeHunk.end) {
 			hunkIdx++;
 		}
 

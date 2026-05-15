@@ -225,26 +225,27 @@ export class ConflictModal extends Modal {
 			const lines = hunk.lines;
 
 			while (i < lines.length) {
-				if (lines[i].type === "equal") {
-					leftLines.push(lines[i]);
-					rightLines.push(lines[i]);
+				const cur = lines[i]!;
+				if (cur.type === "equal") {
+					leftLines.push(cur);
+					rightLines.push(cur);
 					i++;
 				} else {
 					// Collect consecutive remove+add block
 					const removes: DiffLine[] = [];
 					const adds: DiffLine[] = [];
-					while (i < lines.length && lines[i].type === "remove") {
-						removes.push(lines[i]);
+					while (i < lines.length && lines[i]!.type === "remove") {
+						removes.push(lines[i]!);
 						i++;
 					}
-					while (i < lines.length && lines[i].type === "add") {
-						adds.push(lines[i]);
+					while (i < lines.length && lines[i]!.type === "add") {
+						adds.push(lines[i]!);
 						i++;
 					}
 					const maxLen = Math.max(removes.length, adds.length);
 					for (let j = 0; j < maxLen; j++) {
-						leftLines.push(j < removes.length ? removes[j] : null);
-						rightLines.push(j < adds.length ? adds[j] : null);
+						leftLines.push(j < removes.length ? removes[j]! : null);
+						rightLines.push(j < adds.length ? adds[j]! : null);
 					}
 				}
 			}

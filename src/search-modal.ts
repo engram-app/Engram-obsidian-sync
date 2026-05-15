@@ -121,8 +121,9 @@ export class SearchModal extends Modal {
 	}
 
 	private openSelected(): void {
-		if (this.selectedIndex >= 0 && this.selectedIndex < this.results.length) {
-			this.openResult(this.results[this.selectedIndex]);
+		const result = this.results[this.selectedIndex];
+		if (result) {
+			this.openResult(result);
 		}
 	}
 

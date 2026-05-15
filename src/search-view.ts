@@ -135,8 +135,9 @@ export class SearchView extends ItemView {
 			item.addEventListener("dblclick", () => this.openResult(result));
 		});
 
-		if (this.selectedIndex >= 0 && this.selectedIndex < this.results.length) {
-			this.renderPreview(this.results[this.selectedIndex]);
+		const selected = this.results[this.selectedIndex];
+		if (selected) {
+			this.renderPreview(selected);
 		}
 	}
 
@@ -174,8 +175,9 @@ export class SearchView extends ItemView {
 	}
 
 	private openSelected(): void {
-		if (this.selectedIndex >= 0 && this.selectedIndex < this.results.length) {
-			this.openResult(this.results[this.selectedIndex]);
+		const result = this.results[this.selectedIndex];
+		if (result) {
+			this.openResult(result);
 		}
 	}
 

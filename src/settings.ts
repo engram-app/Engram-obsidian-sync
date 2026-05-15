@@ -88,6 +88,7 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 			}
 			contentEl.empty();
 			const tab = tabs.find((t) => t.id === tabId) ?? tabs[0];
+			if (!tab) return;
 			const btn = tabBar.querySelector<HTMLElement>(`[data-tab="${tab.id}"]`);
 			btn?.addClass("is-active");
 			void tab.render({ ...ctx, containerEl: contentEl });
