@@ -103,7 +103,7 @@ The status bar at the bottom of Obsidian shows a quick indicator of sync state a
 
 ## Privacy
 
-- The plugin only talks to the Engram server URL you configure. Nothing else.
+- **Network use** — the plugin only talks to the Engram server URL you configure. Nothing else.
 - No telemetry, no analytics.
 - Optional "remote logging" (off by default) sends sync events to *your own* Engram server for debugging. It never goes to a third party.
 - Your account credentials live inside Obsidian's plugin data folder, alongside your other plugin settings.
