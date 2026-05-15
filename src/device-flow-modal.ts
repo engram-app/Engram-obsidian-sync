@@ -29,10 +29,7 @@ export class DeviceFlowModal extends Modal {
 		void this.beginDeviceFlow(contentEl, statusEl);
 	}
 
-	private async beginDeviceFlow(
-		contentEl: HTMLElement,
-		statusEl: HTMLElement,
-	): Promise<void> {
+	private async beginDeviceFlow(contentEl: HTMLElement, statusEl: HTMLElement): Promise<void> {
 		try {
 			const resp = await this.startDeviceFlow();
 			this.renderCodeScreen(contentEl, resp);
