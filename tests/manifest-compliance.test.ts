@@ -80,9 +80,7 @@ describe("manifest.json — schema (validate-manifest parity)", () => {
 	);
 
 	test("contains no disallowed top-level keys", () => {
-		const stray = Object.keys(manifest).filter(
-			(k) => !Object.hasOwn(ALLOWED_KEYS, k),
-		);
+		const stray = Object.keys(manifest).filter((k) => !Object.hasOwn(ALLOWED_KEYS, k));
 		expect(stray).toEqual([]);
 	});
 

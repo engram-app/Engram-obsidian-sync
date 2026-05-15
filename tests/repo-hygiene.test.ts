@@ -19,7 +19,8 @@ import { join } from "node:path";
 const repoRoot = join(import.meta.dir, "..");
 
 const exists = (relPath: string) => existsSync(join(repoRoot, relPath));
-const readMaybe = (relPath: string) => (exists(relPath) ? readFileSync(join(repoRoot, relPath), "utf8") : "");
+const readMaybe = (relPath: string) =>
+	exists(relPath) ? readFileSync(join(repoRoot, relPath), "utf8") : "";
 
 describe("repo — required files exist at root", () => {
 	test.each([

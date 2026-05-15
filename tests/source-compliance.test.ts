@@ -31,7 +31,7 @@
  *   - no plugin self-update mechanism keywords (defensive)
  */
 import { describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const repoRoot = join(import.meta.dir, "..");
@@ -244,17 +244,22 @@ describe("regex-lookbehind — not allowed when isDesktopOnly=false", () => {
 describe("no-global-this — no bare `global` / `globalThis`", () => {
 	test("no top-level `globalThis.` or `global.` reference", () => {
 		// member expressions like `foo.globalThis` are OK; bare ones are not.
-		const found = findInSources((line) => /(?:^|[^.\w])(globalThis|global)\.[A-Za-z_]/.test(line));
+		const found = findInSources((line) =>
+			/(?:^|[^.\w])(globalThis|global)\.[A-Za-z_]/.test(line),
+		);
 		expect(found).toEqual([]);
 	});
 });
 
 describe("Developer policy — no innerHTML / outerHTML / insertAdjacentHTML", () => {
-	test.each(["innerHTML", "outerHTML", "insertAdjacentHTML"])("no `.%s` assignment / call", (api) => {
-		const re = new RegExp(`\\.${api}\\b`);
-		const found = findInSources((line) => re.test(line));
-		expect(found).toEqual([]);
-	});
+	test.each(["innerHTML", "outerHTML", "insertAdjacentHTML"])(
+		"no `.%s` assignment / call",
+		(api) => {
+			const re = new RegExp(`\\.${api}\\b`);
+			const found = findInSources((line) => re.test(line));
+			expect(found).toEqual([]);
+		},
+	);
 });
 
 describe("Plugin guidelines — no `var ` declarations", () => {
