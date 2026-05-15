@@ -1,6 +1,6 @@
 # Context Doc: Obsidian Community Plugin Submission
 
-_Last verified: 2026-05-14_
+_Last verified: 2026-05-15_
 
 ## Status
 **Working — new flow as of 2026-05-12.** GitHub PR submission to `obsidianmd/obsidian-releases` is deprecated. Use https://community.obsidian.md/ Developer Dashboard instead.
@@ -71,8 +71,19 @@ The plugin's `master` branch source has rules not yet published:
 
 If/when v0.4+ ships, replace our `no-restricted-imports` block with `"obsidianmd/no-nodejs-modules": "error"`.
 
-### Recommended config is too strict
-`obsidianmd.configs.recommended` bundles `typescript-eslint:recommendedTypeChecked` + `microsoft/sdl` + `eslint-plugin-no-unsanitized`. That adds ~150 errors that reviewers don't enforce. Our `eslint.config.mjs` reproduces ONLY `obsidianmd/*` rules at their recommended severities — matches what the bot actually flags.
+### Dashboard validator reports warnings our local lint can't reproduce
+The dashboard runs `obsidianmd.configs.recommended` (which DOES include `typescript-eslint:recommendedTypeChecked`) inside a sandbox where the `obsidian` package types resolve as `any`. That trips ~600 `no-unsafe-*` warnings on code that is type-safe in our local TS service.
+
+Local cannot reproduce — tested `projectService`, legacy `parserOptions.project`, `obsidian@1.8.7`, `bun install` vs `npm install`. All produce 0 warnings locally because our TS resolves obsidian's `.d.ts` correctly.
+
+**Fix (copied from `obsidian-tasks-group/obsidian-tasks`, which passes the new dashboard):**
+1. Added `obsidian-typings@^2.x` devDep + `src/obsidian-typings.d.ts` trigger file. This package augments Obsidian's API with richer internal type definitions.
+2. `eslint.config.mjs` disables the 20 affected typed/unsafe rules with the `on_or_off = 0` pattern so they can be flipped back on incrementally (see `typeCheckedDisables` block).
+3. Uses `obsidianmd.configs.recommended` (not `recommendedWithLocalesEn`) — we don't ship locale files.
+4. Type safety is still enforced via `tsc --noEmit` in the build step.
+
+### CSS validator catches patterns our biome/eslint missed
+Dashboard validates `styles.css` for: `:has()` (broad invalidation hurts render perf), `!important`, multicolumn props (partial Obsidian support), 3-digit hex shorthand. We mirror this locally with `stylelint` + `.stylelintrc.json`. CI step in `ci.yml` is `Lint CSS (stylelint, mirrors dashboard CSS checks)`. To avoid `:has()`, apply parent classes via JS (`setting.settingEl.addClass(...)`) instead of relying on the selector — see `engram-setting-api-key`/`engram-setting-vault-name`/`engram-setting-support` for the pattern.
 
 ### 6 known false positives in our UI strings
 The `obsidianmd/ui/sentence-case` rule misfires on URLs / canonical literals. Suppressed per-line with justification comments — see source for full reasoning:
@@ -95,10 +106,14 @@ Per FAQ: new closed-source plugins are not accepted into the new directory. Exis
 We bumped to `1.7.2` for `Workspace.revealLeaf`. If you adopt newer API, `obsidianmd/no-unsupported-api` will flag and tell you exactly which version each call needs.
 
 ## References
-- `eslint.config.mjs` — local CI gate
-- `.github/workflows/ci.yml` — "Lint (Obsidian community reviewer rules)" step
-- `package.json` `lint:obsidian` script
+- `eslint.config.mjs` — local CI gate (mirrors obsidian-tasks plugin pattern)
+- `.stylelintrc.json` — local CSS gate (mirrors dashboard CSS checks)
+- `src/obsidian-typings.d.ts` — pulls in `obsidian-typings` global augmentations
+- `.github/workflows/ci.yml` — `Lint (Obsidian community reviewer rules)` + `Lint CSS` steps
+- `package.json` `lint:obsidian` + `lint:css` scripts
 - https://obsidian.md/blog/future-of-plugins/ — the 2026-05-12 announcement
 - https://docs.obsidian.md/Developer+policies — what the automated reviewer enforces
 - https://github.com/obsidianmd/eslint-plugin — rule source (master branch has more rules than published npm package)
+- https://github.com/obsidian-tasks-group/obsidian-tasks/blob/main/eslint.config.mjs — reference config (we mirror this)
+- https://github.com/Fevol/obsidian-typings — richer Obsidian types package
 - https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines — human-readable companion to the eslint rules

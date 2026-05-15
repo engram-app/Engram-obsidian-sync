@@ -417,7 +417,7 @@
 	height: 8px;
 	border-radius: 50%;
 	margin-right: 8px;
-	background-color: #888;
+	background-color: #888888;
 }
 
 .engram-status-dot.is-error {
@@ -433,7 +433,7 @@
 }
 
 .engram-status-dot.is-idle {
-	background-color: var(--text-muted, #888);
+	background-color: var(--text-muted, #888888);
 }
 
 .engram-sync-progress {
@@ -682,16 +682,16 @@
 	}
 
 	/* Stack cramped setting rows on phone — input/value above its button */
-	.setting-item:has(.engram-api-key-input) .setting-item-control,
-	.setting-item:has(.engram-vault-current-name) .setting-item-control,
-	.setting-item:has(.engram-sponsor-button) {
+	.engram-setting-api-key .setting-item-control,
+	.engram-setting-vault-name .setting-item-control,
+	.engram-setting-support {
 		flex-direction: column;
 		align-items: stretch;
 		gap: 8px;
 	}
 
-	.setting-item:has(.engram-sponsor-button) .setting-item-info,
-	.setting-item:has(.engram-sponsor-button) .setting-item-control {
+	.engram-setting-support .setting-item-info,
+	.engram-setting-support .setting-item-control {
 		width: 100%;
 	}
 
@@ -725,8 +725,10 @@
 
 /* ── Generic helpers ─────────────────────────────────────────── */
 
-.engram-hidden {
-	display: none !important;
+/* Doubled class boosts specificity to (0,2,0) so this beats themes that style
+   by class without needing !important. */
+.engram-hidden.engram-hidden {
+	display: none;
 }
 
 /* ── Sync progress modal ─────────────────────────────────────── */
@@ -867,21 +869,23 @@
 }
 
 /* Let the support row use the full Setting width instead of hugging the right side */
-.setting-item:has(.engram-support-buttons) {
+.engram-setting-support {
 	flex-direction: column;
 	align-items: stretch;
 	gap: 12px;
 }
 
-.engram-sponsor-button {
+/* Selector starts with `a` to outrank the default `a { color: ... }` styling
+   Obsidian themes apply to anchor elements in setting controls. */
+a.engram-sponsor-button {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
 	padding: 8px 16px;
 	background: linear-gradient(135deg, #db61a2 0%, #f178b6 100%);
-	color: #ffffff !important;
+	color: #ffffff;
 	border-radius: 8px;
-	text-decoration: none !important;
+	text-decoration: none;
 	font-weight: 600;
 	font-size: 0.95em;
 	box-shadow: 0 2px 6px rgba(219, 97, 162, 0.25);
@@ -905,15 +909,15 @@
 	stroke: #ffffff;
 }
 
-.engram-kofi-button {
+a.engram-kofi-button {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
 	padding: 8px 16px;
 	background: linear-gradient(135deg, #ff5e5b 0%, #ff8d6b 100%);
-	color: #ffffff !important;
+	color: #ffffff;
 	border-radius: 8px;
-	text-decoration: none !important;
+	text-decoration: none;
 	font-weight: 600;
 	font-size: 0.95em;
 	box-shadow: 0 2px 6px rgba(255, 94, 91, 0.25);
@@ -1227,8 +1231,7 @@
 .engram-sync-center-stats-grid {
 	display: grid;
 	grid-template-columns: repeat(2, 1fr);
-	column-gap: 16px;
-	row-gap: 8px;
+	gap: 8px 16px;
 }
 
 .engram-sync-center-stat {

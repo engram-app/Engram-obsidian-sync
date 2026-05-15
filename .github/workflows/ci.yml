@@ -25,6 +25,9 @@ jobs:
       - name: Lint (Obsidian community reviewer rules)
         run: bun run lint:obsidian
 
+      - name: Lint CSS (stylelint, mirrors dashboard CSS checks)
+        run: bun run lint:css
+
       - name: Type-check and build
         run: bun run build
 

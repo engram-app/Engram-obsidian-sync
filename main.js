@@ -969,10 +969,12 @@ var RemoteLogger = class {
     stack && (entry.stack = stack), this.buffer.push(entry), this.buffer.length > 200 && this.buffer.splice(0, this.buffer.length - 200), this.buffer.length >= 20 && this.flush();
   }
   startTimer() {
-    this.stopTimer(), this.flushTimer = setInterval(() => this.flush(), 3e4);
+    this.stopTimer(), this.flushTimer = window.setInterval(() => {
+      this.flush();
+    }, 3e4);
   }
   stopTimer() {
-    this.flushTimer && (clearInterval(this.flushTimer), this.flushTimer = null);
+    this.flushTimer && (window.clearInterval(this.flushTimer), this.flushTimer = null);
   }
 }, _noop = {
   error() {
@@ -1079,6 +1081,18 @@ var ApiKeyAuth = class {
 _OAuthAuth.EXPIRY_BUFFER_MS = 6e4;
 var OAuthAuth = _OAuthAuth;
 
+// src/error-util.ts
+function errMsg(e) {
+  var _a;
+  if (e instanceof Error) return e.message;
+  if (typeof e == "string") return e;
+  try {
+    return (_a = JSON.stringify(e)) != null ? _a : String(e);
+  } catch (e2) {
+    return String(e);
+  }
+}
+
 // src/channel.ts
 var NO_AUTH_RECONNECT_MS = 3e4, NoteChannel = class {
   constructor(baseUrl, apiKey, userId, vaultId = null) {
@@ -1132,7 +1146,7 @@ var NO_AUTH_RECONNECT_MS = 3e4, NoteChannel = class {
     } catch (e) {
       rlog().warn(
         "channel",
-        `getToken threw \u2014 deferring reconnect ${NO_AUTH_RECONNECT_MS}ms \u2014 providerType=${(_b = (_a = this.authProvider) == null ? void 0 : _a.constructor.name) != null ? _b : "none"} err=${e instanceof Error ? e.message : String(e)}`
+        `getToken threw \u2014 deferring reconnect ${NO_AUTH_RECONNECT_MS}ms \u2014 providerType=${(_b = (_a = this.authProvider) == null ? void 0 : _a.constructor.name) != null ? _b : "none"} err=${errMsg(e)}`
       ), this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
       return;
     }
@@ -1151,7 +1165,7 @@ var NO_AUTH_RECONNECT_MS = 3e4, NoteChannel = class {
     try {
       this.ws = new WebSocket(url);
     } catch (e) {
-      rlog().error("channel", `WebSocket open error: ${e}`), this.scheduleReconnect();
+      rlog().error("channel", `WebSocket open error: ${errMsg(e)}`), this.scheduleReconnect();
       return;
     }
     this.ws.onopen = () => {
@@ -1168,7 +1182,7 @@ var NO_AUTH_RECONNECT_MS = 3e4, NoteChannel = class {
     this.send([this.joinRef, String(++this.ref), this.topic, "phx_join", {}]);
   }
   startHeartbeat() {
-    this.heartbeatTimer = setInterval(() => {
+    this.heartbeatTimer = window.setInterval(() => {
       var _a;
       ((_a = this.ws) == null ? void 0 : _a.readyState) === WebSocket.OPEN && this.send([null, String(++this.ref), "phoenix", "heartbeat", {}]);
     }, 3e4);
@@ -1182,7 +1196,7 @@ var NO_AUTH_RECONNECT_MS = 3e4, NoteChannel = class {
       rlog().error("channel", `Failed to parse message: ${raw}`);
       return;
     }
-    let [_joinRef, _ref, _topic, event, payload] = msg;
+    let [, , , event, payload] = msg;
     if (event === "phx_reply") {
       let status = payload.status;
       status === "ok" && !this.connected ? (this.setConnected(!0), rlog().info("channel", `Joined ${this.topic}`)) : status === "error" && rlog().error("channel", `Channel join error: ${JSON.stringify(payload)}`);
@@ -1218,12 +1232,12 @@ var NO_AUTH_RECONNECT_MS = 3e4, NoteChannel = class {
     this.connected !== value && (this.connected = value, (_a = this.onStatusChange) == null || _a.call(this, value));
   }
   clearTimers() {
-    this.heartbeatTimer && (clearInterval(this.heartbeatTimer), this.heartbeatTimer = null), this.reconnectTimer && (clearTimeout(this.reconnectTimer), this.reconnectTimer = null);
+    this.heartbeatTimer && (window.clearInterval(this.heartbeatTimer), this.heartbeatTimer = null), this.reconnectTimer && (window.clearTimeout(this.reconnectTimer), this.reconnectTimer = null);
   }
   scheduleReconnect(overrideMs) {
     let base = overrideMs != null ? overrideMs : this.reconnectMs, jitter = Math.random() * base * 0.5;
-    this.reconnectTimer = setTimeout(async () => {
-      overrideMs === void 0 && (this.reconnectMs = Math.min(this.reconnectMs * 2, this.maxReconnectMs)), await this.openSocket();
+    this.reconnectTimer = window.setTimeout(() => {
+      overrideMs === void 0 && (this.reconnectMs = Math.min(this.reconnectMs * 2, this.maxReconnectMs)), this.openSocket();
     }, base + jitter);
   }
 };
@@ -1304,20 +1318,23 @@ function buildMergedContent(allDiffLines, hunks) {
   let hunkRanges = [], searchFrom = 0;
   for (let hunk of hunks) {
     let firstLine = hunk.lines[0];
-    for (let i = searchFrom; i < allDiffLines.length; i++)
-      if (allDiffLines[i].type === firstLine.type && allDiffLines[i].content === firstLine.content && allDiffLines[i].oldLineNo === firstLine.oldLineNo && allDiffLines[i].newLineNo === firstLine.newLineNo) {
-        hunkRanges.push({
-          start: i,
-          end: i + hunk.lines.length - 1,
-          choice: hunk.choice
-        }), searchFrom = i + hunk.lines.length;
-        break;
+    if (firstLine)
+      for (let i = searchFrom; i < allDiffLines.length; i++) {
+        let cur = allDiffLines[i];
+        if (cur.type === firstLine.type && cur.content === firstLine.content && cur.oldLineNo === firstLine.oldLineNo && cur.newLineNo === firstLine.newLineNo) {
+          hunkRanges.push({
+            start: i,
+            end: i + hunk.lines.length - 1,
+            choice: hunk.choice
+          }), searchFrom = i + hunk.lines.length;
+          break;
+        }
       }
   }
   let result = [], hunkIdx = 0;
   for (let i = 0; i < allDiffLines.length; i++) {
-    let line = allDiffLines[i], currentHunk = hunkIdx < hunkRanges.length && i >= hunkRanges[hunkIdx].start && i <= hunkRanges[hunkIdx].end ? hunkRanges[hunkIdx] : null;
-    hunkIdx < hunkRanges.length && i > hunkRanges[hunkIdx].end && hunkIdx++;
+    let line = allDiffLines[i], activeHunk = hunkRanges[hunkIdx], currentHunk = activeHunk && i >= activeHunk.start && i <= activeHunk.end ? activeHunk : null;
+    activeHunk && i > activeHunk.end && hunkIdx++;
     let choice = (_a = currentHunk == null ? void 0 : currentHunk.choice) != null ? _a : "remote";
     line.type === "equal" ? result.push(line.content) : line.type === "remove" ? choice === "local" && result.push(line.content) : line.type === "add" && choice === "remote" && result.push(line.content);
   }
@@ -1380,9 +1397,9 @@ var ConflictModal = class extends import_obsidian2.Modal {
       this.viewMode = "side-by-side", sideBySideBtn.addClass("is-active"), unifiedBtn.removeClass("is-active"), this.onViewModeChange("side-by-side"), this.renderDiff();
     }), this.hunks.length > 0) {
       let bulkGroup = bar.createEl("span", { cls: "engram-conflict-bulk" }), allLocalBtn = bulkGroup.createEl("button", {
-        text: "All Local",
+        text: "All local",
         cls: "mod-warning"
-      }), allRemoteBtn = bulkGroup.createEl("button", { text: "All Remote" });
+      }), allRemoteBtn = bulkGroup.createEl("button", { text: "All remote" });
       allLocalBtn.addEventListener("click", () => {
         for (let h of this.hunks)
           h.choice = "local";
@@ -1441,9 +1458,10 @@ var ConflictModal = class extends import_obsidian2.Modal {
       }), rightTable = wrapper.createEl("table", {
         cls: "engram-diff-table engram-diff-sbs"
       }), leftBody = leftTable.createEl("tbody"), rightBody = rightTable.createEl("tbody"), leftLines = [], rightLines = [], i = 0, lines = hunk.lines;
-      for (; i < lines.length; )
-        if (lines[i].type === "equal")
-          leftLines.push(lines[i]), rightLines.push(lines[i]), i++;
+      for (; i < lines.length; ) {
+        let cur = lines[i];
+        if (cur.type === "equal")
+          leftLines.push(cur), rightLines.push(cur), i++;
         else {
           let removes = [], adds = [];
           for (; i < lines.length && lines[i].type === "remove"; )
@@ -1454,6 +1472,7 @@ var ConflictModal = class extends import_obsidian2.Modal {
           for (let j = 0; j < maxLen; j++)
             leftLines.push(j < removes.length ? removes[j] : null), rightLines.push(j < adds.length ? adds[j] : null);
         }
+      }
       for (let r = 0; r < leftLines.length; r++) {
         let left = leftLines[r], right = rightLines[r], trLeft = leftBody.createEl("tr", {
           cls: `engram-diff-line ${left ? `engram-diff-${left.type}` : "engram-diff-empty"}`
@@ -1473,14 +1492,16 @@ var ConflictModal = class extends import_obsidian2.Modal {
     }
   }
   renderHunkControls(parent, hunk) {
-    let controls = parent.createEl("nav", { cls: "engram-conflict-hunk-controls" }), label = controls.createEl("span", {
+    let controls = parent.createEl("nav", { cls: "engram-conflict-hunk-controls" });
+    controls.createEl("span", {
       text: `Hunk ${hunk.id + 1}`,
       cls: "engram-conflict-hunk-label"
-    }), localBtn = controls.createEl("button", {
-      text: "Use Local",
+    });
+    let localBtn = controls.createEl("button", {
+      text: "Use local",
       cls: hunk.choice === "local" ? "is-active mod-warning" : ""
     }), remoteBtn = controls.createEl("button", {
-      text: "Use Remote",
+      text: "Use remote",
       cls: hunk.choice === "remote" ? "is-active" : ""
     }), updateButtons = () => {
       localBtn.className = hunk.choice === "local" ? "is-active mod-warning" : "", remoteBtn.className = hunk.choice === "remote" ? "is-active" : "";
@@ -1494,7 +1515,7 @@ var ConflictModal = class extends import_obsidian2.Modal {
   // ── Merge editor ────────────────────────────────────────────────
   renderMergeEditor(root) {
     let section = root.createEl("section", { cls: "engram-conflict-merge" }), header = section.createEl("header", { cls: "engram-conflict-merge-header" });
-    header.createEl("h3", { text: "Merge Result" }), header.createEl("span", {
+    header.createEl("h3", { text: "Merge result" }), header.createEl("span", {
       text: "Edit the merged content below, or use hunk controls above",
       cls: "engram-conflict-merge-hint"
     }), this.mergeEditor = section.createEl("textarea", {
@@ -1507,17 +1528,17 @@ var ConflictModal = class extends import_obsidian2.Modal {
   // ── Action buttons ──────────────────────────────────────────────
   renderActions(root) {
     let bar = root.createEl("footer", { cls: "engram-conflict-actions" });
-    bar.createEl("button", { text: "Apply Merge", cls: "mod-cta" }).addEventListener("click", () => {
+    bar.createEl("button", { text: "Apply merge", cls: "mod-cta" }).addEventListener("click", () => {
       var _a, _b;
       this.resolvePromise({
         choice: "merge",
         mergedContent: (_b = (_a = this.mergeEditor) == null ? void 0 : _a.value) != null ? _b : ""
       }), this.close();
-    }), bar.createEl("button", { text: "Keep Local", cls: "mod-warning" }).addEventListener("click", () => {
+    }), bar.createEl("button", { text: "Keep local", cls: "mod-warning" }).addEventListener("click", () => {
       this.resolvePromise({ choice: "keep-local" }), this.close();
-    }), bar.createEl("button", { text: "Keep Remote" }).addEventListener("click", () => {
+    }), bar.createEl("button", { text: "Keep remote" }).addEventListener("click", () => {
       this.resolvePromise({ choice: "keep-remote" }), this.close();
-    }), bar.createEl("button", { text: "Keep Both" }).addEventListener("click", () => {
+    }), bar.createEl("button", { text: "Keep both" }).addEventListener("click", () => {
       this.resolvePromise({ choice: "keep-both" }), this.close();
     }), bar.createEl("button", { text: "Skip" }).addEventListener("click", () => {
       this.resolvePromise({ choice: "skip" }), this.close();
@@ -1539,13 +1560,13 @@ var import_obsidian3 = require("obsidian"), FirstSyncModal = class extends impor
   }
   onOpen() {
     let { contentEl } = this;
-    contentEl.empty(), contentEl.createEl("h2", { text: "Engram Sync \u2014 First Sync" }), contentEl.createEl("p", {
+    contentEl.empty(), contentEl.createEl("h2", { text: "Engram sync \u2014 first sync" }), contentEl.createEl("p", {
       text: `Your vault has ${this.localCount} markdown files. How would you like to sync?`
     });
     let btnContainer = contentEl.createDiv({ cls: "engram-button-row-start" });
-    btnContainer.createEl("button", { text: "Push All", cls: "mod-warning" }).addEventListener("click", () => {
+    btnContainer.createEl("button", { text: "Push all", cls: "mod-warning" }).addEventListener("click", () => {
       this.resolve("push-all"), this.close();
-    }), btnContainer.createEl("button", { text: "Pull Only" }).addEventListener("click", () => {
+    }), btnContainer.createEl("button", { text: "Pull only" }).addEventListener("click", () => {
       this.resolve("pull-only"), this.close();
     }), btnContainer.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
       this.resolve("cancel"), this.close();
@@ -1583,14 +1604,16 @@ var import_obsidian4 = require("obsidian"), SearchModal = class extends import_o
       cls: "engram-search-input engram-search-folder-input"
     }), this.resultsEl = contentEl.createDiv({ cls: "engram-search-results" }), this.renderEmpty();
     let scheduleSearch = () => {
-      this.debounceTimer && clearTimeout(this.debounceTimer), this.debounceTimer = setTimeout(() => this.doSearch(), 300);
+      this.debounceTimer && window.clearTimeout(this.debounceTimer), this.debounceTimer = window.setTimeout(() => {
+        this.doSearch();
+      }, 300);
     };
     this.inputEl.addEventListener("input", scheduleSearch), this.folderEl.addEventListener("input", scheduleSearch), this.inputEl.addEventListener("keydown", (e) => {
       e.key === "ArrowDown" ? (e.preventDefault(), this.moveSelection(1)) : e.key === "ArrowUp" ? (e.preventDefault(), this.moveSelection(-1)) : e.key === "Enter" && (e.preventDefault(), this.openSelected());
     }), this.inputEl.focus();
   }
   onClose() {
-    this.debounceTimer && clearTimeout(this.debounceTimer), this.contentEl.empty();
+    this.debounceTimer && window.clearTimeout(this.debounceTimer), this.contentEl.empty();
   }
   renderEmpty() {
     this.resultsEl.empty(), this.resultsEl.createEl("p", {
@@ -1625,7 +1648,8 @@ var import_obsidian4 = require("obsidian"), SearchModal = class extends import_o
     ), this.renderResults());
   }
   openSelected() {
-    this.selectedIndex >= 0 && this.selectedIndex < this.results.length && this.openResult(this.results[this.selectedIndex]);
+    let result = this.results[this.selectedIndex];
+    result && this.openResult(result);
   }
   openResult(result) {
     if (!result.source_path) {
@@ -1669,7 +1693,7 @@ var import_obsidian5 = require("obsidian"), SEARCH_VIEW_TYPE = "engram-search-vi
     return SEARCH_VIEW_TYPE;
   }
   getDisplayText() {
-    return "Engram Search";
+    return "Engram search";
   }
   getIcon() {
     return "search";
@@ -1685,14 +1709,16 @@ var import_obsidian5 = require("obsidian"), SEARCH_VIEW_TYPE = "engram-search-vi
       cls: "engram-search-input engram-search-folder-input"
     }), this.resultsEl = this.contentEl.createDiv({ cls: "engram-search-results" }), this.previewEl = this.contentEl.createDiv({ cls: "engram-search-preview" }), this.renderEmpty();
     let scheduleSearch = () => {
-      this.debounceTimer && clearTimeout(this.debounceTimer), this.debounceTimer = setTimeout(() => this.doSearch(), 300);
+      this.debounceTimer && window.clearTimeout(this.debounceTimer), this.debounceTimer = window.setTimeout(() => {
+        this.doSearch();
+      }, 300);
     };
     this.registerDomEvent(this.inputEl, "input", scheduleSearch), this.registerDomEvent(this.folderEl, "input", scheduleSearch), this.registerDomEvent(this.inputEl, "keydown", (e) => {
       e.key === "ArrowDown" ? (e.preventDefault(), this.moveSelection(1)) : e.key === "ArrowUp" ? (e.preventDefault(), this.moveSelection(-1)) : e.key === "Enter" && (e.preventDefault(), this.openSelected());
     });
   }
   async onClose() {
-    this.debounceTimer && clearTimeout(this.debounceTimer);
+    this.debounceTimer && window.clearTimeout(this.debounceTimer);
   }
   renderEmpty() {
     this.resultsEl.empty(), this.previewEl.empty(), this.resultsEl.createEl("p", {
@@ -1722,7 +1748,9 @@ var import_obsidian5 = require("obsidian"), SEARCH_VIEW_TYPE = "engram-search-vi
       item.createEl("p", { text: snippet, cls: "engram-search-result-snippet" }), item.addEventListener("click", () => {
         this.selectedIndex = i, this.renderResults(), this.renderPreview(result);
       }), item.addEventListener("dblclick", () => this.openResult(result));
-    }), this.selectedIndex >= 0 && this.selectedIndex < this.results.length && this.renderPreview(this.results[this.selectedIndex]);
+    });
+    let selected = this.results[this.selectedIndex];
+    selected && this.renderPreview(selected);
   }
   renderPreview(result) {
     this.previewEl.empty(), result.heading_path && this.previewEl.createEl("h4", {
@@ -1743,7 +1771,8 @@ var import_obsidian5 = require("obsidian"), SEARCH_VIEW_TYPE = "engram-search-vi
     ), this.renderResults());
   }
   openSelected() {
-    this.selectedIndex >= 0 && this.selectedIndex < this.results.length && this.openResult(this.results[this.selectedIndex]);
+    let result = this.results[this.selectedIndex];
+    result && this.openResult(result);
   }
   openResult(result) {
     if (!result.source_path) {
@@ -1799,7 +1828,7 @@ var import_obsidian6 = require("obsidian"), DeviceFlowModal = class extends impo
     }
   }
   onClose() {
-    this.aborted = !0, this.pollInterval && (clearInterval(this.pollInterval), this.pollInterval = null), this.contentEl.empty(), this.resolve(null);
+    this.aborted = !0, this.pollInterval && (window.clearInterval(this.pollInterval), this.pollInterval = null), this.contentEl.empty(), this.resolve(null);
   }
   waitForResult() {
     return new Promise((resolve) => {
@@ -1834,11 +1863,10 @@ var import_obsidian6 = require("obsidian"), DeviceFlowModal = class extends impo
     }), contentEl.createDiv({ cls: "engram-device-buttons" }).createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close()), window.open(resp.verification_url);
   }
   startPolling(deviceCode) {
-    let base = this.plugin.settings.apiUrl.replace(/\/+$/, ""), apiUrl = base.endsWith("/api") ? base : `${base}/api`, elapsed = 0, maxSeconds = 300;
-    this.pollInterval = setInterval(async () => {
+    let base = this.plugin.settings.apiUrl.replace(/\/+$/, ""), apiUrl = base.endsWith("/api") ? base : `${base}/api`, elapsed = 0, maxSeconds = 300, poll = async () => {
       if (!this.aborted) {
         if (elapsed += 5, elapsed >= maxSeconds) {
-          this.pollInterval && clearInterval(this.pollInterval), this.renderExpired();
+          this.pollInterval && window.clearInterval(this.pollInterval), this.renderExpired();
           return;
         }
         try {
@@ -1851,26 +1879,29 @@ var import_obsidian6 = require("obsidian"), DeviceFlowModal = class extends impo
           });
           if (resp.status === 428) return;
           if (resp.status >= 200 && resp.status < 300) {
-            this.pollInterval && clearInterval(this.pollInterval);
+            this.pollInterval && window.clearInterval(this.pollInterval);
             let result = resp.json;
             this.resolve(result), this.resolve = () => {
             }, this.close();
             return;
           }
           if (resp.status === 410) {
-            this.pollInterval && clearInterval(this.pollInterval), this.renderExpired();
+            this.pollInterval && window.clearInterval(this.pollInterval), this.renderExpired();
             return;
           }
         } catch (e) {
         }
       }
+    };
+    this.pollInterval = window.setInterval(() => {
+      poll();
     }, 5e3);
   }
   renderExpired() {
     let contentEl = this.contentEl;
     contentEl.empty(), contentEl.createEl("h2", { text: "Link Obsidian to Engram" }), contentEl.createEl("p", { text: "Code expired. Please try again." });
     let btnContainer = contentEl.createDiv({ cls: "engram-device-buttons" });
-    btnContainer.createEl("button", { text: "Try Again", cls: "mod-cta" }).addEventListener("click", () => {
+    btnContainer.createEl("button", { text: "Try again", cls: "mod-cta" }).addEventListener("click", () => {
       this.aborted = !1, this.onOpen();
     }), btnContainer.createEl("button", { text: "Close" }).addEventListener("click", () => this.close());
   }
@@ -1912,7 +1943,7 @@ var import_obsidian7 = require("obsidian"), PHASE_LABELS = {
       cls: "engram-progress-summary engram-hidden"
     });
     let buttons = contentEl.createDiv({ cls: "engram-progress-buttons" });
-    this.bgBtn = buttons.createEl("button", { text: "Run in Background" }), this.bgBtn.addEventListener("click", () => this.close()), this.closeBtn = buttons.createEl("button", {
+    this.bgBtn = buttons.createEl("button", { text: "Run in background" }), this.bgBtn.addEventListener("click", () => this.close()), this.closeBtn = buttons.createEl("button", {
       text: "Done",
       cls: "mod-cta engram-hidden"
     }), this.closeBtn.addEventListener("click", () => this.close()), this.tickTimer = window.setInterval(() => this.tick(), TICK_INTERVAL_MS);
@@ -1945,14 +1976,14 @@ var import_obsidian7 = require("obsidian"), PHASE_LABELS = {
       });
       return;
     }
-    this.displayedPhase !== this.latest.phase && (this.displayedPhase = this.latest.phase, this.phaseStartTime = now, this.barInner.style.width = "0%"), this.renderProgress(this.latest);
+    this.displayedPhase !== this.latest.phase && (this.displayedPhase = this.latest.phase, this.phaseStartTime = now, this.barInner.setCssStyles({ width: "0%" })), this.renderProgress(this.latest);
   }
   /** Render a progress state to the DOM. */
   renderProgress(progress) {
     var _a, _b;
     let label = (_a = PHASE_LABELS[progress.phase]) != null ? _a : progress.phase, pct = progress.total > 0 ? Math.round(progress.current / progress.total * 100) : 0;
     if (progress.phase === "complete") {
-      this.tickTimer && (window.clearInterval(this.tickTimer), this.tickTimer = null), this.phaseEl.setText("Sync complete"), this.countEl.setText(""), this.pathEl.setText(""), this.barInner.style.width = "100%", this.barInner.addClass("is-complete"), this.bgBtn.addClass("engram-hidden"), this.closeBtn.removeClass("engram-hidden");
+      this.tickTimer && (window.clearInterval(this.tickTimer), this.tickTimer = null), this.phaseEl.setText("Sync complete"), this.countEl.setText(""), this.pathEl.setText(""), this.barInner.setCssStyles({ width: "100%" }), this.barInner.addClass("is-complete"), this.bgBtn.addClass("engram-hidden"), this.closeBtn.removeClass("engram-hidden");
       let parts = [];
       progress.current > 0 && parts.push(`${progress.current} synced`), progress.failed > 0 && parts.push(`${progress.failed} failed`), this.summaryEl.setText(parts.join(", ")), this.summaryEl.removeClass("engram-hidden"), progress.failed > 0 && (this.failedEl.setText(
         `${progress.failed} failed \u2014 run "Engram: Show sync log" for details`
@@ -2078,8 +2109,8 @@ function renderSelfHostedTab(ctx) {
   }
   let repoSetting = new import_obsidian9.Setting(containerEl).setName("Run your own Engram server").setDesc("Engram is the backend that powers sync and semantic search. Get it here \u2192 ");
   repoSetting.settingEl.addClass("engram-setup-cta"), repoSetting.descEl.createEl("a", {
-    text: "github.com/Rasbandit/engram",
-    href: "https://github.com/Rasbandit/engram"
+    text: "github.com/engram-app/engram",
+    href: "https://github.com/engram-app/engram"
   }), new import_obsidian9.Setting(containerEl).setName("Engram URL").setDesc("Full URL to your Engram instance (e.g. http://10.0.20.214:8000).").addText(
     (text) => text.setPlaceholder("http://localhost:8000").setValue(plugin.settings.apiUrl).onChange(async (value) => {
       await applyApiUrlChange(
@@ -2096,8 +2127,8 @@ function renderSelfHostedTab(ctx) {
 }
 function renderCloudLockBanner(containerEl) {
   let banner = containerEl.createDiv({ cls: "engram-mode-lock-banner" });
-  banner.createEl("p", { text: "You're connected to Engram Cloud." }), banner.createEl("p", {
-    text: "To set up a self-hosted Engram server, sign out from the Cloud tab first. That will release the connection so you can point the plugin at your own server."
+  banner.createEl("p", { text: "You're connected to Engram cloud." }), banner.createEl("p", {
+    text: "To set up a self-hosted Engram server, sign out from the cloud tab first. That will release the connection so you can point the plugin at your own server."
   });
 }
 function renderAuthSection(ctx) {
@@ -2127,7 +2158,7 @@ function renderAuthSection(ctx) {
     (btn) => btn.setButtonText("Sign in").setCta().onClick(() => startDeviceFlow())
   ), containerEl.createDiv({ cls: "engram-auth-divider", text: "or" });
   let pendingKey = "";
-  new import_obsidian9.Setting(containerEl).setName("API key").setDesc("Bearer token from Engram (starts with engram_).").addText((text) => {
+  new import_obsidian9.Setting(containerEl).setName("API key").setDesc("Bearer token from Engram (starts with Engram_).").addText((text) => {
     text.setPlaceholder("engram_abc123...").onChange((value) => {
       pendingKey = value;
     }), text.inputEl.type = "password", text.inputEl.addClass("engram-api-key-input");
@@ -2140,13 +2171,13 @@ function renderAuthSection(ctx) {
       }
       plugin.settings.apiKey = trimmed, await plugin.saveSettings(), redisplay();
     })
-  );
+  ).settingEl.addClass("engram-setting-api-key");
 }
 function renderVaultSection(ctx) {
   let { containerEl, app, plugin, redisplay } = ctx;
   if (!plugin.settings.apiKey && !plugin.settings.refreshToken) return;
   new import_obsidian9.Setting(containerEl).setName("Vault").setHeading();
-  let setting = new import_obsidian9.Setting(containerEl).setName("Vault Selection").setDesc("Select which vault this plugin syncs with."), placeholderEl = setting.controlEl.createSpan({ text: "Loading vaults..." });
+  let setting = new import_obsidian9.Setting(containerEl).setName("Vault selection").setDesc("Select which vault this plugin syncs with."), placeholderEl = setting.controlEl.createSpan({ text: "Loading vaults..." });
   plugin.api.listVaults().then((vaults) => {
     if (placeholderEl.remove(), vaults.length === 0) {
       setting.controlEl.createSpan({
@@ -2171,7 +2202,7 @@ function renderVaultSection(ctx) {
       });
       return;
     }
-    setting.controlEl.createSpan({
+    setting.settingEl.addClass("engram-setting-vault-name"), setting.controlEl.createSpan({
       cls: "engram-vault-current-name",
       text: current.is_default ? `${current.name} (default)` : current.name
     }).setAttribute("title", `Vault id: ${current.id}`), setting.addButton(
@@ -2191,9 +2222,11 @@ function renderVaultSection(ctx) {
 function renderSupportSection(ctx) {
   let { containerEl } = ctx;
   new import_obsidian9.Setting(containerEl).setName("Support development").setHeading();
-  let buttonRow = new import_obsidian9.Setting(containerEl).setDesc(
+  let supportSetting = new import_obsidian9.Setting(containerEl).setDesc(
     "If this plugin saves you time, consider supporting development."
-  ).controlEl.createDiv({ cls: "engram-support-buttons" }), sponsorLink = buttonRow.createEl("a", {
+  );
+  supportSetting.settingEl.addClass("engram-setting-support");
+  let buttonRow = supportSetting.controlEl.createDiv({ cls: "engram-support-buttons" }), sponsorLink = buttonRow.createEl("a", {
     cls: "engram-sponsor-button",
     href: "https://github.com/sponsors/Rasbandit",
     attr: { target: "_blank", rel: "noopener" }
@@ -2226,10 +2259,10 @@ async function renderAccountTab(ctx) {
     ENGRAM_CLOUD_URL,
     () => plugin.saveSettings()
   )) {
-    new import_obsidian10.Notice("Switched to Engram Cloud \u2014 sign in to continue."), redisplay();
+    new import_obsidian10.Notice("Switched to Engram cloud \u2014 sign in to continue."), redisplay();
     return;
   }
-  new import_obsidian10.Setting(containerEl).setName("Engram Cloud").setHeading();
+  new import_obsidian10.Setting(containerEl).setName("Engram cloud").setHeading();
   let aboutSetting = new import_obsidian10.Setting(containerEl).setName("New to Engram?").setDesc("Create an account, read the docs, and learn more at ");
   aboutSetting.descEl.createEl("a", {
     text: "engram.page",
@@ -2269,7 +2302,7 @@ function renderAdvancedTab(ctx) {
       !Number.isNaN(num) && num >= 100 && (plugin.settings.debounceMs = num, await plugin.saveSettings());
     })
   ), new import_obsidian11.Setting(containerEl).setName("Ignore patterns").setHeading(), renderIgnoreWarnings(containerEl, app, plugin, redisplay), new import_obsidian11.Setting(containerEl).setName("Custom patterns").setDesc(
-    "Paths to skip (one per line). Folder patterns end with /. Built-in: .obsidian/, .trash/, .git/"
+    `Paths to skip (one per line). Folder patterns end with /. Built-in: ${app.vault.configDir}/, .trash/, .git/`
   ).addTextArea((text) => {
     text.setPlaceholder(`drafts/
 secret.md`).setValue(plugin.settings.ignorePatterns).onChange(async (value) => {
@@ -2284,8 +2317,8 @@ secret.md`).setValue(plugin.settings.ignorePatterns).onChange(async (value) => {
   versionItem.createSpan({ text: "Version: " }), versionItem.createSpan({ text: plugin.manifest.version });
   let repoItem = aboutList.createEl("li");
   repoItem.createSpan({ text: "Source: " }), repoItem.createEl("a", {
-    text: "github.com/Rasbandit/Engram-obsidian-sync",
-    href: "https://github.com/Rasbandit/Engram-obsidian-sync"
+    text: "github.com/engram-app/Engram-obsidian-sync",
+    href: "https://github.com/engram-app/Engram-obsidian-sync"
   }), aboutList.createEl("li").createSpan({ text: "License: MIT" });
 }
 function renderIgnoreWarnings(containerEl, app, plugin, redisplay) {
@@ -2337,7 +2370,7 @@ var PreSyncModal = class extends import_obsidian12.Modal {
   }
   onOpen() {
     let { contentEl } = this;
-    contentEl.empty(), contentEl.addClass("engram-pre-sync-modal"), contentEl.createEl("h2", { text: "Sync Preview" }), contentEl.createEl("pre", {
+    contentEl.empty(), contentEl.addClass("engram-pre-sync-modal"), contentEl.createEl("h2", { text: "Sync preview" }), contentEl.createEl("pre", {
       text: formatPlanSummary(this.plan),
       cls: "engram-sync-summary"
     }), this.plan.toDeleteLocal.length > 0 && contentEl.createEl("p", {
@@ -2348,12 +2381,12 @@ var PreSyncModal = class extends import_obsidian12.Modal {
     buttons.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
       this.resolved = !0, this.resolve(this.showWipePull ? "cancel" : !1), this.close();
     }), this.showWipePull && buttons.createEl("button", {
-      text: "Wipe & Pull",
+      text: "Wipe & pull",
       cls: "engram-btn-danger-outline"
     }).addEventListener("click", () => {
       this.resolved = !0, this.resolve("wipe-pull"), this.close();
     }), buttons.createEl("button", {
-      text: "Start Sync",
+      text: "Start sync",
       cls: "mod-cta"
     }).addEventListener("click", () => {
       this.resolved = !0, this.resolve(this.showWipePull ? "pull" : !0), this.close();
@@ -2384,7 +2417,7 @@ var PreSyncModal = class extends import_obsidian12.Modal {
   }
   onOpen() {
     let { contentEl } = this;
-    contentEl.empty(), contentEl.addClass("engram-wipe-confirm-modal"), contentEl.createEl("h2", { text: "\u26A0 Confirm Wipe & Pull" }), contentEl.createEl("p", {
+    contentEl.empty(), contentEl.addClass("engram-wipe-confirm-modal"), contentEl.createEl("h2", { text: "\u26A0 Confirm wipe & pull" }), contentEl.createEl("p", {
       cls: "engram-wipe-warning-strong",
       text: "This action cannot be undone."
     });
@@ -2397,12 +2430,12 @@ var PreSyncModal = class extends import_obsidian12.Modal {
     });
     let buttons = contentEl.createDiv({ cls: "engram-button-row" });
     buttons.createEl("button", {
-      text: "Go Back",
+      text: "Go back",
       cls: "mod-cta"
     }).addEventListener("click", () => {
       this.resolved = !0, this.resolve(!1), this.close();
     }), buttons.createEl("button", {
-      text: "Delete Everything & Pull",
+      text: "Delete everything & pull",
       cls: "engram-btn-danger-solid"
     }).addEventListener("click", () => {
       this.resolved = !0, this.resolve(!0), this.close();
@@ -2450,7 +2483,7 @@ function renderActions(parent, plugin, refresh) {
     try {
       let plan = await plugin.syncEngine.computeSyncPlan("full");
       if (!await new PreSyncModal(plugin.app, plan).awaitConfirmation()) return;
-      new import_obsidian13.Notice("Engram Sync: syncing...");
+      new import_obsidian13.Notice("Engram sync: syncing...");
       let { pulled, pushed } = await plugin.syncEngine.fullSync();
       new import_obsidian13.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
     } catch (e) {
@@ -2537,7 +2570,7 @@ function renderIgnored(parent, plugin, refresh) {
   if (ignored.length === 0) {
     body.createEl("p", {
       cls: "engram-sync-center-empty",
-      text: "No files ignored. Use the Ignore button on a failure row to stop syncing it."
+      text: "No files ignored. Use the ignore button on a failure row to stop syncing it."
     });
     return;
   }
@@ -2678,7 +2711,9 @@ var EngramSyncSettingTab = class extends import_obsidian14.PluginSettingTab {
       for (let btn2 of Array.from(tabBar.querySelectorAll(".engram-tab")))
         btn2.removeClass("is-active");
       contentEl.empty();
-      let tab = (_a = tabs.find((t) => t.id === tabId)) != null ? _a : tabs[0], btn = tabBar.querySelector(`[data-tab="${tab.id}"]`);
+      let tab = (_a = tabs.find((t) => t.id === tabId)) != null ? _a : tabs[0];
+      if (!tab) return;
+      let btn = tabBar.querySelector(`[data-tab="${tab.id}"]`);
       btn == null || btn.addClass("is-active"), tab.render({ ...ctx, containerEl: contentEl });
     }, ctx = {
       containerEl: contentEl,
@@ -2704,7 +2739,7 @@ var EngramSyncSettingTab = class extends import_obsidian14.PluginSettingTab {
     let modal = new SyncProgressModal(this.app), prevCallback = this.plugin.syncEngine.onSyncProgress;
     return this.plugin.syncEngine.onSyncProgress = (progress) => {
       modal.update(progress), prevCallback == null || prevCallback(progress);
-    }, modal.open(), await new Promise((resolve) => requestAnimationFrame(resolve)), modal;
+    }, modal.open(), await new Promise((resolve) => window.requestAnimationFrame(resolve)), modal;
   }
   async startDeviceFlow() {
     let result = await new DeviceFlowModal(this.app, this.plugin).waitForResult();
@@ -2903,24 +2938,24 @@ var OfflineQueue = class {
   }
   /** Cancel any pending persist timer. Call on plugin unload. */
   destroy() {
-    this.persistTimer && (clearTimeout(this.persistTimer), this.persistTimer = null);
+    this.persistTimer && (window.clearTimeout(this.persistTimer), this.persistTimer = null);
   }
   /** Schedule a debounced persist — coalesces rapid enqueues into one write. */
   schedulePersist() {
-    this.persistTimer || (this.persistTimer = setTimeout(async () => {
+    this.persistTimer || (this.persistTimer = window.setTimeout(() => {
       var _a;
-      this.persistTimer = null, await ((_a = this.persistFn) == null ? void 0 : _a.call(this, this.all()));
+      this.persistTimer = null, (_a = this.persistFn) == null || _a.call(this, this.all());
     }, this.persistDelayMs));
   }
   /** Persist immediately (cancels any pending debounced persist). */
   async persistNow() {
     var _a;
-    this.persistTimer && (clearTimeout(this.persistTimer), this.persistTimer = null), await ((_a = this.persistFn) == null ? void 0 : _a.call(this, this.all()));
+    this.persistTimer && (window.clearTimeout(this.persistTimer), this.persistTimer = null), await ((_a = this.persistFn) == null ? void 0 : _a.call(this, this.all()));
   }
 };
 
 // src/three-way-merge.ts
-var import_diff_match_patch = __toESM(require_diff_match_patch()), dmp = new import_diff_match_patch.diff_match_patch();
+var import_diff_match_patch = __toESM(require_diff_match_patch(), 1), dmp = new import_diff_match_patch.diff_match_patch();
 function diffToRanges(diffs) {
   let ranges = [], baseOffset = 0;
   for (let [op, text] of diffs)
@@ -2975,7 +3010,7 @@ function threeWayMerge(base, local, remote) {
 function isHttpStatus(e, status) {
   return typeof e == "object" && e !== null && e.status === status;
 }
-var ECHO_COOLDOWN_MS = 5e3, HEALTH_CHECK_INTERVAL_MS = 3e4, ALWAYS_IGNORED = [".obsidian/", ".trash/", ".git/"], STALE_THRESHOLD_S = 3600;
+var ECHO_COOLDOWN_MS = 5e3, HEALTH_CHECK_INTERVAL_MS = 3e4, ALWAYS_IGNORED = [".trash/", ".git/"], STALE_THRESHOLD_S = 3600;
 function fnv1a(s) {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++)
@@ -3138,6 +3173,9 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
 `).map((p) => p.trim()).filter((p) => p.length > 0);
   }
   shouldIgnore(path) {
+    let configDir = `${this.app.vault.configDir}/`;
+    if (path.startsWith(configDir) || path.includes(`/${configDir}`))
+      return !0;
     for (let pattern of ALWAYS_IGNORED)
       if (path.startsWith(pattern) || path.includes(`/${pattern}`))
         return !0;
@@ -3167,9 +3205,9 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
       return;
     }
     let existing = this.debounceTimers.get(file.path);
-    existing && clearTimeout(existing);
-    let timer = setTimeout(async () => {
-      this.debounceTimers.delete(file.path), await this.pushFile(file);
+    existing && window.clearTimeout(existing);
+    let timer = window.setTimeout(() => {
+      this.debounceTimers.delete(file.path), this.pushFile(file);
     }, this.settings.debounceMs);
     this.debounceTimers.set(file.path, timer), this.emitStatus();
   }
@@ -3178,7 +3216,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     var _a;
     if (!this.ready || this.suppressDeletes || !this.isSyncable(file) || this.shouldIgnore(file.path)) return;
     let isBinary = this.isBinaryFile(file), existing = this.debounceTimers.get(file.path);
-    existing && (clearTimeout(existing), this.debounceTimers.delete(file.path));
+    existing && (window.clearTimeout(existing), this.debounceTimers.delete(file.path));
     try {
       isBinary ? await this.api.deleteAttachment(file.path) : await this.api.deleteNote(file.path), this.goOnline();
     } catch (e) {
@@ -3261,7 +3299,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     ), rlog().info(
       "pacer",
       `Throttled: ${this.requestTimestamps.length}/${this.rateLimitRPM} RPM, waiting ${waitMs}ms`
-    ), await new Promise((resolve) => setTimeout(resolve, waitMs)), this.requestTimestamps = this.requestTimestamps.filter((t) => t > Date.now() - windowMs), this.requestTimestamps.push(Date.now());
+    ), await new Promise((resolve) => window.setTimeout(resolve, waitMs)), this.requestTimestamps = this.requestTimestamps.filter((t) => t > Date.now() - windowMs), this.requestTimestamps.push(Date.now());
   }
   /** Push a single file to Engram. Returns true on success.
    *  When force is true, skip echo suppression (used by pushAll). */
@@ -3386,22 +3424,22 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
       success = !0, this.issues.clear(file.path), devLog().log("push", `ok: ${file.path}`), rlog().info("push", `Push ok: ${file.path} | type=${isBinary ? "attachment" : "note"}`), this.goOnline();
     } catch (e) {
       console.error(`Engram Sync: failed to push ${file.path}`, e);
-      let errMsg = e instanceof Error ? e.message : String(e), classified = categorizeError(e), now = Date.now();
+      let msg = errMsg(e), classified = categorizeError(e), now = Date.now();
       this.issues.record({
         path: file.path,
         kind: isBinary ? "attachment" : "note",
         category: classified.category,
         status: classified.status,
-        message: errMsg,
+        message: msg,
         sizeBytes: classified.category === "too_large" ? file.stat.size : void 0,
         firstFailedAt: now,
         lastFailedAt: now,
         attempts: 1
-      }), devLog().log("error", `push failed: ${file.path} \u2014 ${errMsg} (${classified.category})`), rlog().error(
+      }), devLog().log("error", `push failed: ${file.path} \u2014 ${msg} (${classified.category})`), rlog().error(
         "push",
-        `Push failed: ${file.path} \u2014 ${errMsg} | category=${classified.category}`,
+        `Push failed: ${file.path} \u2014 ${msg} | category=${classified.category}`,
         e instanceof Error ? e.stack : void 0
-      ), this.logEntry("push", file.path, "error", errMsg, classified.category), classified.terminal || await this.enqueueChange({
+      ), this.logEntry("push", file.path, "error", msg, classified.category), classified.terminal || await this.enqueueChange({
         path: file.path,
         action: "upsert",
         kind: isBinary ? "attachment" : "note",
@@ -3417,8 +3455,8 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   /** Suppress WebSocket echoes for a path for ECHO_COOLDOWN_MS after push. */
   markRecentlyPushed(path) {
     let existing = this.recentlyPushed.get(path);
-    existing && clearTimeout(existing);
-    let timer = setTimeout(() => {
+    existing && window.clearTimeout(existing);
+    let timer = window.setTimeout(() => {
       this.recentlyPushed.delete(path);
     }, ECHO_COOLDOWN_MS);
     this.recentlyPushed.set(path, timer);
@@ -3450,7 +3488,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
           await this.applyChange(change) && applied++;
         } catch (e) {
           skipped++;
-          let msg = e instanceof Error ? e.message : String(e);
+          let msg = errMsg(e);
           console.error(`Engram Sync: skipping note ${change.path}: ${msg}`), devLog().log("error", `apply skipped: ${change.path} \u2014 ${msg}`), rlog().error(
             "pull",
             `Skipped note: ${change.path} \u2014 ${msg}`,
@@ -3462,7 +3500,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
           await this.applyAttachmentChange(change) && applied++;
         } catch (e) {
           skipped++;
-          let msg = e instanceof Error ? e.message : String(e);
+          let msg = errMsg(e);
           console.error(`Engram Sync: skipping attachment ${change.path}: ${msg}`), devLog().log("error", `apply skipped: ${change.path} \u2014 ${msg}`), rlog().error(
             "pull",
             `Skipped attachment: ${change.path} \u2014 ${msg}`,
@@ -3475,9 +3513,9 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
         `done \u2014 applied ${applied}, skipped ${skipped}, lastSync=${this.lastSync}`
       ), rlog().info("pull", `Pull done \u2014 applied ${applied}, skipped ${skipped}`), applied;
     } catch (e) {
-      return console.error("Engram Sync: pull failed", e), devLog().log("error", `pull failed: ${e instanceof Error ? e.message : e}`), rlog().error(
+      return console.error("Engram Sync: pull failed", e), devLog().log("error", `pull failed: ${errMsg(e)}`), rlog().error(
         "pull",
-        `Pull failed: ${e instanceof Error ? e.message : e}`,
+        `Pull failed: ${errMsg(e)}`,
         e instanceof Error ? e.stack : void 0
       ), this.lastError = e instanceof Error ? `Pull failed: ${e.message}` : "Pull failed", 0;
     } finally {
@@ -3515,10 +3553,10 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
       for (let i = 0; i < syncable.length; i++) {
         let file = syncable[i];
         try {
-          await this.app.vault.trash(file, !0), this.logEntry("delete", file.path, "ok", void 0, "wipe");
+          await this.app.fileManager.trashFile(file), this.logEntry("delete", file.path, "ok", void 0, "wipe");
         } catch (e) {
           wipeFailed++;
-          let msg = e instanceof Error ? e.message : String(e);
+          let msg = errMsg(e);
           this.logEntry("delete", file.path, "error", msg);
         }
         (_c = this.onSyncProgress) == null || _c.call(this, {
@@ -3527,7 +3565,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
           total: wipeTotal,
           failed: wipeFailed,
           currentPath: file.path
-        }), (i + 1) % 20 === 0 && await new Promise((resolve) => setTimeout(resolve, 0));
+        }), (i + 1) % 20 === 0 && await new Promise((resolve) => window.setTimeout(resolve, 0));
       }
       this.syncState.clear(), this.lastSync = "", await this.saveData({ lastSync: "" }), devLog().log(
         "pull",
@@ -3600,7 +3638,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
                 "unchanged"
               ), ok ? "ok" : "skip";
             } catch (e) {
-              let msg = e instanceof Error ? e.message : String(e);
+              let msg = errMsg(e);
               return rlog().error("pull", `Skipped note: ${change.path} \u2014 ${msg}`), this.logEntry("pull", change.path, "error", msg), "error";
             }
           })
@@ -3628,7 +3666,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
                 "unchanged"
               ), ok ? "ok" : "skip";
             } catch (e) {
-              let msg = e instanceof Error ? e.message : String(e);
+              let msg = errMsg(e);
               return rlog().error("pull", `Skipped attachment: ${change.path} \u2014 ${msg}`), this.logEntry("pull", change.path, "error", msg), "error";
             }
           })
@@ -3650,9 +3688,9 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
         `pullAll: done \u2014 applied=${applied}, failed=${failed}, total=${total}, lastSync=${this.lastSync}`
       ), rlog().info("pull", `PullAll done \u2014 applied=${applied}, failed=${failed}`), applied;
     } catch (e) {
-      return console.error("Engram Sync: pullAll failed", e), devLog().log("error", `pullAll failed: ${e instanceof Error ? e.message : e}`), rlog().error(
+      return console.error("Engram Sync: pullAll failed", e), devLog().log("error", `pullAll failed: ${errMsg(e)}`), rlog().error(
         "pull",
-        `PullAll failed: ${e instanceof Error ? e.message : e}`,
+        `PullAll failed: ${errMsg(e)}`,
         e instanceof Error ? e.stack : void 0
       ), this.lastError = e instanceof Error ? `Pull all failed: ${e.message}` : "Pull all failed", 0;
     } finally {
@@ -3674,7 +3712,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     let isAttachment = event.kind === "attachment";
     if (event.event_type === "delete") {
       let normalized = (0, import_obsidian15.normalizePath)(event.path), existing = this.app.vault.getFileByPath(normalized);
-      existing && (await this.app.vault.trash(existing, !0), await this.removeEmptyFolders(normalized));
+      existing && (await this.app.fileManager.trashFile(existing), await this.removeEmptyFolders(normalized));
       return;
     }
     if (event.event_type === "upsert")
@@ -3732,7 +3770,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     if (change.deleted) {
       devLog().log("pull", `applyChange DELETE: ${change.path}`);
       let existing2 = this.app.vault.getFileByPath(normalized);
-      return existing2 ? (await this.app.vault.trash(existing2, !0), await this.removeEmptyFolders(normalized), this.syncState.delete(normalized), (_a = this.baseStore) == null || _a.delete(normalized), rlog().info("pull", `Deleted: ${change.path}`), !0) : !1;
+      return existing2 ? (await this.app.fileManager.trashFile(existing2), await this.removeEmptyFolders(normalized), this.syncState.delete(normalized), (_a = this.baseStore) == null || _a.delete(normalized), rlog().info("pull", `Deleted: ${change.path}`), !0) : !1;
     }
     let existing = this.app.vault.getFileByPath(normalized);
     if (existing) {
@@ -3767,7 +3805,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
             } catch (e) {
               rlog().error(
                 "conflict",
-                `Auto-merge push failed: ${change.path} | err=${e instanceof Error ? e.message : e}`
+                `Auto-merge push failed: ${change.path} | err=${errMsg(e)}`
               );
             }
             return rlog().info(
@@ -3803,7 +3841,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
           } catch (e) {
             rlog().error(
               "conflict",
-              `Resolved: ${change.path} \u2192 keep-local | pushOk=false | err=${e instanceof Error ? e.message : e}`,
+              `Resolved: ${change.path} \u2192 keep-local | pushOk=false | err=${errMsg(e)}`,
               e instanceof Error ? e.stack : void 0
             );
           }
@@ -3826,7 +3864,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
           } catch (e) {
             rlog().error(
               "conflict",
-              `Resolved: ${change.path} \u2192 keep-both | copyFailed=true | err=${e instanceof Error ? e.message : e}`,
+              `Resolved: ${change.path} \u2192 keep-both | copyFailed=true | err=${errMsg(e)}`,
               e instanceof Error ? e.stack : void 0
             );
           }
@@ -3848,7 +3886,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
           } catch (e) {
             rlog().error(
               "conflict",
-              `Resolved: ${change.path} \u2192 merge | pushOk=false | err=${e instanceof Error ? e.message : e}`,
+              `Resolved: ${change.path} \u2192 merge | pushOk=false | err=${errMsg(e)}`,
               e instanceof Error ? e.stack : void 0
             );
           }
@@ -3891,7 +3929,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     let normalized = (0, import_obsidian15.normalizePath)(change.path);
     if (change.deleted) {
       let existing2 = this.app.vault.getFileByPath(normalized);
-      return existing2 ? (await this.app.vault.trash(existing2, !0), await this.removeEmptyFolders(normalized), rlog().info("pull", `Attachment deleted: ${change.path}`), !0) : !1;
+      return existing2 ? (await this.app.fileManager.trashFile(existing2), await this.removeEmptyFolders(normalized), rlog().info("pull", `Attachment deleted: ${change.path}`), !0) : !1;
     }
     let resolvedBase64 = contentBase64 != null ? contentBase64 : (await this.api.getAttachment(change.path)).content_base64, buffer = base64ToArrayBuffer(resolvedBase64), existing = this.app.vault.getFileByPath(normalized);
     if (existing) {
@@ -3925,7 +3963,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
       } catch (e) {
         rlog().error(
           "conflict",
-          `Failed to create conflict file: ${conflictPath} | err=${e instanceof Error ? e.message : e}`
+          `Failed to create conflict file: ${conflictPath} | err=${errMsg(e)}`
         );
       }
       return { choice: "keep-local" };
@@ -3966,7 +4004,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     for (; folder; ) {
       let existing = this.app.vault.getAbstractFileByPath(folder);
       if (!(existing instanceof import_obsidian15.TFolder) || existing.children.length > 0) break;
-      await this.app.vault.trash(existing, !0), folder = folder.includes("/") ? folder.substring(0, folder.lastIndexOf("/")) : "";
+      await this.app.fileManager.trashFile(existing), folder = folder.includes("/") ? folder.substring(0, folder.lastIndexOf("/")) : "";
     }
   }
   // --- Full sync (startup) ---
@@ -4091,7 +4129,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
             return ok2 ? this.logEntry("push", f.path, "ok") : this.logEntry("skip", f.path, "skipped", void 0, "unchanged"), ok2;
           } catch (e) {
             failed++;
-            let msg = e instanceof Error ? e.message : String(e);
+            let msg = errMsg(e);
             return this.logEntry("push", f.path, "error", msg), !1;
           }
         })
@@ -4179,16 +4217,18 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   }
   /** Start periodic health checks while offline. */
   startHealthCheck() {
-    this.healthCheckTimer || (this.healthCheckTimer = setInterval(async () => {
-      try {
-        await this.api.health() && this.goOnline();
-      } catch (e) {
-      }
+    this.healthCheckTimer || (this.healthCheckTimer = window.setInterval(() => {
+      (async () => {
+        try {
+          await this.api.health() && this.goOnline();
+        } catch (e) {
+        }
+      })();
     }, HEALTH_CHECK_INTERVAL_MS));
   }
   /** Stop periodic health checks. */
   stopHealthCheck() {
-    this.healthCheckTimer && (clearInterval(this.healthCheckTimer), this.healthCheckTimer = null);
+    this.healthCheckTimer && (window.clearInterval(this.healthCheckTimer), this.healthCheckTimer = null);
   }
   /** Flush queued changes oldest-first. Stops on first failure. */
   async flushQueue() {
@@ -4259,10 +4299,10 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   /** Cancel all pending debounce, cooldown, and health check timers. */
   destroy() {
     for (let timer of this.debounceTimers.values())
-      clearTimeout(timer);
+      window.clearTimeout(timer);
     this.debounceTimers.clear();
     for (let timer of this.recentlyPushed.values())
-      clearTimeout(timer);
+      window.clearTimeout(timer);
     this.recentlyPushed.clear(), this.pendingPostPullPushes.clear(), this.stopHealthCheck(), this.queue.destroy();
   }
 };
@@ -4279,7 +4319,7 @@ var SYNC_CENTER_VIEW_TYPE = "engram-sync-center", SyncCenterView = class extends
     return SYNC_CENTER_VIEW_TYPE;
   }
   getDisplayText() {
-    return "Engram Sync";
+    return "Engram sync";
   }
   getIcon() {
     return "refresh-cw";
@@ -4414,7 +4454,7 @@ var import_obsidian17 = require("obsidian"), ACTION_ICONS = {
   onOpen() {
     var _a;
     let { contentEl } = this;
-    contentEl.empty(), contentEl.addClass("engram-sync-log-modal"), contentEl.createEl("h2", { text: "Sync Log" });
+    contentEl.empty(), contentEl.addClass("engram-sync-log-modal"), contentEl.createEl("h2", { text: "Sync log" });
     let entries = this.syncLog.entries(), errorCount = this.syncLog.errorCount();
     if (contentEl.createEl("p", {
       cls: "engram-sync-log-header"
@@ -4453,7 +4493,6 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
     this.settings = DEFAULT_SETTINGS;
     this.api = new EngramApi("", "");
     this.authProvider = null;
-    // biome-ignore lint/style/noNonNullAssertion: assigned in onload before any usage
     this.syncEngine = null;
     this.syncLog = new SyncLog();
     this.syncInterval = null;
@@ -4487,8 +4526,8 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
     let basesPath = `${this.manifest.dir}/sync-bases.json`;
     this.baseStore = new BaseStore(this.app.vault.adapter, basesPath), this.syncEngine.baseStore = this.baseStore, this.syncEngine.onStatusChange = (status) => {
       this.updateStatusBar(status), this.refreshSyncCenter();
-    }, this.syncEngine.onConflict = async (info) => new ConflictModal(this.app, info, this.settings, async (mode) => {
-      this.settings.conflictViewMode = mode, await this.saveSettings();
+    }, this.syncEngine.onConflict = async (info) => new ConflictModal(this.app, info, this.settings, (mode) => {
+      this.settings.conflictViewMode = mode, this.saveSettings();
     }).waitForChoice(), this.syncEngine.queue.onPersist(async (entries) => {
       await this.savePluginData(this.syncEngine.getLastSync(), entries);
     });
@@ -4505,101 +4544,101 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
       this.app.vault.on("rename", (file, oldPath) => {
         this.syncEngine.handleRename(file, oldPath);
       })
-    ), this.registerDomEvent(document, "visibilitychange", () => {
+    ), this.registerDomEvent(activeDocument, "visibilitychange", () => {
       var _a2;
-      document.visibilityState === "hidden" && (rlog().flush(), this.savePluginData(this.syncEngine.getLastSync()), (_a2 = this.baseStore) == null || _a2.save());
+      activeDocument.visibilityState === "hidden" && (rlog().flush(), this.savePluginData(this.syncEngine.getLastSync()), (_a2 = this.baseStore) == null || _a2.save());
     }), this.addCommand({
-      id: "engram-sync-now",
+      id: "sync-now",
       name: "Sync now",
       callback: async () => {
-        new import_obsidian18.Notice("Engram Sync: syncing...");
+        new import_obsidian18.Notice("Engram sync: syncing...");
         let { pulled, pushed } = await this.syncEngine.fullSync();
         new import_obsidian18.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
       }
     }), this.addCommand({
-      id: "engram-push-all",
+      id: "push-all",
       name: "Push entire vault",
       callback: async () => {
         let count = await this.syncEngine.pushAll();
         new import_obsidian18.Notice(`Engram Sync: pushed ${count} files`);
       }
     }), this.addCommand({
-      id: "engram-check-sync",
+      id: "check-sync",
       name: "Check sync status",
       callback: async () => {
-        new import_obsidian18.Notice("Engram Sync: checking...");
+        new import_obsidian18.Notice("Engram sync: checking...");
         let result = await this.syncEngine.reconcile();
         if (!result) {
           new import_obsidian18.Notice(
-            "Engram Sync: server does not support reconciliation (update backend)"
+            "Engram sync: server does not support reconciliation (update backend)"
           );
           return;
         }
         let { missing, diverged, extraOnServer } = result;
         if (missing.length === 0 && diverged.length === 0 && extraOnServer.length === 0)
-          new import_obsidian18.Notice("Engram Sync: everything in sync");
+          new import_obsidian18.Notice("Engram sync: everything in sync");
         else {
           let parts = [];
           missing.length > 0 && parts.push(`${missing.length} missing on server`), diverged.length > 0 && parts.push(`${diverged.length} diverged`), extraOnServer.length > 0 && parts.push(`${extraOnServer.length} only on server`), new import_obsidian18.Notice(`Engram Sync: ${parts.join(", ")}`);
         }
       }
     }), this.addCommand({
-      id: "engram-pull-all",
+      id: "pull-all",
       name: "Pull all from server (force overwrite)",
       callback: async () => {
-        new import_obsidian18.Notice("Engram Sync: pulling all from server...");
+        new import_obsidian18.Notice("Engram sync: pulling all from server...");
         let count = await this.syncEngine.pullAll();
         new import_obsidian18.Notice(`Engram Sync: pulled ${count} files from server`);
       }
     }), this.addCommand({
-      id: "engram-show-sync-log",
+      id: "show-sync-log",
       name: "Show sync log",
       callback: () => {
         new SyncLogModal(this.app, this.syncLog).open();
       }
     }), this.registerView(SEARCH_VIEW_TYPE, (leaf) => new SearchView(leaf, this.api)), this.addCommand({
-      id: "engram-search",
+      id: "search",
       name: "Semantic search",
       callback: () => {
         new SearchModal(this.app, this.api).open();
       }
     }), this.addCommand({
-      id: "engram-search-view",
+      id: "open-search-sidebar",
       name: "Open search sidebar",
       callback: async () => {
         let existing = this.app.workspace.getLeavesOfType(SEARCH_VIEW_TYPE);
-        if (existing.length) {
+        if (existing[0]) {
           this.app.workspace.revealLeaf(existing[0]);
           return;
         }
         let leaf = this.app.workspace.getRightLeaf(!1);
         leaf && (await leaf.setViewState({ type: SEARCH_VIEW_TYPE, active: !0 }), this.app.workspace.revealLeaf(leaf));
       }
-    }), this.addRibbonIcon("search", "Engram Search", async () => {
+    }), this.addRibbonIcon("search", "Engram search", async () => {
       let existing = this.app.workspace.getLeavesOfType(SEARCH_VIEW_TYPE);
-      if (existing.length) {
+      if (existing[0]) {
         this.app.workspace.revealLeaf(existing[0]);
         return;
       }
       let leaf = this.app.workspace.getRightLeaf(!1);
       leaf && (await leaf.setViewState({ type: SEARCH_VIEW_TYPE, active: !0 }), this.app.workspace.revealLeaf(leaf));
     }), this.registerView(SYNC_CENTER_VIEW_TYPE, (leaf) => new SyncCenterView(leaf, this)), this.addCommand({
-      id: "engram-open-sync-center",
-      name: "Open Sync Center",
+      id: "open-sync-center",
+      name: "Open sync center",
       callback: async () => {
         await this.openSyncCenter();
       }
-    }), this.addRibbonIcon("refresh-cw", "Engram Sync Center", async () => {
+    }), this.addRibbonIcon("refresh-cw", "Engram sync center", async () => {
       await this.openSyncCenter();
     }), this.startSyncInterval(), this.statusBarEl = this.addStatusBarItem(), this.statusBarEl.setText("Engram: ready"), this.statusBarEl.addClass("engram-status-bar-clickable"), this.registerDomEvent(this.statusBarEl, "click", () => {
-      this.settings.apiUrl && this.settings.apiKey && (new import_obsidian18.Notice("Engram Sync: syncing..."), this.syncEngine.fullSync().then(({ pulled, pushed }) => {
+      this.settings.apiUrl && this.settings.apiKey && (new import_obsidian18.Notice("Engram sync: syncing..."), this.syncEngine.fullSync().then(({ pulled, pushed }) => {
         new import_obsidian18.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
       }).catch((e) => {
         console.error("Engram Sync: manual sync failed", e), rlog().error(
           "lifecycle",
-          `Manual sync failed: ${e instanceof Error ? e.message : e}`,
+          `Manual sync failed: ${errMsg(e)}`,
           e instanceof Error ? e.stack : void 0
-        ), new import_obsidian18.Notice("Engram Sync: sync failed");
+        ), new import_obsidian18.Notice("Engram sync: sync failed");
       }));
     }), this.setupNoteStream(), this.app.workspace.onLayoutReady(async () => {
       var _a2;
@@ -4623,7 +4662,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
   }
   onunload() {
     var _a, _b, _c, _d;
-    devLog().log("lifecycle", "plugin unloading"), rlog().info("lifecycle", "Plugin unloading"), this.savePluginData(this.syncEngine.getLastSync()), (_a = this.baseStore) == null || _a.prune(), (_b = this.baseStore) == null || _b.save(), (_c = this.syncEngine) == null || _c.destroy(), (_d = this.noteStream) == null || _d.disconnect(), this.syncInterval && (clearInterval(this.syncInterval), this.syncInterval = null), destroyRemoteLog(), destroyDevLog();
+    devLog().log("lifecycle", "plugin unloading"), rlog().info("lifecycle", "Plugin unloading"), this.savePluginData(this.syncEngine.getLastSync()), (_a = this.baseStore) == null || _a.prune(), (_b = this.baseStore) == null || _b.save(), (_c = this.syncEngine) == null || _c.destroy(), (_d = this.noteStream) == null || _d.disconnect(), this.syncInterval && (window.clearInterval(this.syncInterval), this.syncInterval = null), destroyRemoteLog(), destroyDevLog();
   }
   async loadSettings() {
     let data = await this.loadData();
@@ -4634,10 +4673,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
       if (registered)
         return this.doSyncWithFirstSyncCheck();
     }).catch((e) => {
-      console.error("Engram Sync: sync after settings change failed", e), rlog().error(
-        "lifecycle",
-        `Sync after settings change failed: ${e instanceof Error ? e.message : e}`
-      );
+      console.error("Engram Sync: sync after settings change failed", e), rlog().error("lifecycle", `Sync after settings change failed: ${errMsg(e)}`);
     });
   }
   /** Register this vault with the backend. Must be called before sync starts.
@@ -4653,10 +4689,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
       );
       return this.settings.vaultId = String(result.id), this.api.setVaultId(this.settings.vaultId), await this.saveSettings(), rlog().info("lifecycle", `Vault registered: id=${result.id} slug=${result.slug}`), !0;
     } catch (e) {
-      return typeof e == "object" && e !== null && e.status === 402 ? (new import_obsidian18.Notice("Engram: Upgrade to Pro for multi-vault sync."), rlog().info("lifecycle", "Vault registration blocked \u2014 vault limit reached (402)"), !1) : (console.error("Engram Sync: vault registration failed", e), rlog().error(
-        "lifecycle",
-        `Vault registration failed: ${e instanceof Error ? e.message : e}`
-      ), !1);
+      return typeof e == "object" && e !== null && e.status === 402 ? (new import_obsidian18.Notice("Engram: Upgrade to pro for multi-vault sync."), rlog().info("lifecycle", "Vault registration blocked \u2014 vault limit reached (402)"), !1) : (console.error("Engram Sync: vault registration failed", e), rlog().error("lifecycle", `Vault registration failed: ${errMsg(e)}`), !1);
     }
   }
   async savePluginData(lastSync, offlineQueue) {
@@ -4733,7 +4766,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
         this.liveConnected = connected, this.updateStatusBar(this.syncEngine.getStatus()), connected && this.syncEngine.pull().catch((e) => {
           console.error("Engram Sync: catch-up pull failed", e), rlog().error(
             "channel",
-            `Catch-up pull on reconnect failed: ${e instanceof Error ? e.message : e}`
+            `Catch-up pull on reconnect failed: ${errMsg(e)}`
           );
         });
       }, channel.onVaultDeleted = () => {
@@ -4743,10 +4776,10 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
     }).catch((e) => {
       if (console.error("Engram Sync: failed to fetch user id for channel", e), rlog().error(
         "channel",
-        `getMe() failed (attempt ${attempt + 1}/5): ${e instanceof Error ? e.message : e}`
+        `getMe() failed (attempt ${attempt + 1}/5): ${errMsg(e)}`
       ), attempt < 4) {
         let delay = 2e3 * 2 ** attempt;
-        setTimeout(() => this.connectChannel(attempt + 1), delay);
+        window.setTimeout(() => this.connectChannel(attempt + 1), delay);
       }
     });
   }
@@ -4761,13 +4794,13 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
         let pushed = await this.syncEngine.pushAll();
         new import_obsidian18.Notice(`Engram Sync: pushed ${pushed} files`);
       } else
-        new import_obsidian18.Notice("Engram Sync: pull complete. Local notes were not pushed.");
+        new import_obsidian18.Notice("Engram sync: pull complete. Local notes were not pushed.");
     } else
       try {
         let { pulled, pushed } = await this.syncEngine.fullSync();
         (pulled > 0 || pushed > 0) && new import_obsidian18.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
       } catch (e) {
-        console.error("Engram Sync: sync failed", e), new import_obsidian18.Notice("Engram Sync: sync failed \u2014 check connection");
+        console.error("Engram Sync: sync failed", e), new import_obsidian18.Notice("Engram sync: sync failed \u2014 check connection");
       }
   }
   /** Persist current sync engine state (issues, ignored files, etc.) to plugin
@@ -4779,7 +4812,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
   /** Open the Sync Center pane in the right sidebar (or reveal it if already open). */
   async openSyncCenter() {
     let existing = this.app.workspace.getLeavesOfType(SYNC_CENTER_VIEW_TYPE);
-    if (existing.length) {
+    if (existing[0]) {
       this.app.workspace.revealLeaf(existing[0]);
       return;
     }
@@ -4809,13 +4842,15 @@ Last sync: ${date.toLocaleString()}`;
     this.statusBarEl.setText(text), this.statusBarEl.setAttribute("aria-label", tooltip), (_c = this.onStatusBarChange) == null || _c.call(this);
   }
   startSyncInterval() {
-    this.syncInterval && (clearInterval(this.syncInterval), this.syncInterval = null), !(!this.settings.apiUrl || !this.settings.apiKey) && (this.syncInterval = window.setInterval(async () => {
-      try {
-        let pulled = await this.syncEngine.pull();
-        pulled > 0 && new import_obsidian18.Notice(`Engram Sync: pulled ${pulled} changes`);
-      } catch (e) {
-        console.error("Engram Sync: periodic pull failed", e);
-      }
+    this.syncInterval && (window.clearInterval(this.syncInterval), this.syncInterval = null), !(!this.settings.apiUrl || !this.settings.apiKey) && (this.syncInterval = window.setInterval(() => {
+      (async () => {
+        try {
+          let pulled = await this.syncEngine.pull();
+          pulled > 0 && new import_obsidian18.Notice(`Engram Sync: pulled ${pulled} changes`);
+        } catch (e) {
+          console.error("Engram Sync: periodic pull failed", e);
+        }
+      })();
     }, _EngramSyncPlugin.FALLBACK_POLL_MS), this.registerInterval(this.syncInterval));
   }
 };
