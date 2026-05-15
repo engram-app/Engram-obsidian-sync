@@ -6,7 +6,7 @@ Bidirectional sync between your Obsidian vault and an [Engram](https://engram.pa
 
 Engram is the backend: an Elixir/Phoenix app that stores notes in PostgreSQL, embeds them into vectors via Voyage AI or Ollama, and serves semantic search through Qdrant. Any AI assistant that speaks [MCP](https://modelcontextprotocol.io) can query your vault directly. This plugin is the Obsidian half — it watches your vault, pushes changes, pulls remote edits, and exposes search from the command palette.
 
-> **Engram is required.** This plugin is a sync client — it does not run AI locally and does nothing without a server. Self-host the [Engram backend](https://github.com/engram-app/engram), or use a hosted plan at [engram.page](https://engram.page) (coming soon).
+> **Engram is required.** This plugin is a sync client — it does not run AI locally and does nothing without a server. Self-host the [Engram backend](https://github.com/engram-app/engram), or use the hosted plan at [engram.page](https://engram.page).
 
 ## Features
 
@@ -42,7 +42,7 @@ For pre-release builds, install via [BRAT](https://github.com/TfTHacker/obsidian
 ### Manual
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/engram-app/Engram-obsidian/releases/latest).
-2. Create a folder at `<your vault>/.obsidian/plugins/engram-vault-sync/`.
+2. In your vault, create a folder at `.obsidian/plugins/engram-vault-sync/`.
 3. Copy the three files into that folder.
 4. Restart Obsidian and enable the plugin in **Settings → Community plugins**.
 
@@ -51,13 +51,13 @@ For pre-release builds, install via [BRAT](https://github.com/TfTHacker/obsidian
 1. Stand up an Engram server — see the [backend repo](https://github.com/engram-app/engram) for self-hosting (`docker compose` or `mix phx.server`).
 2. Create an API key on the server:
    ```bash
-   curl -X POST http://your-server:4000/api-keys \
+   curl -X POST https://engram.example.com/api-keys \
      -H "Authorization: Bearer $JWT" \
      -H "Content-Type: application/json" \
      -d '{"name": "my-vault"}'
    ```
 3. In Obsidian, open **Settings → Engram Vault Sync**.
-4. Enter your **Engram URL** (e.g. `http://your-server:4000`).
+4. Enter your **Engram URL** (e.g. `https://engram.example.com`).
 5. Authenticate:
    - **OAuth** — click "Sign in with Engram" and follow the device flow, or
    - **API key** — paste the `engram_` key from step 2.
