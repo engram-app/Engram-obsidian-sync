@@ -2,105 +2,132 @@
 
 > Your vault, queryable by AI. Synced everywhere.
 
-Bidirectional sync between your Obsidian vault and an [Engram](https://engram.page) server, with AI-powered semantic search across every note.
+Engram Vault Sync keeps your Obsidian notes in sync across every device and lets AI assistants — Claude, Cursor, ChatGPT desktop, and others — read and write directly into your vault. Inside Obsidian, you also get **semantic search**: type what you mean and find the right note even if you can't remember the exact words.
 
-Engram is the backend: an Elixir/Phoenix app that stores notes in PostgreSQL, embeds them into vectors via Voyage AI or Ollama, and serves semantic search through Qdrant. Any AI assistant that speaks [MCP](https://modelcontextprotocol.io) can query your vault directly. This plugin is the Obsidian half — it watches your vault, pushes changes, pulls remote edits, and exposes search from the command palette.
+It works on desktop and mobile.
 
-> **Engram is required.** This plugin is a sync client — it does not run AI locally and does nothing without a server. Self-host the [Engram backend](https://github.com/engram-app/engram), or use the hosted plan at [engram.page](https://engram.page).
+## What you get
 
-## Features
+- **Sync your vault across devices.** Edit a note on your laptop, see it on your phone. Edits made by AI assistants show up too.
+- **Search by meaning.** Open the command palette and run *Engram: Semantic search*. Searches "how do I deal with anxiety" and "stress management techniques" both surface the right notes — keywords don't have to match.
+- **Let AI use your notes.** Once your vault is synced, any AI assistant that supports MCP (Model Context Protocol) can read your notes, answer questions about them, and even add new ones. Claude Desktop, Cursor, and most modern AI tools support this.
+- **Safe by default.** Conflicting edits never get silently overwritten — the plugin either auto-merges them or asks you what to do.
+- **Works offline.** Edits made without internet are queued and sent when you reconnect.
+- **Private.** Your notes only go to the Engram server you choose. No third parties, no analytics, no telemetry.
 
-- **Semantic search** — find notes by meaning, not just keywords. Available from the command palette or a dedicated sidebar view.
-- **Bidirectional sync** — local edits push automatically; remote edits (from other devices or MCP) pull on startup and periodically.
-- **Real-time updates** — optional WebSocket channel for instant propagation without polling.
-- **Conflict resolution** — 3-way merge via `diff-match-patch` with an interactive side-by-side diff modal, or automatic conflict-copy creation.
-- **Offline queue** — edits made offline are queued and replayed when connectivity returns.
-- **Ignore patterns** — glob patterns to exclude files and folders. Auto-detects and warns about problematic directories (`node_modules`, `.venv`, etc.).
-- **OAuth and API key auth** — device-flow OAuth or static API key.
-- **Mobile and desktop** — works on both. No Node.js or filesystem dependencies.
+## You need an Engram account
 
-## Privacy and data flow
+This plugin is the Obsidian half of a two-part system. The other half — Engram — does the actual sync, search, and AI integration. You have two options:
 
-```
-Obsidian vault  ⇄  Engram Sync (plugin)  ⇄  Your Engram server  →  Qdrant + Voyage/Ollama
-```
+### Option 1: Hosted (recommended)
 
-All note content is sent to the Engram URL you configure — nothing else. No third-party AI services, no telemetry, no analytics. The plugin never talks to OpenAI, Anthropic, or any cloud AI provider; only your Engram server does, and only if you configure it to use a hosted embedding model. An opt-in remote-logging feature (default OFF) sends sync lifecycle events back to your own Engram server for debugging.
+Sign up at **[engram.page](https://engram.page)**. It works in minutes — no servers to set up, no Docker, no terminal commands. There's a free tier.
+
+### Option 2: Self-host (advanced)
+
+If you'd rather run everything on your own machine or server, the Engram backend is open source: **[github.com/engram-app/engram](https://github.com/engram-app/engram)**. That repo has full setup instructions. It's a normal Docker app — comfortable terminal users only.
+
+Either way, you'll end up with a server URL and a way to sign in (OAuth or an API key). That's what you'll paste into the plugin.
 
 ## Install
 
-### From Obsidian Community Plugins
+### From inside Obsidian (recommended)
 
 1. Open **Settings → Community plugins**.
-2. Search for **Engram Vault Sync**.
-3. Click **Install**, then **Enable**.
+2. Click **Browse**.
+3. Search for **Engram Vault Sync**.
+4. Click **Install**, then **Enable**.
 
-### BRAT (beta channel)
+### Beta / pre-release builds
 
-For pre-release builds, install via [BRAT](https://github.com/TfTHacker/obsidian42-brat) and add `engram-app/Engram-obsidian`.
+If you want to test upcoming features, install [BRAT](https://github.com/TfTHacker/obsidian42-brat) and add the repo `engram-app/Engram-obsidian`.
 
-### Manual
+### Manual install
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/engram-app/Engram-obsidian/releases/latest).
-2. In your vault, create a folder at `.obsidian/plugins/engram-vault-sync/`.
-3. Copy the three files into that folder.
-4. Restart Obsidian and enable the plugin in **Settings → Community plugins**.
+Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/engram-app/Engram-obsidian/releases/latest). In your vault, create `.obsidian/plugins/engram-vault-sync/` and drop the three files there. Restart Obsidian and enable the plugin under **Settings → Community plugins**.
 
-## Quick start
+Requires Obsidian 1.7.2 or newer.
 
-1. Stand up an Engram server — see the [backend repo](https://github.com/engram-app/engram) for self-hosting (`docker compose` or `mix phx.server`).
-2. Create an API key on the server:
-   ```bash
-   curl -X POST https://engram.example.com/api-keys \
-     -H "Authorization: Bearer $JWT" \
-     -H "Content-Type: application/json" \
-     -d '{"name": "my-vault"}'
-   ```
-3. In Obsidian, open **Settings → Engram Vault Sync**.
-4. Enter your **Engram URL** (e.g. `https://engram.example.com`).
-5. Authenticate:
-   - **OAuth** — click "Sign in with Engram" and follow the device flow, or
-   - **API key** — paste the `engram_` key from step 2.
-6. On first sync, the plugin walks you through pushing your existing vault to the server.
+## Get started in 3 steps
 
-Optionally tune ignore patterns, debounce delay, and conflict resolution mode from the same settings panel.
+1. **Get an account** at [engram.page](https://engram.page) (or self-host).
+2. **Open the plugin settings** — *Settings → Engram Vault Sync*. Enter your Engram URL and sign in (one click with *Sign in with Engram*, or paste an API key).
+3. **First sync** — the plugin walks you through pushing your vault. Nothing is sent until you confirm.
 
-## Commands
+After that, sync happens automatically as you work.
 
-| Command | What it does |
-|---------|--------------|
-| Engram: Sync now | Push pending changes and pull remote changes immediately |
-| Engram: Push entire vault | Force push every syncable file |
-| Engram: Pull all from server | Download all notes into the vault |
-| Engram: Check sync status | Compare local and remote state, report drift |
-| Engram: Show sync log | Open the in-app sync log modal |
-| Engram: Semantic search | Search notes by meaning (modal) |
-| Engram: Open search sidebar | Persistent search sidebar view |
+## Using semantic search
 
-## Conflict resolution
+- **Command palette** — press `Ctrl/Cmd + P` and type *Engram: Semantic search*.
+- **Sidebar** — click the 🔍 icon in the left ribbon, or run *Engram: Open search sidebar* to keep results visible while you write.
 
-When a note changes both locally and remotely between syncs, the plugin runs a 3-way merge using `diff-match-patch`. Disjoint edits merge cleanly. Overlapping edits open a side-by-side diff modal where you pick a resolution per hunk. Configure automatic "conflict-copy" creation if you'd rather never lose either version.
+Just describe what you're looking for. You don't need to remember the exact title or keywords.
+
+## Using it with AI assistants
+
+Once your vault is synced, any AI tool that supports MCP can connect to your Engram account and read your notes. Set-up steps depend on the AI tool — full instructions live in your Engram account dashboard and the [Engram backend docs](https://github.com/engram-app/engram). In short:
+
+1. In your Engram account, copy your MCP connection details.
+2. Add them to your AI tool (Claude Desktop, Cursor, etc.) the same way you'd add any other MCP server.
+3. Ask the assistant something like *"What notes do I have about my Q3 goals?"* and it can answer from your vault.
+
+The AI never reaches into Obsidian directly — it goes through Engram, which has the searchable index of your notes.
+
+## What gets synced
+
+- **Notes** — `.md` files (with their frontmatter).
+- **Canvas** — `.canvas` files.
+- **Attachments** — images (PNG, JPG, GIF, BMP, SVG, WebP), PDFs, audio (MP3, WAV, OGG, M4A, FLAC), video (MP4, MOV, WebM), and ZIP files.
+
+Other file types are ignored automatically. The plugin never touches your `.obsidian/`, `.trash/`, or `.git/` folders.
+
+You can also tell the plugin to skip specific files or folders — either with a pattern list in **Settings → Advanced**, or by clicking *Ignore this file* in the Sync Center.
+
+## Handling conflicts
+
+If you edit the same note in two places before they sync, the plugin tries to merge the changes automatically. Most of the time it just works. When it can't merge safely, you have two options (set in **Settings → Advanced**):
+
+- **Auto** (default) — keep both versions. The plugin saves the other copy as `your-note.conflict.md` so nothing is ever lost.
+- **Modal** — a window pops up showing both versions side-by-side, and you pick what to keep, chunk by chunk.
+
+## Where to look when something seems off
+
+The **Sync Center** is a dashboard for the plugin. Open it from the 🔄 ribbon icon or run *Engram: Open sync center*. It shows:
+
+- What's currently being synced
+- What's queued (waiting for a reconnect, for example)
+- Files that failed to sync, with the reason
+- Per-file *Ignore* toggles
+
+The status bar at the bottom of Obsidian shows a quick indicator of sync state at all times.
+
+## Privacy
+
+- The plugin only talks to the Engram server URL you configure. Nothing else.
+- No telemetry, no analytics.
+- Optional "remote logging" (off by default) sends sync events to *your own* Engram server for debugging. It never goes to a third party.
+- Your account credentials live inside Obsidian's plugin data folder, alongside your other plugin settings.
 
 ## Troubleshooting
 
-| Symptom | Things to check |
-|---------|-----------------|
-| Sync silently fails | Engram URL reachable from your device? API key/OAuth token valid? Open **Engram: Show sync log** |
-| Files not syncing | Check ignore patterns in settings — matching files are skipped |
-| Conflicts every sync | Likely clock skew between client and server. Check both system clocks |
-| Plugin won't load on mobile | File an issue with desktop/mobile flag and Obsidian version |
-| OAuth sign-in fails | Confirm the Engram server has OAuth enabled. Fall back to API key |
+| Something's wrong | What to check |
+|-------------------|---------------|
+| Can't connect to Engram | Is the URL correct (with `https://`)? Did you click *Test connection* in settings? |
+| Notes aren't syncing | Open *Engram: Show sync log* or the Sync Center. Make sure the file type is supported and isn't in the ignore list. |
+| Conflicts every time I save | Your device and the server probably disagree on the time. Check both system clocks. |
+| Mobile crashes / won't load | File an issue with your phone OS and Obsidian version — mobile is supported and we want to know. |
+| Sign-in window won't finish | Fall back to an API key from your Engram dashboard. |
+| Big file won't upload | The Sync Center will show the reason. You can skip that file with *Ignore this file*. |
 
-## Disclosures
-
-- **Network use** — communicates only with the Engram URL you configure. No third-party services.
-- **Account required** — API key or OAuth credentials for your Engram instance.
-- **Remote logging** — opt-in, default OFF, sends only to your own Engram server.
-- **Telemetry** — none.
+If you're still stuck, open an issue: [github.com/engram-app/Engram-obsidian/issues](https://github.com/engram-app/Engram-obsidian/issues). Include your Obsidian version, your platform (desktop/mobile/OS), and a copy of the sync log.
 
 ## Support
 
 If this plugin saves you time, you can [buy me a coffee on Ko-fi](https://ko-fi.com/rasbandit). Optional and appreciated.
+
+## For developers and self-hosters
+
+Building from source, the architecture, command/settings reference, and the release process all live in **[DEV.md](DEV.md)**.
 
 ## Attribution
 
