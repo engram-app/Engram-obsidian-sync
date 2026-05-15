@@ -85,8 +85,7 @@ export function renderAuthSection(ctx: TabContext): void {
 	if (isOAuth) {
 		new Setting(containerEl)
 			.setName(`Signed in as ${plugin.settings.userEmail ?? "unknown"}`)
-			// eslint-disable-next-line obsidianmd/ui/sentence-case -- "OAuth" is canonical casing per RFC 6749
-			.setDesc("Authenticated via engram account (OAuth).")
+			.setDesc("Authenticated via Engram account (OAuth).")
 			.addButton((btn) =>
 				btn.setButtonText("Sign out").onClick(async () => {
 					await plugin.clearOAuthTokens();
