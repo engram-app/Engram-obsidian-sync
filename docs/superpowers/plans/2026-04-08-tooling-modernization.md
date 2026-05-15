@@ -38,7 +38,7 @@ Open `package.json` and replace its entire contents with:
 
 ```json
 {
-  "name": "engram-obsidian-sync",
+  "name": "engram-obsidian",
   "version": "0.8.5",
   "description": "Bidirectional sync between Obsidian and Engram",
   "main": "main.js",

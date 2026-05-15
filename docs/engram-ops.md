@@ -29,7 +29,7 @@ curl -s http://127.0.0.1:9222/json/version   # Should return Chrome/Electron ver
 curl -s http://127.0.0.1:9222/json/list       # Lists inspectable pages
 ```
 
-**MCP config location:** `~/.claude.json` → project section for engram-obsidian-sync → `mcpServers.obsidian-devtools`
+**MCP config location:** `~/.claude.json` → project section for engram-obsidian → `mcpServers.obsidian-devtools`
 
 ### Obsidian DevTools MCP — Capabilities
 
