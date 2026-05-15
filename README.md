@@ -1,4 +1,4 @@
-# Engram Sync
+# Engram Vault Sync
 
 > Your vault, queryable by AI. Synced everywhere.
 
@@ -32,7 +32,7 @@ All note content is sent to the Engram URL you configure — nothing else. No th
 ### From Obsidian Community Plugins
 
 1. Open **Settings → Community plugins**.
-2. Search for **Engram Sync**.
+2. Search for **Engram Vault Sync**.
 3. Click **Install**, then **Enable**.
 
 ### BRAT (beta channel)
@@ -56,7 +56,7 @@ For pre-release builds, install via [BRAT](https://github.com/TfTHacker/obsidian
      -H "Content-Type: application/json" \
      -d '{"name": "my-vault"}'
    ```
-3. In Obsidian, open **Settings → Engram Sync**.
+3. In Obsidian, open **Settings → Engram Vault Sync**.
 4. Enter your **Engram URL** (e.g. `http://your-server:4000`).
 5. Authenticate:
    - **OAuth** — click "Sign in with Engram" and follow the device flow, or
