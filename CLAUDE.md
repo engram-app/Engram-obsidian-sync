@@ -3,7 +3,7 @@
 Obsidian plugin for bidirectional sync with Engram. This is Phase 2 of the Engram project.
 
 ## Life OS
-project: engram-obsidian-sync
+project: engram-obsidian
 goal: income
 value: financial-freedom
 
@@ -130,7 +130,7 @@ Merging the PR to main automatically:
 
 ```bash
 bun run build
-cp main.js manifest.json styles.css "/home/open-claw/Obsidian Vault/.obsidian/plugins/engram-sync/"
+cp main.js manifest.json styles.css "/home/open-claw/Obsidian Vault/.obsidian/plugins/engram-vault-sync/"
 ```
 
 Restart Obsidian or disable/re-enable the plugin to pick up changes.

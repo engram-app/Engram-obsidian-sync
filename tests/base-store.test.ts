@@ -34,7 +34,7 @@ function makeFakeAdapter() {
 describe("BaseStore", () => {
 	let store: BaseStore;
 	let adapter: ReturnType<typeof makeFakeAdapter>;
-	const storagePath = ".obsidian/plugins/engram-sync/sync-bases.json";
+	const storagePath = ".obsidian/plugins/engram-vault-sync/sync-bases.json";
 
 	beforeEach(() => {
 		adapter = makeFakeAdapter();
