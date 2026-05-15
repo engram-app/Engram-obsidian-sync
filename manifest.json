@@ -3,7 +3,7 @@
 	"name": "Engram Sync",
 	"version": "1.3.16",
 	"minAppVersion": "1.7.2",
-	"description": "Sync your Obsidian vault and search it by meaning with AI. Use the hosted service or self-host for free. Works with Claude, Cursor, and any tool that speaks MCP.",
+	"description": "Sync your vault and search it by meaning with AI. Use the hosted service or self-host for free. Works with Claude, Cursor, and any tool that speaks MCP.",
 	"author": "Rasbandit",
 	"authorUrl": "https://github.com/Rasbandit",
 	"isDesktopOnly": false,
