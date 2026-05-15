@@ -1,4 +1,5 @@
 import type { AuthProvider } from "./auth";
+import { errMsg } from "./error-util";
 import { rlog } from "./remote-log";
 
 /** How long to wait before reconnecting when no auth token is available
@@ -110,7 +111,7 @@ export class NoteChannel {
 		} catch (e) {
 			rlog().warn(
 				"channel",
-				`getToken threw — deferring reconnect ${NO_AUTH_RECONNECT_MS}ms — providerType=${this.authProvider?.constructor.name ?? "none"} err=${e instanceof Error ? e.message : String(e)}`,
+				`getToken threw — deferring reconnect ${NO_AUTH_RECONNECT_MS}ms — providerType=${this.authProvider?.constructor.name ?? "none"} err=${errMsg(e)}`,
 			);
 			this.scheduleReconnect(NO_AUTH_RECONNECT_MS);
 			return;
@@ -139,7 +140,7 @@ export class NoteChannel {
 		try {
 			this.ws = new WebSocket(url);
 		} catch (e) {
-			rlog().error("channel", `WebSocket open error: ${e}`);
+			rlog().error("channel", `WebSocket open error: ${errMsg(e)}`);
 			this.scheduleReconnect();
 			return;
 		}

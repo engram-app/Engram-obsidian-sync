@@ -9,6 +9,7 @@ import { EngramApi } from "./api";
 import { ApiKeyAuth, type AuthProvider, OAuthAuth, type RefreshFn } from "./auth";
 import { NoteChannel } from "./channel";
 import { ConflictModal } from "./conflict-modal";
+import { errMsg } from "./error-util";
 import { FirstSyncModal } from "./first-sync-modal";
 import { SearchModal } from "./search-modal";
 import { SEARCH_VIEW_TYPE, SearchView } from "./search-view";
@@ -62,7 +63,6 @@ export default class EngramSyncPlugin extends Plugin {
 	settings: EngramSyncSettings = DEFAULT_SETTINGS;
 	api: EngramApi = new EngramApi("", "");
 	authProvider: AuthProvider | null = null;
-	// biome-ignore lint/style/noNonNullAssertion: assigned in onload before any usage
 	syncEngine: SyncEngine = null!;
 	syncLog: SyncLog = new SyncLog();
 	private syncInterval: number | null = null;
@@ -270,7 +270,7 @@ export default class EngramSyncPlugin extends Plugin {
 			name: "Open search sidebar",
 			callback: async () => {
 				const existing = this.app.workspace.getLeavesOfType(SEARCH_VIEW_TYPE);
-				if (existing.length) {
+				if (existing[0]) {
 					void this.app.workspace.revealLeaf(existing[0]);
 					return;
 				}
@@ -284,7 +284,7 @@ export default class EngramSyncPlugin extends Plugin {
 
 		this.addRibbonIcon("search", "Engram search", async () => {
 			const existing = this.app.workspace.getLeavesOfType(SEARCH_VIEW_TYPE);
-			if (existing.length) {
+			if (existing[0]) {
 				void this.app.workspace.revealLeaf(existing[0]);
 				return;
 			}
@@ -331,7 +331,7 @@ export default class EngramSyncPlugin extends Plugin {
 						console.error("Engram Sync: manual sync failed", e);
 						rlog().error(
 							"lifecycle",
-							`Manual sync failed: ${e instanceof Error ? e.message : e}`,
+							`Manual sync failed: ${errMsg(e)}`,
 							e instanceof Error ? e.stack : undefined,
 						);
 						new Notice("Engram sync: sync failed");
@@ -418,10 +418,7 @@ export default class EngramSyncPlugin extends Plugin {
 				.catch((e) => {
 					// biome-ignore lint/suspicious/noConsole: error boundary
 					console.error("Engram Sync: sync after settings change failed", e);
-					rlog().error(
-						"lifecycle",
-						`Sync after settings change failed: ${e instanceof Error ? e.message : e}`,
-					);
+					rlog().error("lifecycle", `Sync after settings change failed: ${errMsg(e)}`);
 				});
 		}
 	}
@@ -453,10 +450,7 @@ export default class EngramSyncPlugin extends Plugin {
 			}
 			// biome-ignore lint/suspicious/noConsole: error boundary
 			console.error("Engram Sync: vault registration failed", e);
-			rlog().error(
-				"lifecycle",
-				`Vault registration failed: ${e instanceof Error ? e.message : String(e)}`,
-			);
+			rlog().error("lifecycle", `Vault registration failed: ${errMsg(e)}`);
 			return false;
 		}
 	}
@@ -598,7 +592,7 @@ export default class EngramSyncPlugin extends Plugin {
 							console.error("Engram Sync: catch-up pull failed", e);
 							rlog().error(
 								"channel",
-								`Catch-up pull on reconnect failed: ${e instanceof Error ? e.message : e}`,
+								`Catch-up pull on reconnect failed: ${errMsg(e)}`,
 							);
 						});
 					}
@@ -625,7 +619,7 @@ export default class EngramSyncPlugin extends Plugin {
 				console.error("Engram Sync: failed to fetch user id for channel", e);
 				rlog().error(
 					"channel",
-					`getMe() failed (attempt ${attempt + 1}/${maxAttempts}): ${e instanceof Error ? e.message : e}`,
+					`getMe() failed (attempt ${attempt + 1}/${maxAttempts}): ${errMsg(e)}`,
 				);
 
 				if (attempt < maxAttempts - 1) {
@@ -682,7 +676,7 @@ export default class EngramSyncPlugin extends Plugin {
 	/** Open the Sync Center pane in the right sidebar (or reveal it if already open). */
 	async openSyncCenter(): Promise<void> {
 		const existing = this.app.workspace.getLeavesOfType(SYNC_CENTER_VIEW_TYPE);
-		if (existing.length) {
+		if (existing[0]) {
 			void this.app.workspace.revealLeaf(existing[0]);
 			return;
 		}
