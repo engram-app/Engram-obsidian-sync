@@ -40,7 +40,19 @@ A TypeScript sync client. It does NOT parse markdown, generate embeddings, or ta
 
 ## Git Workflow
 
-Doc-only changes (CLAUDE.md, docs/) can be committed and pushed directly to main without asking. No branch needed.
+**Everything goes through a PR. No exceptions, no admin bypass, no "doc-only" shortcuts that stretch into code.**
+
+`main` is protected with `enforce_admins=true`. Required status checks (`build-and-test`, `version-check`, `backend/e2e`) must pass before merge. The release pipeline (`release.yml`) only fires on **PR merge to main** — direct pushes skip it and break the deploy.
+
+Workflow for any change, including doc updates:
+
+1. `git switch -c <type>/<slug>` — `feat/`, `fix/`, `chore/`, `docs/`, `refactor/`.
+2. Commit on the branch. Conventional Commits, ≤50-char subject.
+3. `git push -u origin <branch>` and open a PR with `gh pr create`.
+4. Let CI run. If anything fails, fix it on the branch, never on main.
+5. Merge through GitHub (`gh pr merge --squash` or the web UI). **Do not push directly to main, even to "fix the test" or "ship a doc tweak".**
+
+The previous "doc-only changes can land on main" carve-out is rescinded — it drifted into code commits and bypassed the test gate that caught the missing README disclosure.
 
 ## Testing
 
