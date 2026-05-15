@@ -7,9 +7,9 @@
 import { FileSystemAdapter, Notice, Platform, Plugin, requestUrl } from "obsidian";
 import { EngramApi } from "./api";
 import { ApiKeyAuth, type AuthProvider, OAuthAuth, type RefreshFn } from "./auth";
-import { errMsg } from "./error-util";
 import { NoteChannel } from "./channel";
 import { ConflictModal } from "./conflict-modal";
+import { errMsg } from "./error-util";
 import { FirstSyncModal } from "./first-sync-modal";
 import { SearchModal } from "./search-modal";
 import { SEARCH_VIEW_TYPE, SearchView } from "./search-view";
@@ -63,7 +63,6 @@ export default class EngramSyncPlugin extends Plugin {
 	settings: EngramSyncSettings = DEFAULT_SETTINGS;
 	api: EngramApi = new EngramApi("", "");
 	authProvider: AuthProvider | null = null;
-	// biome-ignore lint/style/noNonNullAssertion: assigned in onload before any usage
 	syncEngine: SyncEngine = null!;
 	syncLog: SyncLog = new SyncLog();
 	private syncInterval: number | null = null;
@@ -419,10 +418,7 @@ export default class EngramSyncPlugin extends Plugin {
 				.catch((e) => {
 					// biome-ignore lint/suspicious/noConsole: error boundary
 					console.error("Engram Sync: sync after settings change failed", e);
-					rlog().error(
-						"lifecycle",
-						`Sync after settings change failed: ${errMsg(e)}`,
-					);
+					rlog().error("lifecycle", `Sync after settings change failed: ${errMsg(e)}`);
 				});
 		}
 	}
@@ -454,10 +450,7 @@ export default class EngramSyncPlugin extends Plugin {
 			}
 			// biome-ignore lint/suspicious/noConsole: error boundary
 			console.error("Engram Sync: vault registration failed", e);
-			rlog().error(
-				"lifecycle",
-				`Vault registration failed: ${errMsg(e)}`,
-			);
+			rlog().error("lifecycle", `Vault registration failed: ${errMsg(e)}`);
 			return false;
 		}
 	}

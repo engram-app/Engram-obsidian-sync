@@ -2116,7 +2116,6 @@ export class SyncEngine {
 						mimeType = this.getMimeType(file);
 						mtime = file.stat.mtime / 1000;
 					}
-					// biome-ignore lint/style/noNonNullAssertion: mimeType and mtime are always set for attachments above
 					await this.api.pushAttachment(entry.path, base64, mimeType!, mtime!);
 				} else {
 					// Note upsert — legacy entries have content; new entries are content-free
@@ -2135,7 +2134,6 @@ export class SyncEngine {
 						content = await this.app.vault.cachedRead(file);
 						mtime = file.stat.mtime / 1000;
 					}
-					// biome-ignore lint/style/noNonNullAssertion: mtime is always set for notes above
 					await this.api.pushNote(entry.path, content, mtime!);
 				}
 				await this.queue.dequeue(entry.path, this.settings.vaultId ?? undefined);

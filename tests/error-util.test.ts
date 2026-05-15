@@ -15,9 +15,7 @@ describe("errMsg", () => {
 	});
 
 	test("plain object → JSON", () => {
-		expect(errMsg({ code: 500, msg: "server" })).toBe(
-			'{"code":500,"msg":"server"}',
-		);
+		expect(errMsg({ code: 500, msg: "server" })).toBe('{"code":500,"msg":"server"}');
 	});
 
 	test("null → string form", () => {

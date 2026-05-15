@@ -255,9 +255,7 @@ export function buildMergedContent(allDiffLines: DiffLine[], hunks: DiffHunk[]):
 		// Check if we're inside a hunk
 		const activeHunk = hunkRanges[hunkIdx];
 		const currentHunk =
-			activeHunk && i >= activeHunk.start && i <= activeHunk.end
-				? activeHunk
-				: null;
+			activeHunk && i >= activeHunk.start && i <= activeHunk.end ? activeHunk : null;
 
 		// Advance hunk pointer
 		if (activeHunk && i > activeHunk.end) {

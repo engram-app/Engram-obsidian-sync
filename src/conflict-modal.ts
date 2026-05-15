@@ -152,7 +152,6 @@ export class ConflictModal extends Modal {
 	// ── Diff view ───────────────────────────────────────────────────
 
 	private renderDiff(): void {
-		// biome-ignore lint/style/noNonNullAssertion: diffContainer always set before renderDiff is called
 		const container = this.diffContainer!;
 		container.empty();
 
