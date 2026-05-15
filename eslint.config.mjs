@@ -13,18 +13,25 @@
 // for `obsidianmd/ui/sentence-case`. We don't reproduce that locally — instead
 // we configure the rule's `brands`, `acronyms`, and `ignoreRegex` options so
 // strings pass naturally and no disable comments are needed.
+import { globalIgnores } from "eslint/config";
 import obsidianmd from "eslint-plugin-obsidianmd";
+import tseslint from "typescript-eslint";
 
-export default [
+export default tseslint.config(
+	{
+		languageOptions: {
+			parserOptions: {
+				projectService: {
+					allowDefaultProject: ["eslint.config.mjs", "manifest.json"],
+				},
+				tsconfigRootDir: import.meta.dirname,
+				extraFileExtensions: [".json"],
+			},
+		},
+	},
 	...obsidianmd.configs.recommendedWithLocalesEn,
 	{
 		files: ["src/**/*.ts"],
-		languageOptions: {
-			parserOptions: {
-				projectService: true,
-				tsconfigRootDir: import.meta.dirname,
-			},
-		},
 		rules: {
 			"obsidianmd/ui/sentence-case": [
 				"error",
@@ -50,15 +57,12 @@ export default [
 			],
 		},
 	},
-	{
-		ignores: [
-			"tests/**",
-			"node_modules/**",
-			"main.js",
-			"version-bump.mjs",
-			"esbuild.config.mjs",
-			"eslint.config.mjs",
-			"docs/**",
-		],
-	},
-];
+	globalIgnores([
+		"tests/**",
+		"node_modules/**",
+		"main.js",
+		"version-bump.mjs",
+		"esbuild.config.mjs",
+		"docs/**",
+	]),
+);

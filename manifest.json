@@ -5,6 +5,7 @@
 	"minAppVersion": "1.7.2",
 	"description": "Bidirectional sync between your vault and an Engram server for AI-powered semantic search.",
 	"author": "Rasbandit",
+	"authorUrl": "https://github.com/Rasbandit",
 	"isDesktopOnly": false,
 	"fundingUrl": "https://ko-fi.com/rasbandit"
 }
