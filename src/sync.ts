@@ -1877,8 +1877,7 @@ export class SyncEngine {
 		return {
 			vaultName: this.app.vault.getName(),
 			serverNoteCount:
-				manifestNoteCount ??
-				[...serverNotes.values()].filter((v) => !v.deleted).length,
+				manifestNoteCount ?? [...serverNotes.values()].filter((v) => !v.deleted).length,
 			localNoteCount: localNotes.length,
 			localAttachmentCount: localAttachments.length,
 			toPush: {
