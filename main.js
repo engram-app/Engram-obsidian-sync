@@ -4051,7 +4051,12 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
    *  - "pull-all" — pull only: compute toPull, skip toPush
    */
   async computeSyncPlan(mode) {
-    let epoch = "1970-01-01T00:00:00Z", since = mode === "full" && this.lastSync || epoch, [noteResp, attachResp] = await Promise.all([
+    let epoch = "1970-01-01T00:00:00Z", manifestNotePaths = null, manifestAttachPaths = null, manifestNoteCount = null;
+    if (mode === "full" && this.lastSync) {
+      let manifest = await this.api.getManifest();
+      manifest && (manifestNotePaths = new Set(manifest.notes.map((n) => n.path)), manifestAttachPaths = new Set(manifest.attachments.map((a) => a.path)), manifestNoteCount = manifest.notes.length);
+    }
+    let needsDeltaAsInventory = mode === "full" && this.lastSync !== "" && manifestNotePaths === null, since = mode !== "full" || needsDeltaAsInventory ? epoch : this.lastSync || epoch, [noteResp, attachResp] = await Promise.all([
       this.api.getChanges(since),
       this.api.getAttachmentChanges(since)
     ]), serverNotes = /* @__PURE__ */ new Map();
@@ -4060,7 +4065,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     let serverAttachments = /* @__PURE__ */ new Map();
     for (let c of attachResp.changes)
       serverAttachments.set(c.path, { deleted: c.deleted });
-    let syncable = this.app.vault.getFiles().filter((f) => this.isSyncable(f) && !this.shouldIgnore(f.path)), localNotes = [], localAttachments = [];
+    let serverHasNote = (path) => manifestNotePaths ? manifestNotePaths.has(path) : serverNotes.has(path), serverHasAttach = (path) => manifestAttachPaths ? manifestAttachPaths.has(path) : serverAttachments.has(path), syncable = this.app.vault.getFiles().filter((f) => this.isSyncable(f) && !this.shouldIgnore(f.path)), localNotes = [], localAttachments = [];
     for (let f of syncable)
       this.isBinaryFile(f) ? localAttachments.push(f.path) : localNotes.push(f.path);
     let localNoteSet = new Set(localNotes), localAttachSet = new Set(localAttachments), toPullNotes = [], conflictNotes = [], toDeleteLocal = [];
@@ -4092,13 +4097,13 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     }
     let toPushNotes = [];
     for (let path of localNotes)
-      serverNotes.has(path) || toPushNotes.push(path);
+      serverHasNote(path) || toPushNotes.push(path);
     let toPushAttachments = [];
     for (let path of localAttachments)
-      serverAttachments.has(path) || toPushAttachments.push(path);
+      serverHasAttach(path) || toPushAttachments.push(path);
     return {
       vaultName: this.app.vault.getName(),
-      serverNoteCount: [...serverNotes.values()].filter((v) => !v.deleted).length,
+      serverNoteCount: manifestNoteCount != null ? manifestNoteCount : [...serverNotes.values()].filter((v) => !v.deleted).length,
       localNoteCount: localNotes.length,
       localAttachmentCount: localAttachments.length,
       toPush: {

@@ -1730,7 +1730,32 @@ export class SyncEngine {
 	 */
 	async computeSyncPlan(mode: "push-all" | "pull-all" | "full"): Promise<SyncPlan> {
 		const epoch = "1970-01-01T00:00:00Z";
-		const since = mode === "full" ? this.lastSync || epoch : epoch;
+
+		// Authoritative server inventory for "is this path on the server?" comparisons.
+		// In incremental "full" mode the changes-since-lastSync delta is NOT a valid
+		// inventory — long-synced files don't appear in the delta and were falsely
+		// flagged for push. Prefer /sync/manifest for inventory; fall back to a full
+		// changes-since-epoch query when the server doesn't expose the manifest.
+		let manifestNotePaths: Set<string> | null = null;
+		let manifestAttachPaths: Set<string> | null = null;
+		let manifestNoteCount: number | null = null;
+
+		if (mode === "full" && this.lastSync) {
+			const manifest = await this.api.getManifest();
+			if (manifest) {
+				manifestNotePaths = new Set(manifest.notes.map((n) => n.path));
+				manifestAttachPaths = new Set(manifest.attachments.map((a) => a.path));
+				manifestNoteCount = manifest.notes.length;
+			}
+		}
+
+		// Delta query: changes-since-lastSync for content/pull/conflict computation.
+		// When manifest is unavailable (older self-host backend) AND we're in
+		// incremental mode, widen the query to since=epoch so the delta also serves
+		// as a (slower) inventory. This trades a one-off slow query for correctness.
+		const needsDeltaAsInventory =
+			mode === "full" && this.lastSync !== "" && manifestNotePaths === null;
+		const since = mode !== "full" || needsDeltaAsInventory ? epoch : this.lastSync || epoch;
 
 		const [noteResp, attachResp] = await Promise.all([
 			this.api.getChanges(since),
@@ -1747,6 +1772,13 @@ export class SyncEngine {
 		for (const c of attachResp.changes) {
 			serverAttachments.set(c.path, { deleted: c.deleted });
 		}
+
+		// `serverHasNote/serverHasAttach` returns the authoritative answer:
+		// manifest when present, else the (epoch-widened) delta as fallback.
+		const serverHasNote = (path: string) =>
+			manifestNotePaths ? manifestNotePaths.has(path) : serverNotes.has(path);
+		const serverHasAttach = (path: string) =>
+			manifestAttachPaths ? manifestAttachPaths.has(path) : serverAttachments.has(path);
 
 		// Enumerate local files
 		const allFiles = this.app.vault.getFiles();
@@ -1830,21 +1862,22 @@ export class SyncEngine {
 		// Files only local → need to push (not on server at all)
 		const toPushNotes: string[] = [];
 		for (const path of localNotes) {
-			if (!serverNotes.has(path)) {
+			if (!serverHasNote(path)) {
 				toPushNotes.push(path);
 			}
 		}
 
 		const toPushAttachments: string[] = [];
 		for (const path of localAttachments) {
-			if (!serverAttachments.has(path)) {
+			if (!serverHasAttach(path)) {
 				toPushAttachments.push(path);
 			}
 		}
 
 		return {
 			vaultName: this.app.vault.getName(),
-			serverNoteCount: [...serverNotes.values()].filter((v) => !v.deleted).length,
+			serverNoteCount:
+				manifestNoteCount ?? [...serverNotes.values()].filter((v) => !v.deleted).length,
 			localNoteCount: localNotes.length,
 			localAttachmentCount: localAttachments.length,
 			toPush: {
