@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Obsidian plugin for bidirectional sync with Engram. This is Phase 2 of the Engram project.
+Obsidian plugin for bidirectional sync with Engram, distributed as "Engram Vault Sync" (plugin id `engram-vault-sync`). One half of the Engram project — backend repo is `engram-app/engram`, plugin repo is `engram-app/Engram-obsidian` (local dir name stayed `engram-obsidian-sync` after rename).
 
 ## Life OS
 project: engram-obsidian
@@ -25,17 +25,17 @@ A TypeScript sync client. It does NOT parse markdown, generate embeddings, or ta
 ### Responsibilities
 
 1. **Watch vault events** — `app.vault.on("create")`, `on("modify")`, `on("delete")`, `on("rename")`
-2. **Push changes to Engram** — POST /notes with file content + metadata
-3. **Pull changes from Engram** — GET /notes/changes on startup and periodically
-4. **Write remote changes to vault** — files created/edited via MCP or other devices
-5. **Settings panel** — Engram URL, API key, ignore patterns, conflict resolution
+2. **Push changes to Engram** — `POST /api/notes` with file content + metadata
+3. **Pull changes from Engram** — `GET /api/notes/changes` on startup and periodically (plus authoritative inventory via `GET /api/sync/manifest`)
+4. **Write remote changes to vault** — files created/edited via MCP, the web SPA editor, or other devices
+5. **Settings panel + Sync Center** — Engram URL, API key, ignore patterns, conflict resolution, sync preview, push/pull-all flows
 
 ### Does NOT
 
 - Parse markdown or chunk text (Engram does this)
 - Generate embeddings (Engram does this via Ollama)
 - Talk to Qdrant (Engram does this)
-- Perform search indexing (Engram does this — plugin provides the search UI via `POST /search`)
+- Perform search indexing (Engram does this — plugin provides the search UI via `POST /api/search`)
 - Manage auth/users (Engram does this)
 
 ## Git Workflow
