@@ -1940,16 +1940,16 @@ var import_obsidian7 = require("obsidian"), PHASE_LABELS = {
     let barOuter = contentEl.createDiv({ cls: "engram-progress-bar-outer" });
     this.barInner = barOuter.createDiv({ cls: "engram-progress-bar-inner" }), this.failedEl = contentEl.createEl("p", {
       text: "",
-      cls: "engram-progress-failed engram-hidden"
-    }), this.summaryEl = contentEl.createEl("p", {
+      cls: "engram-progress-failed"
+    }), this.failedEl.hidden = !0, this.summaryEl = contentEl.createEl("p", {
       text: "",
-      cls: "engram-progress-summary engram-hidden"
-    });
+      cls: "engram-progress-summary"
+    }), this.summaryEl.hidden = !0;
     let buttons = contentEl.createDiv({ cls: "engram-progress-buttons" });
     this.bgBtn = buttons.createEl("button", { text: "Run in background" }), this.bgBtn.addEventListener("click", () => this.close()), this.closeBtn = buttons.createEl("button", {
       text: "Done",
-      cls: "mod-cta engram-hidden"
-    }), this.closeBtn.addEventListener("click", () => this.close()), this.tickTimer = window.setInterval(() => this.tick(), TICK_INTERVAL_MS);
+      cls: "mod-cta"
+    }), this.closeBtn.hidden = !0, this.closeBtn.addEventListener("click", () => this.close()), this.tickTimer = window.setInterval(() => this.tick(), TICK_INTERVAL_MS);
   }
   /** Called by the sync engine's progress callback. Buffers the update. */
   update(progress) {
@@ -1986,14 +1986,14 @@ var import_obsidian7 = require("obsidian"), PHASE_LABELS = {
     var _a, _b;
     let label = (_a = PHASE_LABELS[progress.phase]) != null ? _a : progress.phase, pct = progress.total > 0 ? Math.round(progress.current / progress.total * 100) : 0;
     if (progress.phase === "complete") {
-      this.tickTimer && (window.clearInterval(this.tickTimer), this.tickTimer = null), this.phaseEl.setText("Sync complete"), this.countEl.setText(""), this.pathEl.setText(""), this.barInner.setCssStyles({ width: "100%" }), this.barInner.addClass("is-complete"), this.bgBtn.addClass("engram-hidden"), this.closeBtn.removeClass("engram-hidden");
+      this.tickTimer && (window.clearInterval(this.tickTimer), this.tickTimer = null), this.phaseEl.setText("Sync complete"), this.countEl.setText(""), this.pathEl.setText(""), this.barInner.setCssStyles({ width: "100%" }), this.barInner.addClass("is-complete"), this.bgBtn.hidden = !0, this.closeBtn.hidden = !1;
       let parts = [];
-      progress.current > 0 && parts.push(`${progress.current} synced`), progress.failed > 0 && parts.push(`${progress.failed} failed`), this.summaryEl.setText(parts.join(", ")), this.summaryEl.removeClass("engram-hidden"), progress.failed > 0 && (this.failedEl.setText(
+      progress.current > 0 && parts.push(`${progress.current} synced`), progress.failed > 0 && parts.push(`${progress.failed} failed`), this.summaryEl.setText(parts.join(", ")), this.summaryEl.hidden = !1, progress.failed > 0 && (this.failedEl.setText(
         `${progress.failed} failed \u2014 run "Engram: Show sync log" for details`
-      ), this.failedEl.removeClass("engram-hidden"));
+      ), this.failedEl.hidden = !1);
       return;
     }
-    this.phaseEl.setText(label), this.countEl.setText(`${progress.current} / ${progress.total}`), this.pathEl.setText((_b = progress.currentPath) != null ? _b : ""), this.barInner.style.width = `${pct}%`, this.barInner.removeClass("is-complete"), progress.failed > 0 ? (this.failedEl.setText(`${progress.failed} failed so far`), this.failedEl.removeClass("engram-hidden")) : this.failedEl.addClass("engram-hidden");
+    this.phaseEl.setText(label), this.countEl.setText(`${progress.current} / ${progress.total}`), this.pathEl.setText((_b = progress.currentPath) != null ? _b : ""), this.barInner.style.width = `${pct}%`, this.barInner.removeClass("is-complete"), progress.failed > 0 ? (this.failedEl.setText(`${progress.failed} failed so far`), this.failedEl.hidden = !1) : this.failedEl.hidden = !0;
   }
   onClose() {
     this.tickTimer && (window.clearInterval(this.tickTimer), this.tickTimer = null), this.contentEl.empty();
