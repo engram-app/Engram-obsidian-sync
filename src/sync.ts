@@ -1859,10 +1859,27 @@ export class SyncEngine {
 			}
 		}
 
-		// Files only local → need to push (not on server at all)
+		// Files only local → need to push (not on server at all).
+		// Then for files that ARE on the server but absent from the delta,
+		// compare current local hash against the last-synced hash so a
+		// locally-edited note shows up as toPush. Skip paths the delta
+		// already owns (pull/conflict branches handle those) to avoid
+		// double-counting. A missing syncState entry is treated as clean —
+		// a true content cross-check needs a plugin-computable server hash
+		// (separate backend work).
 		const toPushNotes: string[] = [];
 		for (const path of localNotes) {
 			if (!serverHasNote(path)) {
+				toPushNotes.push(path);
+				continue;
+			}
+			if (serverNotes.has(path)) continue;
+			const file = this.app.vault.getFileByPath(path);
+			if (!file) continue;
+			const content = await this.app.vault.cachedRead(file);
+			const localHash = fnv1a(content);
+			const synced = this.syncState.get(path);
+			if (synced?.hash !== undefined && synced.hash !== localHash) {
 				toPushNotes.push(path);
 			}
 		}

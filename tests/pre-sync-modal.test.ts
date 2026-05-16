@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatPlanSummary } from "../src/pre-sync-modal";
+import { formatPlanSummary, isPlanEmpty } from "../src/pre-sync-modal";
 import type { SyncPlan } from "../src/types";
 
 function makePlan(overrides: Partial<SyncPlan> = {}): SyncPlan {
@@ -65,5 +65,34 @@ describe("formatPlanSummary", () => {
 		expect(lines).toContain("↓  0 notes to pull");
 		expect(lines).toContain("⚡  0 conflicts");
 		expect(lines).toContain("✕  0 deletions");
+	});
+});
+
+describe("isPlanEmpty", () => {
+	test("true for plan with all-empty work arrays", () => {
+		expect(isPlanEmpty(makePlan())).toBe(true);
+	});
+
+	test("false when toPush has notes", () => {
+		expect(isPlanEmpty(makePlan({ toPush: { notes: ["a.md"], attachments: [] } }))).toBe(false);
+	});
+
+	test("false when toPush has attachments", () => {
+		expect(isPlanEmpty(makePlan({ toPush: { notes: [], attachments: ["img.png"] } }))).toBe(
+			false,
+		);
+	});
+
+	test("false when toPull has notes", () => {
+		expect(isPlanEmpty(makePlan({ toPull: { notes: ["c.md"], attachments: [] } }))).toBe(false);
+	});
+
+	test("false when conflicts present", () => {
+		expect(isPlanEmpty(makePlan({ conflicts: ["x.md"] }))).toBe(false);
+	});
+
+	test("false when local or remote deletions present", () => {
+		expect(isPlanEmpty(makePlan({ toDeleteLocal: ["z.md"] }))).toBe(false);
+		expect(isPlanEmpty(makePlan({ toDeleteRemote: ["q.md"] }))).toBe(false);
 	});
 });

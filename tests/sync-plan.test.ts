@@ -380,6 +380,132 @@ describe("SyncEngine.computeSyncPlan", () => {
 		expect(plan.toPush.notes).toEqual([]);
 	});
 
+	test("locally-modified note (manifest has it, delta empty, hash diverges) is flagged toPush", async () => {
+		// The PreSyncModal previously had no way to surface "you edited a note
+		// since last sync." The delta only carries server-side changes; the
+		// modal silently missed local edits and lied about the work to do.
+		const engine = createEngine();
+		const file = makeTFile("Notes/edited.md");
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.getFileByPath.mockReturnValue(file);
+		mockApp.vault.cachedRead.mockResolvedValue("# Edited locally");
+
+		engine.setLastSync("2026-05-16T07:00:00Z");
+		// syncState was recorded at the LAST sync with a different (earlier) content
+		engine.importHashes({ "Notes/edited.md": fnv1a("# Original") });
+
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [{ path: "Notes/edited.md", content_hash: "server-hash" }],
+			attachments: [],
+			total_notes: 1,
+			total_attachments: 0,
+		});
+		(mockApi.getChanges as jest.Mock).mockResolvedValue({
+			changes: [],
+			server_time: "2026-05-16T08:00:00Z",
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.toPush.notes).toContain("Notes/edited.md");
+		expect(plan.conflicts).not.toContain("Notes/edited.md");
+	});
+
+	test("locally-modified note NOT double-counted when delta also reports a server change (pull/conflict branch handles it)", async () => {
+		// If a path is in the delta (server changed it), the existing pull/conflict
+		// branches already decide what to do. Adding the same path to toPush via
+		// the locally-modified detector would double-count and confuse the UI.
+		const engine = createEngine();
+		const file = makeTFile("Notes/both.md");
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.getFileByPath.mockReturnValue(file);
+		mockApp.vault.cachedRead.mockResolvedValue("# Modified locally");
+
+		engine.setLastSync("2026-05-16T07:00:00Z");
+		engine.importHashes({ "Notes/both.md": fnv1a("# Original") });
+
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [{ path: "Notes/both.md", content_hash: "server-hash" }],
+			attachments: [],
+			total_notes: 1,
+			total_attachments: 0,
+		});
+		(mockApi.getChanges as jest.Mock).mockResolvedValue({
+			changes: [
+				{
+					path: "Notes/both.md",
+					title: "Both",
+					content: "# Modified on server",
+					folder: "Notes",
+					tags: [],
+					mtime: Date.now() / 1000,
+					updated_at: new Date().toISOString(),
+					deleted: false,
+				},
+			],
+			server_time: "2026-05-16T08:00:00Z",
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		// Path appears once at most across pull/conflict/push. The pull/conflict
+		// branches above own this path; toPush must not duplicate it.
+		expect(plan.toPush.notes).not.toContain("Notes/both.md");
+	});
+
+	test("file in manifest with NO syncState entry is treated as clean (no spurious push storm on fresh install)", async () => {
+		// A fresh plugin install will have an empty syncState but a vault full
+		// of files the server already holds. Without this guard we'd push every
+		// file unnecessarily. A real content cross-check needs a plugin-side
+		// computable server hash (Tier 3 backend work) — not in scope.
+		const engine = createEngine();
+		const file = makeTFile("Notes/fresh-install.md");
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.getFileByPath.mockReturnValue(file);
+		mockApp.vault.cachedRead.mockResolvedValue("# Content");
+
+		engine.setLastSync("2026-05-16T07:00:00Z");
+		// No importHashes call — syncState is empty
+
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [{ path: "Notes/fresh-install.md", content_hash: "server-hash" }],
+			attachments: [],
+			total_notes: 1,
+			total_attachments: 0,
+		});
+		(mockApi.getChanges as jest.Mock).mockResolvedValue({
+			changes: [],
+			server_time: "2026-05-16T08:00:00Z",
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.toPush.notes).toEqual([]);
+	});
+
+	test("file in manifest with matching syncState hash is clean (no toPush)", async () => {
+		const engine = createEngine();
+		const file = makeTFile("Notes/clean.md");
+		const content = "# Clean";
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		mockApp.vault.getFileByPath.mockReturnValue(file);
+		mockApp.vault.cachedRead.mockResolvedValue(content);
+
+		engine.setLastSync("2026-05-16T07:00:00Z");
+		engine.importHashes({ "Notes/clean.md": fnv1a(content) });
+
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [{ path: "Notes/clean.md", content_hash: "server-hash" }],
+			attachments: [],
+			total_notes: 1,
+			total_attachments: 0,
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.toPush.notes).toEqual([]);
+	});
+
 	test("ignored files (.obsidian/) are excluded from plan", async () => {
 		const engine = createEngine();
 		const files = [

@@ -2356,6 +2356,9 @@ var import_obsidian12 = require("obsidian");
 function plural(count, singular) {
   return count === 1 ? `${count} ${singular}` : `${count} ${singular}s`;
 }
+function isPlanEmpty(plan) {
+  return plan.toPush.notes.length === 0 && plan.toPush.attachments.length === 0 && plan.toPull.notes.length === 0 && plan.toPull.attachments.length === 0 && plan.conflicts.length === 0 && plan.toDeleteLocal.length === 0 && plan.toDeleteRemote.length === 0;
+}
 function formatPlanSummary(plan) {
   let lines = [];
   lines.push(`Vault: ${plan.vaultName}`), lines.push(`Server: ${plan.serverNoteCount} notes \xB7 Local: ${plan.localNoteCount} notes`), lines.push(""), lines.push(`\u2191  ${plural(plan.toPush.notes.length, "note")} to push`), lines.push(`\u2193  ${plural(plan.toPull.notes.length, "note")} to pull`), lines.push(`\u26A1  ${plural(plan.conflicts.length, "conflict")}`);
@@ -2376,22 +2379,29 @@ var PreSyncModal = class extends import_obsidian12.Modal {
     contentEl.empty(), contentEl.addClass("engram-pre-sync-modal"), contentEl.createEl("h2", { text: "Sync preview" }), contentEl.createEl("pre", {
       text: formatPlanSummary(this.plan),
       cls: "engram-sync-summary"
+    });
+    let empty = isPlanEmpty(this.plan);
+    empty && !this.showWipePull && contentEl.createEl("p", {
+      cls: "engram-sync-uptodate",
+      text: "Everything is up to date. Nothing to push or pull."
     }), this.plan.toDeleteLocal.length > 0 && contentEl.createEl("p", {
       cls: "engram-sync-warning",
       text: `${this.plan.toDeleteLocal.length} notes deleted on server will be removed locally.`
     });
     let buttons = contentEl.createDiv({ cls: "engram-button-row" });
-    buttons.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
+    buttons.createEl("button", { text: empty ? "Close" : "Cancel" }).addEventListener("click", () => {
       this.resolved = !0, this.resolve(this.showWipePull ? "cancel" : !1), this.close();
     }), this.showWipePull && buttons.createEl("button", {
       text: "Wipe & pull",
       cls: "engram-btn-danger-outline"
     }).addEventListener("click", () => {
       this.resolved = !0, this.resolve("wipe-pull"), this.close();
-    }), buttons.createEl("button", {
+    });
+    let confirmBtn = buttons.createEl("button", {
       text: "Start sync",
       cls: "mod-cta"
-    }).addEventListener("click", () => {
+    });
+    empty && !this.showWipePull && (confirmBtn.disabled = !0), confirmBtn.addEventListener("click", () => {
       this.resolved = !0, this.resolve(this.showWipePull ? "pull" : !0), this.close();
     });
   }
@@ -4096,8 +4106,17 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
       localAttachSet.has(path) || toPullAttachments.push(path);
     }
     let toPushNotes = [];
-    for (let path of localNotes)
-      serverHasNote(path) || toPushNotes.push(path);
+    for (let path of localNotes) {
+      if (!serverHasNote(path)) {
+        toPushNotes.push(path);
+        continue;
+      }
+      if (serverNotes.has(path)) continue;
+      let file = this.app.vault.getFileByPath(path);
+      if (!file) continue;
+      let content = await this.app.vault.cachedRead(file), localHash = fnv1a(content), synced = this.syncState.get(path);
+      (synced == null ? void 0 : synced.hash) !== void 0 && synced.hash !== localHash && toPushNotes.push(path);
+    }
     let toPushAttachments = [];
     for (let path of localAttachments)
       serverHasAttach(path) || toPushAttachments.push(path);
