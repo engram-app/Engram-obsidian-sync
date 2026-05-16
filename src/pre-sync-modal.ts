@@ -5,6 +5,21 @@ function plural(count: number, singular: string): string {
 	return count === 1 ? `${count} ${singular}` : `${count} ${singular}s`;
 }
 
+/** True when the plan has nothing for the engine to do — used to switch the
+ *  modal into an "Everything up to date" mode and disable Start Sync so the
+ *  user isn't sent through a no-op flow. */
+export function isPlanEmpty(plan: SyncPlan): boolean {
+	return (
+		plan.toPush.notes.length === 0 &&
+		plan.toPush.attachments.length === 0 &&
+		plan.toPull.notes.length === 0 &&
+		plan.toPull.attachments.length === 0 &&
+		plan.conflicts.length === 0 &&
+		plan.toDeleteLocal.length === 0 &&
+		plan.toDeleteRemote.length === 0
+	);
+}
+
 /** Pure function: builds the text summary lines for testing without Obsidian UI. */
 export function formatPlanSummary(plan: SyncPlan): string {
 	const lines: string[] = [];
@@ -54,6 +69,14 @@ export class PreSyncModal extends Modal {
 			cls: "engram-sync-summary",
 		});
 
+		const empty = isPlanEmpty(this.plan);
+		if (empty && !this.showWipePull) {
+			contentEl.createEl("p", {
+				cls: "engram-sync-uptodate",
+				text: "Everything is up to date. Nothing to push or pull.",
+			});
+		}
+
 		if (this.plan.toDeleteLocal.length > 0) {
 			contentEl.createEl("p", {
 				cls: "engram-sync-warning",
@@ -63,7 +86,7 @@ export class PreSyncModal extends Modal {
 
 		const buttons = contentEl.createDiv({ cls: "engram-button-row" });
 
-		const cancelBtn = buttons.createEl("button", { text: "Cancel" });
+		const cancelBtn = buttons.createEl("button", { text: empty ? "Close" : "Cancel" });
 		cancelBtn.addEventListener("click", () => {
 			this.resolved = true;
 			this.resolve(this.showWipePull ? "cancel" : false);
@@ -82,10 +105,13 @@ export class PreSyncModal extends Modal {
 			});
 		}
 
+		// Start sync stays present even when empty so the keyboard path still
+		// works, but is disabled so the user can't blindly trigger a no-op.
 		const confirmBtn = buttons.createEl("button", {
 			text: "Start sync",
 			cls: "mod-cta",
 		});
+		if (empty && !this.showWipePull) confirmBtn.disabled = true;
 		confirmBtn.addEventListener("click", () => {
 			this.resolved = true;
 			this.resolve(this.showWipePull ? "pull" : true);
