@@ -85,6 +85,7 @@ export default class EngramSyncPlugin extends Plugin {
 	async onload(): Promise<void> {
 		initDevLog();
 		devLog().log("lifecycle", "plugin loading");
+		rlog().info("lifecycle", `onload start — v${this.manifest.version}`);
 		await this.loadSettings();
 
 		this.api = new EngramApi(this.settings.apiUrl, this.settings.apiKey);
