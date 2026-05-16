@@ -174,6 +174,41 @@ describe("OAuthAuth", () => {
 		expect(onRotated).toHaveBeenCalledWith("engram_rt_new");
 	});
 
+	it("awaits onTokenRotated before resolving getToken", async () => {
+		// Reproduces the 1.3.0 regression: a fire-and-forget save inside the
+		// rotation callback could lose the new refresh token if the plugin was
+		// updated/reloaded before the disk write flushed. doRefresh must wait
+		// for the persistence promise to settle so callers can't act on the
+		// access token until the rotated refresh token is durable.
+		mockRefreshFn.mockResolvedValue({
+			access_token: "jwt_123",
+			refresh_token: "engram_rt_new",
+			expires_in: 3600,
+		});
+
+		let persistResolved = false;
+		const onRotated = mock(
+			() =>
+				new Promise<void>((resolve) => {
+					setTimeout(() => {
+						persistResolved = true;
+						resolve();
+					}, 25);
+				}),
+		);
+
+		const auth = new OAuthAuth(
+			"engram_rt_old",
+			"vault-1",
+			"user@test.com",
+			mockRefreshFn,
+			onRotated,
+		);
+		await auth.getToken();
+
+		expect(persistResolved).toBe(true);
+	});
+
 	it("does not call onTokenRotated on refresh failure", async () => {
 		mockRefreshFn.mockRejectedValue(new Error("401"));
 
