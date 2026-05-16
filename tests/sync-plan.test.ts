@@ -84,6 +84,7 @@ beforeEach(() => {
 	(mockApi.getAttachmentChanges as jest.Mock)
 		.mockReset()
 		.mockResolvedValue({ changes: [], server_time: "2026-01-01T00:00:00Z" });
+	(mockApi.getManifest as jest.Mock).mockReset().mockResolvedValue(null);
 	mockApp.vault.getFiles.mockReset().mockReturnValue([]);
 });
 
@@ -272,6 +273,111 @@ describe("SyncEngine.computeSyncPlan", () => {
 
 		expect(plan.toPull.notes).toContain("Notes/server-updated.md");
 		expect(plan.conflicts).not.toContain("Notes/server-updated.md");
+	});
+
+	test("incremental full mode: long-synced local files are NOT flagged toPush when manifest confirms server has them", async () => {
+		// Reproduces the bug from closed PR #31 where PreSyncModal showed e.g.
+		// "server: 0 / local: 299 toPush" on a fully-synced vault. computeSyncPlan
+		// was using getChanges(since=lastSync) as server inventory — long-synced
+		// files don't appear in delta, so they got falsely flagged for push.
+		const engine = createEngine();
+		const file = makeTFile("Notes/already-synced.md");
+		mockApp.vault.getFiles.mockReturnValue([file]);
+
+		// Last sync was recent — getChanges(since=lastSync) returns no delta
+		engine.setLastSync("2026-05-16T07:00:00Z");
+		(mockApi.getChanges as jest.Mock).mockResolvedValue({
+			changes: [],
+			server_time: "2026-05-16T08:00:00Z",
+		});
+		// Manifest is authoritative: server has this note
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [{ path: "Notes/already-synced.md", content_hash: "abc123" }],
+			attachments: [],
+			total_notes: 1,
+			total_attachments: 0,
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.toPush.notes).toEqual([]);
+		expect(plan.serverNoteCount).toBe(1);
+		expect(plan.localNoteCount).toBe(1);
+	});
+
+	test("incremental full mode: file in manifest but missing locally is still toPull when delta carries content", async () => {
+		// Server has a file the user hasn't pulled yet (e.g., another device pushed it).
+		// Manifest lists the path; delta carries the content for pull.
+		const engine = createEngine();
+		mockApp.vault.getFiles.mockReturnValue([]);
+		engine.setLastSync("2026-05-16T07:00:00Z");
+		(mockApi.getChanges as jest.Mock).mockResolvedValue({
+			changes: [
+				{
+					path: "Notes/from-other-device.md",
+					title: "Other",
+					content: "# Other device",
+					folder: "Notes",
+					tags: [],
+					mtime: Date.now() / 1000,
+					updated_at: new Date().toISOString(),
+					deleted: false,
+				},
+			],
+			server_time: "2026-05-16T08:00:00Z",
+		});
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [{ path: "Notes/from-other-device.md", content_hash: "xyz" }],
+			attachments: [],
+			total_notes: 1,
+			total_attachments: 0,
+		});
+
+		const plan = await engine.computeSyncPlan("full");
+
+		expect(plan.toPull.notes).toContain("Notes/from-other-device.md");
+		expect(plan.toPush.notes).toEqual([]);
+		expect(plan.serverNoteCount).toBe(1);
+	});
+
+	test("incremental full mode: manifest-unavailable falls back to delta-since-epoch (full inventory query)", async () => {
+		// Older self-hosted backends without /sync/manifest still need to work.
+		// Fallback: widen the delta query to since=epoch so it doubles as inventory.
+		// Slower per-call (one-shot full fetch) but correct.
+		const engine = createEngine();
+		const file = makeTFile("Notes/local.md");
+		mockApp.vault.getFiles.mockReturnValue([file]);
+		engine.setLastSync("2026-05-16T07:00:00Z");
+		(mockApi.getManifest as jest.Mock).mockResolvedValue(null);
+
+		// Stateful mock: server returns the file ONLY when queried since epoch
+		// (i.e., full-inventory mode). A since=lastSync query gets empty.
+		(mockApi.getChanges as jest.Mock).mockImplementation((since: string) =>
+			Promise.resolve({
+				changes:
+					since === "1970-01-01T00:00:00Z"
+						? [
+								{
+									path: "Notes/local.md",
+									title: "Local",
+									content: "# Local",
+									folder: "Notes",
+									tags: [],
+									mtime: Date.now() / 1000,
+									updated_at: new Date().toISOString(),
+									deleted: false,
+								},
+							]
+						: [],
+				server_time: "2026-05-16T08:00:00Z",
+			}),
+		);
+
+		const plan = await engine.computeSyncPlan("full");
+
+		// Fix widened the since param to epoch so the delta returns the full server set
+		expect(mockApi.getChanges).toHaveBeenCalledWith("1970-01-01T00:00:00Z");
+		expect(plan.toPush.notes).toEqual([]);
 	});
 
 	test("ignored files (.obsidian/) are excluded from plan", async () => {
