@@ -655,7 +655,6 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px 12px;
-	border-bottom: 1px solid var(--background-modifier-border);
 	margin-bottom: 16px;
 }
 
