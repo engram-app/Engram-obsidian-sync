@@ -59,13 +59,15 @@ export class SyncProgressModal extends Modal {
 
 		this.failedEl = contentEl.createEl("p", {
 			text: "",
-			cls: "engram-progress-failed engram-hidden",
+			cls: "engram-progress-failed",
 		});
+		this.failedEl.hidden = true;
 
 		this.summaryEl = contentEl.createEl("p", {
 			text: "",
-			cls: "engram-progress-summary engram-hidden",
+			cls: "engram-progress-summary",
 		});
+		this.summaryEl.hidden = true;
 
 		const buttons = contentEl.createDiv({ cls: "engram-progress-buttons" });
 		this.bgBtn = buttons.createEl("button", { text: "Run in background" });
@@ -73,8 +75,9 @@ export class SyncProgressModal extends Modal {
 
 		this.closeBtn = buttons.createEl("button", {
 			text: "Done",
-			cls: "mod-cta engram-hidden",
+			cls: "mod-cta",
 		});
+		this.closeBtn.hidden = true;
 		this.closeBtn.addEventListener("click", () => this.close());
 
 		// Start the display tick loop
@@ -149,20 +152,20 @@ export class SyncProgressModal extends Modal {
 			this.pathEl.setText("");
 			this.barInner.setCssStyles({ width: "100%" });
 			this.barInner.addClass("is-complete");
-			this.bgBtn.addClass("engram-hidden");
-			this.closeBtn.removeClass("engram-hidden");
+			this.bgBtn.hidden = true;
+			this.closeBtn.hidden = false;
 
 			const parts: string[] = [];
 			if (progress.current > 0) parts.push(`${progress.current} synced`);
 			if (progress.failed > 0) parts.push(`${progress.failed} failed`);
 			this.summaryEl.setText(parts.join(", "));
-			this.summaryEl.removeClass("engram-hidden");
+			this.summaryEl.hidden = false;
 
 			if (progress.failed > 0) {
 				this.failedEl.setText(
 					`${progress.failed} failed — run "Engram: Show sync log" for details`,
 				);
-				this.failedEl.removeClass("engram-hidden");
+				this.failedEl.hidden = false;
 			}
 			return;
 		}
@@ -175,9 +178,9 @@ export class SyncProgressModal extends Modal {
 
 		if (progress.failed > 0) {
 			this.failedEl.setText(`${progress.failed} failed so far`);
-			this.failedEl.removeClass("engram-hidden");
+			this.failedEl.hidden = false;
 		} else {
-			this.failedEl.addClass("engram-hidden");
+			this.failedEl.hidden = true;
 		}
 	}
 
