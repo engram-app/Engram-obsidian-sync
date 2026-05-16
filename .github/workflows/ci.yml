@@ -10,11 +10,9 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, isolated]
     steps:
       - uses: actions/checkout@v6
-
-      - uses: oven-sh/setup-bun@v2
 
       - run: bun install --frozen-lockfile
 
@@ -27,6 +25,9 @@ jobs:
       - name: Lint (Obsidian community reviewer rules)
         run: bun run lint:obsidian
 
+      - name: Lint CSS (stylelint, mirrors dashboard CSS checks)
+        run: bun run lint:css
+
       - name: Type-check and build
         run: bun run build
 
@@ -37,13 +38,13 @@ jobs:
   trigger-e2e:
     needs: build-and-test
     if: github.ref != 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, isolated]
     steps:
       - name: Generate App token
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.ENGRAM_CI_APP_ID }}
+          client-id: ${{ vars.ENGRAM_CI_CLIENT_ID }}
           private-key: ${{ secrets.ENGRAM_CI_APP_PRIVATE_KEY }}
           owner: engram-app
           repositories: Engram

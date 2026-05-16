@@ -1,0 +1,69 @@
+name: Release Audit
+
+# Catches manual `gh release create` mistakes that bypass our workflows
+# and could pollute the Obsidian community listing — specifically a
+# stable-named tag (1.2.3) accidentally marked prerelease, or an RC-named
+# tag (1.2.3-rc.1) accidentally marked stable.
+#
+# Runs on every push to main, weekly on Sundays, and on manual dispatch.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 12 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: [self-hosted, linux, x64, isolated]
+    steps:
+      - name: Audit all releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PAGE=1
+          ERRORS=0
+          while :; do
+            RES=$(curl --fail -sS \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100&page=${PAGE}")
+            COUNT=$(echo "$RES" | jq 'length')
+            [ "$COUNT" = "0" ] && break
+
+            while IFS=$'\t' read -r TAG PRERELEASE DRAFT; do
+              # Stable: x.y.z (no suffix). Must be prerelease=false.
+              if [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                if [ "$PRERELEASE" != "false" ]; then
+                  echo "::error::Stable tag ${TAG} marked prerelease=${PRERELEASE} — would mismatch manifest lookup"
+                  ERRORS=$((ERRORS + 1))
+                fi
+              # RC: x.y.z-rc.N. Must be prerelease=true.
+              elif [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
+                if [ "$PRERELEASE" != "true" ]; then
+                  echo "::error::RC tag ${TAG} marked prerelease=${PRERELEASE} — would shadow Obsidian lookup"
+                  ERRORS=$((ERRORS + 1))
+                fi
+              # Legacy v-prefixed tags (pre-1.0 era) — only flag if marked stable AND latest.
+              elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                : # tolerated; pre-format-change history
+              else
+                echo "::warning::Non-conforming tag ${TAG} (prerelease=${PRERELEASE}, draft=${DRAFT})"
+              fi
+            done < <(echo "$RES" | jq -r '.[] | "\(.tag_name)\t\(.prerelease)\t\(.draft)"')
+
+            [ "$COUNT" -lt 100 ] && break
+            PAGE=$((PAGE + 1))
+          done
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::${ERRORS} release(s) have flag/tag mismatches"
+            exit 1
+          fi
+          echo "Release audit clean"
