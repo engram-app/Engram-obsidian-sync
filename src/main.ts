@@ -494,15 +494,22 @@ export default class EngramSyncPlugin extends Plugin {
 				this.settings.vaultId,
 				this.settings.userEmail ?? null,
 				refreshFn,
-				(newToken) => {
+				async (newToken) => {
 					// Token rotation must NOT call saveSettings — that path
 					// disconnects + reconnects the WebSocket, which triggers a
 					// fresh refresh, which rotates again, which... loops forever.
 					// Persist the new refresh token in place and write to disk
 					// without reconfiguring the api/channel.
+					//
+					// Await the save: OAuthAuth.doRefresh awaits this callback
+					// before resolving the access token, so the rotated refresh
+					// token is durable on disk before any further request — or
+					// plugin update — can race against it. Without the await,
+					// a BRAT update between rotation and flush left the disk
+					// holding a server-invalidated token (forced re-login).
 					this.settings.refreshToken = newToken;
 					rlog().info("auth", "Refresh token rotated — persisting only");
-					void this.savePluginData(this.syncEngine.getLastSync());
+					await this.savePluginData(this.syncEngine.getLastSync());
 				},
 			);
 		}

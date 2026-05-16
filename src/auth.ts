@@ -59,7 +59,12 @@ export class OAuthAuth implements AuthProvider {
 	private accessToken: string | null = null;
 	private expiresAt = 0;
 	private refreshFn: RefreshFn;
-	private onTokenRotated?: (newRefreshToken: string) => void;
+	// Rotation callback can return a Promise — doRefresh awaits it so the
+	// rotated refresh token is durable BEFORE the new access token is handed
+	// back to the caller. Closes the 1.3.0 race where a plugin reload between
+	// the in-memory rotation and a fire-and-forget disk write left the on-disk
+	// token stale, forcing a manual re-login.
+	private onTokenRotated?: (newRefreshToken: string) => void | Promise<void>;
 	private authenticated = true;
 	private inflightRefresh: Promise<string> | null = null;
 
@@ -71,7 +76,7 @@ export class OAuthAuth implements AuthProvider {
 		vaultId: string | null,
 		userEmail: string | null,
 		refreshFn: RefreshFn,
-		onTokenRotated?: (newRefreshToken: string) => void,
+		onTokenRotated?: (newRefreshToken: string) => void | Promise<void>,
 	) {
 		this.refreshToken = refreshToken;
 		this.vaultId = vaultId;
@@ -110,7 +115,9 @@ export class OAuthAuth implements AuthProvider {
 			this.refreshToken = result.refresh_token;
 			this.expiresAt = Date.now() + result.expires_in * 1000;
 			this.authenticated = true;
-			this.onTokenRotated?.(result.refresh_token);
+			// Await persistence so callers can't act on the new access token
+			// before the rotated refresh token reaches disk.
+			await this.onTokenRotated?.(result.refresh_token);
 			rlog().info(
 				"auth",
 				`OAuth refresh ok — accessTokenLen=${result.access_token.length} expiresInS=${result.expires_in}`,
