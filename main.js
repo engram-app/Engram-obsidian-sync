@@ -725,7 +725,7 @@ __export(main_exports, {
   default: () => EngramSyncPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian18 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 
 // src/api.ts
 var import_obsidian = require("obsidian"), EngramApi = class _EngramApi {
@@ -2607,10 +2607,10 @@ function openFile(plugin, path) {
   plugin.app.workspace.openLinkText(path, "");
 }
 async function ignoreFilePermanently(plugin, path, refresh) {
-  plugin.syncEngine.ignoredFiles.add(path), plugin.syncEngine.issues.clear(path), await plugin.persistEngineState(), new import_obsidian13.Notice(`Ignored ${path} \u2014 won't sync until restored from Sync Center.`), refresh(), plugin.refreshSyncCenter();
+  plugin.syncEngine.ignoredFiles.add(path), plugin.syncEngine.issues.clear(path), await plugin.persistEngineState(), new import_obsidian13.Notice(`Ignored ${path} \u2014 won't sync until restored from Sync Center.`), refresh();
 }
 async function restoreFile(plugin, path, refresh) {
-  plugin.syncEngine.ignoredFiles.remove(path), await plugin.persistEngineState(), new import_obsidian13.Notice(`Restored ${path} \u2014 will sync on next push.`), refresh(), plugin.refreshSyncCenter();
+  plugin.syncEngine.ignoredFiles.remove(path), await plugin.persistEngineState(), new import_obsidian13.Notice(`Restored ${path} \u2014 will sync on next push.`), refresh();
 }
 var ACTIVITY_LIMIT = 50, ACTION_ICON = {
   push: "\u2191",
@@ -4334,35 +4334,6 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   }
 };
 
-// src/sync-center-view.ts
-var import_obsidian16 = require("obsidian");
-var SYNC_CENTER_VIEW_TYPE = "engram-sync-center", SyncCenterView = class extends import_obsidian16.ItemView {
-  constructor(leaf, plugin) {
-    super(leaf);
-    this.unsubscribeLog = null;
-    this.plugin = plugin;
-  }
-  getViewType() {
-    return SYNC_CENTER_VIEW_TYPE;
-  }
-  getDisplayText() {
-    return "Engram sync";
-  }
-  getIcon() {
-    return "refresh-cw";
-  }
-  async onOpen() {
-    this.contentEl.addClass("engram-sync-center"), this.render(), this.unsubscribeLog = this.plugin.syncLog.subscribe(() => this.render());
-  }
-  async onClose() {
-    var _a;
-    (_a = this.unsubscribeLog) == null || _a.call(this), this.unsubscribeLog = null, this.contentEl.empty();
-  }
-  render() {
-    renderSyncCenter(this.contentEl, this.plugin, () => this.render());
-  }
-};
-
 // src/types.ts
 var DEFAULT_SETTINGS = {
   apiUrl: "",
@@ -4467,14 +4438,14 @@ var SyncLog = class {
 };
 
 // src/sync-log-modal.ts
-var import_obsidian17 = require("obsidian"), ACTION_ICONS = {
+var import_obsidian16 = require("obsidian"), ACTION_ICONS = {
   push: "\u2191",
   pull: "\u2193",
   delete: "\u2715",
   conflict: "\u26A1",
   skip: "\u23ED",
   error: "\u2717"
-}, SyncLogModal = class extends import_obsidian17.Modal {
+}, SyncLogModal = class extends import_obsidian16.Modal {
   constructor(app, syncLog) {
     super(app), this.syncLog = syncLog;
   }
@@ -4511,10 +4482,10 @@ var import_obsidian17 = require("obsidian"), ACTION_ICONS = {
 
 // src/main.ts
 async function generateClientId(app) {
-  let adapter = app.vault.adapter, input = (adapter instanceof import_obsidian18.FileSystemAdapter ? adapter.getBasePath() : void 0) || app.vault.getName(), data = new TextEncoder().encode(input), hashBuffer = await crypto.subtle.digest("SHA-256", data), hashArray = new Uint8Array(hashBuffer);
+  let adapter = app.vault.adapter, input = (adapter instanceof import_obsidian17.FileSystemAdapter ? adapter.getBasePath() : void 0) || app.vault.getName(), data = new TextEncoder().encode(input), hashBuffer = await crypto.subtle.digest("SHA-256", data), hashArray = new Uint8Array(hashBuffer);
   return Array.from(hashArray).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
-var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin {
+var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin {
   constructor() {
     super(...arguments);
     this.settings = DEFAULT_SETTINGS;
@@ -4531,6 +4502,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
      *  connection state without requiring tab navigation. Single-slot. */
     this.onStatusBarChange = null;
     this.baseStore = null;
+    this.settingTab = null;
   }
   /** Whether the WebSocket channel is currently connected (for settings UI). */
   isLiveConnected() {
@@ -4543,23 +4515,23 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
     remoteLogger.configure(
       (entries) => this.api.pushLogs(entries),
       this.manifest.version,
-      import_obsidian18.Platform.isMobile ? "mobile" : "desktop"
+      import_obsidian17.Platform.isMobile ? "mobile" : "desktop"
     ), remoteLogger.setEnabled(this.settings.remoteLoggingEnabled), rlog().info(
       "lifecycle",
-      `Plugin loading | v${this.manifest.version} | ${import_obsidian18.Platform.isMobile ? "mobile" : "desktop"}`
+      `Plugin loading | v${this.manifest.version} | ${import_obsidian17.Platform.isMobile ? "mobile" : "desktop"}`
     ), this.syncEngine = new SyncEngine(this.app, this.api, this.settings, async (data) => {
       await this.savePluginData(data.lastSync);
     }), this.syncLog = new SyncLog(), this.syncEngine.syncLog = this.syncLog;
     let basesPath = `${this.manifest.dir}/sync-bases.json`;
     this.baseStore = new BaseStore(this.app.vault.adapter, basesPath), this.syncEngine.baseStore = this.baseStore, this.syncEngine.onStatusChange = (status) => {
-      this.updateStatusBar(status), this.refreshSyncCenter();
+      this.updateStatusBar(status);
     }, this.syncEngine.onConflict = async (info) => new ConflictModal(this.app, info, this.settings, (mode) => {
       this.settings.conflictViewMode = mode, this.saveSettings();
     }).waitForChoice(), this.syncEngine.queue.onPersist(async (entries) => {
       await this.savePluginData(this.syncEngine.getLastSync(), entries);
     });
     let saved = await this.loadData();
-    saved != null && saved.lastSync && this.syncEngine.setLastSync(saved.lastSync), (_a = saved == null ? void 0 : saved.offlineQueue) != null && _a.length && this.syncEngine.queue.load(saved.offlineQueue), saved != null && saved.syncState ? this.syncEngine.importSyncState(saved.syncState) : saved != null && saved.syncedHashes && (this.syncEngine.importHashes(saved.syncedHashes), devLog().log("lifecycle", "Migrated legacy syncedHashes \u2192 syncState")), this.syncEngine.issues.hydrate(saved == null ? void 0 : saved.syncIssues), this.syncEngine.ignoredFiles.hydrate(saved == null ? void 0 : saved.ignoredFiles), this.addSettingTab(new EngramSyncSettingTab(this.app, this)), this.registerEvent(
+    saved != null && saved.lastSync && this.syncEngine.setLastSync(saved.lastSync), (_a = saved == null ? void 0 : saved.offlineQueue) != null && _a.length && this.syncEngine.queue.load(saved.offlineQueue), saved != null && saved.syncState ? this.syncEngine.importSyncState(saved.syncState) : saved != null && saved.syncedHashes && (this.syncEngine.importHashes(saved.syncedHashes), devLog().log("lifecycle", "Migrated legacy syncedHashes \u2192 syncState")), this.syncEngine.issues.hydrate(saved == null ? void 0 : saved.syncIssues), this.syncEngine.ignoredFiles.hydrate(saved == null ? void 0 : saved.ignoredFiles), this.settingTab = new EngramSyncSettingTab(this.app, this), this.addSettingTab(this.settingTab), this.registerEvent(
       this.app.vault.on("modify", (file) => {
         this.syncEngine.handleModify(file);
       })
@@ -4578,44 +4550,44 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
       id: "sync-now",
       name: "Sync now",
       callback: async () => {
-        new import_obsidian18.Notice("Engram sync: syncing...");
+        new import_obsidian17.Notice("Engram sync: syncing...");
         let { pulled, pushed } = await this.syncEngine.fullSync();
-        new import_obsidian18.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+        new import_obsidian17.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
       }
     }), this.addCommand({
       id: "push-all",
       name: "Push entire vault",
       callback: async () => {
         let count = await this.syncEngine.pushAll();
-        new import_obsidian18.Notice(`Engram Sync: pushed ${count} files`);
+        new import_obsidian17.Notice(`Engram Sync: pushed ${count} files`);
       }
     }), this.addCommand({
       id: "check-sync",
       name: "Check sync status",
       callback: async () => {
-        new import_obsidian18.Notice("Engram sync: checking...");
+        new import_obsidian17.Notice("Engram sync: checking...");
         let result = await this.syncEngine.reconcile();
         if (!result) {
-          new import_obsidian18.Notice(
+          new import_obsidian17.Notice(
             "Engram sync: server does not support reconciliation (update backend)"
           );
           return;
         }
         let { missing, diverged, extraOnServer } = result;
         if (missing.length === 0 && diverged.length === 0 && extraOnServer.length === 0)
-          new import_obsidian18.Notice("Engram sync: everything in sync");
+          new import_obsidian17.Notice("Engram sync: everything in sync");
         else {
           let parts = [];
-          missing.length > 0 && parts.push(`${missing.length} missing on server`), diverged.length > 0 && parts.push(`${diverged.length} diverged`), extraOnServer.length > 0 && parts.push(`${extraOnServer.length} only on server`), new import_obsidian18.Notice(`Engram Sync: ${parts.join(", ")}`);
+          missing.length > 0 && parts.push(`${missing.length} missing on server`), diverged.length > 0 && parts.push(`${diverged.length} diverged`), extraOnServer.length > 0 && parts.push(`${extraOnServer.length} only on server`), new import_obsidian17.Notice(`Engram Sync: ${parts.join(", ")}`);
         }
       }
     }), this.addCommand({
       id: "pull-all",
       name: "Pull all from server (force overwrite)",
       callback: async () => {
-        new import_obsidian18.Notice("Engram sync: pulling all from server...");
+        new import_obsidian17.Notice("Engram sync: pulling all from server...");
         let count = await this.syncEngine.pullAll();
-        new import_obsidian18.Notice(`Engram Sync: pulled ${count} files from server`);
+        new import_obsidian17.Notice(`Engram Sync: pulled ${count} files from server`);
       }
     }), this.addCommand({
       id: "show-sync-log",
@@ -4649,23 +4621,21 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
       }
       let leaf = this.app.workspace.getRightLeaf(!1);
       leaf && (await leaf.setViewState({ type: SEARCH_VIEW_TYPE, active: !0 }), this.app.workspace.revealLeaf(leaf));
-    }), this.registerView(SYNC_CENTER_VIEW_TYPE, (leaf) => new SyncCenterView(leaf, this)), this.addCommand({
+    }), this.addCommand({
       id: "open-sync-center",
       name: "Open sync center",
-      callback: async () => {
-        await this.openSyncCenter();
+      callback: () => {
+        this.openSyncCenterSettings();
       }
-    }), this.addRibbonIcon("refresh-cw", "Engram sync center", async () => {
-      await this.openSyncCenter();
     }), this.startSyncInterval(), this.statusBarEl = this.addStatusBarItem(), this.statusBarEl.setText("Engram: ready"), this.statusBarEl.addClass("engram-status-bar-clickable"), this.registerDomEvent(this.statusBarEl, "click", () => {
-      this.settings.apiUrl && this.settings.apiKey && (new import_obsidian18.Notice("Engram sync: syncing..."), this.syncEngine.fullSync().then(({ pulled, pushed }) => {
-        new import_obsidian18.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+      this.settings.apiUrl && this.settings.apiKey && (new import_obsidian17.Notice("Engram sync: syncing..."), this.syncEngine.fullSync().then(({ pulled, pushed }) => {
+        new import_obsidian17.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
       }).catch((e) => {
         console.error("Engram Sync: manual sync failed", e), rlog().error(
           "lifecycle",
           `Manual sync failed: ${errMsg(e)}`,
           e instanceof Error ? e.stack : void 0
-        ), new import_obsidian18.Notice("Engram sync: sync failed");
+        ), new import_obsidian17.Notice("Engram sync: sync failed");
       }));
     }), this.setupNoteStream(), this.app.workspace.onLayoutReady(async () => {
       var _a2;
@@ -4716,7 +4686,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
       );
       return this.settings.vaultId = String(result.id), this.api.setVaultId(this.settings.vaultId), await this.saveSettings(), rlog().info("lifecycle", `Vault registered: id=${result.id} slug=${result.slug}`), !0;
     } catch (e) {
-      return typeof e == "object" && e !== null && e.status === 402 ? (new import_obsidian18.Notice("Engram: Upgrade to pro for multi-vault sync."), rlog().info("lifecycle", "Vault registration blocked \u2014 vault limit reached (402)"), !1) : (console.error("Engram Sync: vault registration failed", e), rlog().error("lifecycle", `Vault registration failed: ${errMsg(e)}`), !1);
+      return typeof e == "object" && e !== null && e.status === 402 ? (new import_obsidian17.Notice("Engram: Upgrade to pro for multi-vault sync."), rlog().info("lifecycle", "Vault registration blocked \u2014 vault limit reached (402)"), !1) : (console.error("Engram Sync: vault registration failed", e), rlog().error("lifecycle", `Vault registration failed: ${errMsg(e)}`), !1);
     }
   }
   async savePluginData(lastSync, offlineQueue) {
@@ -4735,7 +4705,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
     var _a;
     if (this.settings.refreshToken) {
       let refreshFn = async (token) => {
-        let base = this.settings.apiUrl.replace(/\/+$/, ""), apiUrl = base.endsWith("/api") ? base : `${base}/api`, resp = await (0, import_obsidian18.requestUrl)({
+        let base = this.settings.apiUrl.replace(/\/+$/, ""), apiUrl = base.endsWith("/api") ? base : `${base}/api`, resp = await (0, import_obsidian17.requestUrl)({
           url: `${apiUrl}/auth/token/refresh`,
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -4798,7 +4768,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
         });
       }, channel.onVaultDeleted = () => {
         var _a2;
-        new import_obsidian18.Notice("Engram: This vault has been deleted on the server."), rlog().info("lifecycle", "Vault deleted on server \u2014 clearing vaultId"), this.settings.vaultId = null, this.api.setVaultId(null), this.savePluginData(this.syncEngine.getLastSync()), (_a2 = this.noteStream) == null || _a2.disconnect();
+        new import_obsidian17.Notice("Engram: This vault has been deleted on the server."), rlog().info("lifecycle", "Vault deleted on server \u2014 clearing vaultId"), this.settings.vaultId = null, this.api.setVaultId(null), this.savePluginData(this.syncEngine.getLastSync()), (_a2 = this.noteStream) == null || _a2.disconnect();
       }, this.noteStream = channel, this.authProvider && this.noteStream.setAuthProvider(this.authProvider), channel.connect();
     }).catch((e) => {
       if (console.error("Engram Sync: failed to fetch user id for channel", e), rlog().error(
@@ -4817,17 +4787,17 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
       if (choice === "cancel")
         return;
       let pulled = await this.syncEngine.pull();
-      if (pulled > 0 && new import_obsidian18.Notice(`Engram Sync: pulled ${pulled} notes from server`), choice === "push-all") {
+      if (pulled > 0 && new import_obsidian17.Notice(`Engram Sync: pulled ${pulled} notes from server`), choice === "push-all") {
         let pushed = await this.syncEngine.pushAll();
-        new import_obsidian18.Notice(`Engram Sync: pushed ${pushed} files`);
+        new import_obsidian17.Notice(`Engram Sync: pushed ${pushed} files`);
       } else
-        new import_obsidian18.Notice("Engram sync: pull complete. Local notes were not pushed.");
+        new import_obsidian17.Notice("Engram sync: pull complete. Local notes were not pushed.");
     } else
       try {
         let { pulled, pushed } = await this.syncEngine.fullSync();
-        (pulled > 0 || pushed > 0) && new import_obsidian18.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+        (pulled > 0 || pushed > 0) && new import_obsidian17.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
       } catch (e) {
-        console.error("Engram Sync: sync failed", e), new import_obsidian18.Notice("Engram sync: sync failed \u2014 check connection");
+        console.error("Engram Sync: sync failed", e), new import_obsidian17.Notice("Engram sync: sync failed \u2014 check connection");
       }
   }
   /** Persist current sync engine state (issues, ignored files, etc.) to plugin
@@ -4836,23 +4806,12 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian18.Plugin
   async persistEngineState() {
     await this.savePluginData(this.syncEngine.getLastSync());
   }
-  /** Open the Sync Center pane in the right sidebar (or reveal it if already open). */
-  async openSyncCenter() {
-    let existing = this.app.workspace.getLeavesOfType(SYNC_CENTER_VIEW_TYPE);
-    if (existing[0]) {
-      this.app.workspace.revealLeaf(existing[0]);
-      return;
-    }
-    let leaf = this.app.workspace.getRightLeaf(!1);
-    leaf && (await leaf.setViewState({ type: SYNC_CENTER_VIEW_TYPE, active: !0 }), this.app.workspace.revealLeaf(leaf));
-  }
-  /** Re-render any open Sync Center view (no-op if not open). Safe to call
-   *  from any sync-state-change hook. */
-  refreshSyncCenter() {
-    for (let leaf of this.app.workspace.getLeavesOfType(SYNC_CENTER_VIEW_TYPE)) {
-      let view = leaf.view;
-      view instanceof SyncCenterView && view.render();
-    }
+  /** Open the plugin settings on the Sync Center tab. */
+  openSyncCenterSettings() {
+    var _a;
+    (_a = this.settingTab) == null || _a.setInitialTab("sync-center");
+    let setting = this.app.setting;
+    setting.open(), setting.openTabById(this.manifest.id);
   }
   /** Update status bar text and tooltip based on sync state + WebSocket connection. */
   updateStatusBar(status) {
@@ -4873,7 +4832,7 @@ Last sync: ${date.toLocaleString()}`;
       (async () => {
         try {
           let pulled = await this.syncEngine.pull();
-          pulled > 0 && new import_obsidian18.Notice(`Engram Sync: pulled ${pulled} changes`);
+          pulled > 0 && new import_obsidian17.Notice(`Engram Sync: pulled ${pulled} changes`);
         } catch (e) {
           console.error("Engram Sync: periodic pull failed", e);
         }
