@@ -17,7 +17,7 @@
  * Reference: https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines#Styling
  */
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const css = readFileSync(join(import.meta.dir, "..", "styles.css"), "utf8");
@@ -86,6 +86,58 @@ describe("styles.css — no `expression(` / `behavior:` (legacy IE hacks, never 
 
 	test("contains no `behavior:`", () => {
 		expect(cssNoComments.match(/(^|[;{\s])behavior\s*:/gi) ?? []).toEqual([]);
+	});
+});
+
+describe("styles.css — every .engram-* class is referenced in src/", () => {
+	// Catches the bug class we hit in v1.3.22→1.3.28: a CSS rule that no
+	// element matches because the class name was renamed in CSS, an ancestor
+	// scoping class was missing, or the rule was simply never wired up.
+	// When CSS is dead, another plugin coinstalled with the same prefix can
+	// silently mask the regression by providing the rule — exactly what
+	// happened with engram-sync / engram-vault-sync coexisting.
+
+	// Classes set on document.body in lifecycle hooks, not via cls:/addClass —
+	// the simple text-scan can't see them.
+	const LIFECYCLE_CLASSES = new Set<string>([
+		"engram-vault-sync-active",
+	]);
+
+	const srcDir = join(import.meta.dir, "..", "src");
+	const collectTs = (dir: string, out: string[] = []): string[] => {
+		for (const entry of readdirSync(dir)) {
+			const p = join(dir, entry);
+			if (statSync(p).isDirectory()) collectTs(p, out);
+			else if (entry.endsWith(".ts")) out.push(p);
+		}
+		return out;
+	};
+	const tsBlob = collectTs(srcDir).map((p) => readFileSync(p, "utf8")).join("\n");
+
+	// Literal tokens like "engram-diff-add" and template prefixes like
+	// `engram-diff-${...}` (the `engram-diff-` part is what we keep).
+	const tsLiterals = new Set<string>();
+	for (const m of tsBlob.matchAll(/engram-[a-zA-Z0-9_-]+/g)) {
+		tsLiterals.add(m[0]);
+	}
+	const tsPrefixes: string[] = [];
+	for (const m of tsBlob.matchAll(/engram-[a-zA-Z0-9_-]*-(?=\$\{)/g)) {
+		tsPrefixes.push(m[0]);
+	}
+
+	const cssClasses = new Set<string>();
+	for (const m of cssNoComments.matchAll(/\.(engram-[a-zA-Z0-9_-]+)/g)) {
+		cssClasses.add(m[1]);
+	}
+
+	test("no orphan .engram-* selectors in styles.css", () => {
+		const orphans = [...cssClasses].filter(
+			(c) =>
+				!LIFECYCLE_CLASSES.has(c) &&
+				!tsLiterals.has(c) &&
+				!tsPrefixes.some((p) => c.startsWith(p)),
+		);
+		expect(orphans).toEqual([]);
 	});
 });
 

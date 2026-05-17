@@ -86,6 +86,7 @@ export default class EngramSyncPlugin extends Plugin {
 		initDevLog();
 		devLog().log("lifecycle", "plugin loading");
 		rlog().info("lifecycle", `onload start — v${this.manifest.version}`);
+		document.body.classList.add("engram-vault-sync-active");
 		await this.loadSettings();
 
 		this.api = new EngramApi(this.settings.apiUrl, this.settings.apiKey);
@@ -376,6 +377,7 @@ export default class EngramSyncPlugin extends Plugin {
 	onunload(): void {
 		devLog().log("lifecycle", "plugin unloading");
 		rlog().info("lifecycle", "Plugin unloading");
+		document.body.classList.remove("engram-vault-sync-active");
 		// Best-effort save before teardown — hashes must be exported before destroy
 		void this.savePluginData(this.syncEngine.getLastSync());
 		this.baseStore?.prune();
