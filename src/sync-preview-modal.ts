@@ -158,7 +158,7 @@ const PULL_CARDS: OptionCard[] = [
 ];
 
 const HEADER_BY_CONTEXT: Record<SyncPreviewContext, string> = {
-	"first-time": "Set Up Sync For This Vault",
+	"first-time": "Set Up Sync for This Vault",
 	"vault-switch": "New Vault Detected",
 	review: "Sync Preview",
 };
@@ -183,6 +183,10 @@ export interface SyncPreviewOptions {
 	/** Persists a vault switch and returns the new SyncPlan so the modal can
 	 *  re-render in place. Required when showChangeVault is true. */
 	applyVaultChange?: (id: string, name: string) => Promise<SyncPlan>;
+	/** Initial view the modal opens on. Defaults to "preview". Set to
+	 *  "vault-picker" when the user entered the modal via a "Change vault"
+	 *  affordance on the settings page. */
+	initialView?: "preview" | "vault-picker";
 }
 
 export class SyncPreviewModal extends Modal {
@@ -208,7 +212,11 @@ export class SyncPreviewModal extends Modal {
 
 	onOpen(): void {
 		this.contentEl.addClass("engram-sync-preview-modal");
-		this.render();
+		if (this.opts.initialView === "vault-picker") {
+			void this.openVaultPicker();
+		} else {
+			this.render();
+		}
 	}
 
 	onClose(): void {

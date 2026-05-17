@@ -791,7 +791,7 @@ export default class EngramSyncPlugin extends Plugin {
 	/** Compute a sync plan and show SyncPreviewModal. Used after every
 	 *  saveSettings once auth + vault are configured. First-sync is just
 	 *  one case of the preview UX. */
-	async doSyncWithFirstSyncCheck(): Promise<void> {
+	async doSyncWithFirstSyncCheck(opts: { startInVaultPicker?: boolean } = {}): Promise<void> {
 		try {
 			const plan = await this.syncEngine.computeSyncPlan("full");
 			const context = this.derivePreviewContext();
@@ -799,6 +799,7 @@ export default class EngramSyncPlugin extends Plugin {
 				remoteVaultName: this.settings.remoteVaultName,
 				showChangeVault: true,
 				context,
+				initialView: opts.startInVaultPicker ? "vault-picker" : "preview",
 				listVaults: () => this.api.listVaults(),
 				applyVaultChange: async (id, name) => {
 					this.settings.vaultId = id;

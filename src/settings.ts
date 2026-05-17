@@ -191,7 +191,7 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 
 		if (dotState === "is-waiting") {
 			const openBtn = statusEl.createEl("button", {
-				cls: "engram-status-open-sync-btn",
+				cls: "engram-status-open-sync-btn mod-cta",
 				text: "Open sync setup",
 			});
 			openBtn.addEventListener("click", () => {

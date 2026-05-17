@@ -1,6 +1,5 @@
 import { Notice, Setting, setIcon } from "obsidian";
 import { applyApiUrlChange } from "../auth-state";
-import { VaultSwitchModal } from "../vault-switch-modal";
 import type { TabContext } from "./types";
 import { ENGRAM_CLOUD_URL } from "./urls";
 
@@ -169,10 +168,11 @@ export function renderAuthSection(ctx: TabContext): void {
  *  Two modes:
  *    - First-time (no vaultId): dropdown directly so the user can pick.
  *    - Locked-in (vaultId set): read-only "Vault Selection: <name>" + Change button
- *      that opens VaultSwitchModal. Vault switching is destructive (retargets
- *      sync at a different server vault), so it lives behind a confirm modal. */
+ *      that opens the SyncPreviewModal in vault-picker view. Switching is
+ *      destructive (retargets sync at a different server vault) so the preview
+ *      surfaces the new comparison numbers before the user picks a direction. */
 export function renderVaultSection(ctx: TabContext): void {
-	const { containerEl, app, plugin, redisplay } = ctx;
+	const { containerEl, plugin, redisplay } = ctx;
 
 	if (!plugin.settings.apiKey && !plugin.settings.refreshToken) return;
 
@@ -197,21 +197,8 @@ export function renderVaultSection(ctx: TabContext): void {
 		nameEl.setAttribute("title", `Vault id: ${currentId}`);
 
 		setting.addButton((btn) =>
-			btn.setButtonText("Change").onClick(async () => {
-				try {
-					const vaults = await plugin.api.listVaults();
-					const newId = await new VaultSwitchModal(
-						app,
-						vaults,
-						currentId,
-					).waitForChoice();
-					if (newId) {
-						const picked = vaults.find((v) => String(v.id) === newId);
-						if (await applyVaultSwitch(plugin, newId, picked?.name)) redisplay();
-					}
-				} catch (e: unknown) {
-					setting.controlEl.createSpan({ text: ` ${describeListVaultsError(e)}` });
-				}
+			btn.setButtonText("Change").onClick(() => {
+				void plugin.doSyncWithFirstSyncCheck({ startInVaultPicker: true });
 			}),
 		);
 		return;
@@ -274,16 +261,8 @@ export function renderVaultSection(ctx: TabContext): void {
 			nameEl.setAttribute("title", `Vault id: ${current.id}`);
 
 			setting.addButton((btn) =>
-				btn.setButtonText("Change").onClick(async () => {
-					const newId = await new VaultSwitchModal(
-						app,
-						vaults,
-						currentId,
-					).waitForChoice();
-					if (newId) {
-						const picked = vaults.find((v) => String(v.id) === newId);
-						if (await applyVaultSwitch(plugin, newId, picked?.name)) redisplay();
-					}
+				btn.setButtonText("Change").onClick(() => {
+					void plugin.doSyncWithFirstSyncCheck({ startInVaultPicker: true });
 				}),
 			);
 		})

@@ -607,46 +607,6 @@
 	margin-right: 0.75em;
 }
 
-.engram-vault-switch-warning {
-	display: flex;
-	gap: 0.75em;
-	align-items: flex-start;
-	background: var(--background-secondary);
-	border-left: 3px solid var(--text-warning);
-	border-radius: 4px;
-	padding: 0.75em 1em;
-	margin: 0.5em 0 1em;
-}
-
-.engram-vault-switch-icon {
-	font-size: 1.5em;
-	line-height: 1;
-	color: var(--text-warning);
-}
-
-.engram-vault-switch-warning p {
-	margin: 0 0 0.5em;
-}
-
-.engram-vault-switch-warning p:last-child {
-	margin-bottom: 0;
-	color: var(--text-muted);
-	font-size: 0.9em;
-}
-
-.engram-vault-switch-select {
-	width: 100%;
-	margin: 0.5em 0 1em;
-	padding: 0.5em;
-}
-
-.engram-button-row-end {
-	display: flex;
-	gap: 0.5em;
-	justify-content: flex-end;
-	margin-top: 1em;
-}
-
 .engram-status-time {
 	font-size: 0.85em;
 	color: var(--text-muted);
@@ -1199,7 +1159,7 @@
 
 /* SyncPreviewModal */
 .engram-sync-preview-modal .engram-sync-preview-header {
-	margin: 0 0 0.25em 0;
+	margin: 0 0 1em 0;
 	font-size: 1.4em;
 	font-weight: 600;
 }
