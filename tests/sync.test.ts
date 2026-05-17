@@ -2930,3 +2930,63 @@ describe("SyncEngine IssueStore integration", () => {
 		expect(engine.issues.count()).toBe(0);
 	});
 });
+
+describe("SyncEngine.pushAll with deleteRemoteExtras", () => {
+	test("keep-remote mode: pushes all local, never calls deleteNote", async () => {
+		const engine = createEngine();
+		const local = [new TFile("kept.md", Date.now()), new TFile("also.md", Date.now())];
+		(mockApp.vault.getFiles as jest.Mock).mockReturnValue(local);
+		(mockApp.vault.cachedRead as jest.Mock).mockResolvedValue("# Content");
+		(mockApi.ping as jest.Mock).mockResolvedValue({ ok: true });
+		(mockApi.pushNote as jest.Mock).mockResolvedValue({ note: {}, chunks_indexed: 1 });
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [{ path: "kept.md" }, { path: "also.md" }, { path: "remote-only.md" }],
+			attachments: [],
+		});
+
+		await engine.pushAll({ deleteRemoteExtras: false });
+
+		expect(mockApi.deleteNote).not.toHaveBeenCalled();
+	});
+
+	test("delete-remote mode: pushes all local AND deletes remote-only paths", async () => {
+		const engine = createEngine();
+		const local = [new TFile("kept.md", Date.now())];
+		(mockApp.vault.getFiles as jest.Mock).mockReturnValue(local);
+		(mockApp.vault.cachedRead as jest.Mock).mockResolvedValue("# Content");
+		(mockApi.ping as jest.Mock).mockResolvedValue({ ok: true });
+		(mockApi.pushNote as jest.Mock).mockResolvedValue({ note: {}, chunks_indexed: 1 });
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [
+				{ path: "kept.md" },
+				{ path: "remote-only-a.md" },
+				{ path: "remote-only-b.md" },
+			],
+			attachments: [{ path: "old.png" }],
+		});
+
+		await engine.pushAll({ deleteRemoteExtras: true });
+
+		expect(mockApi.deleteNote).toHaveBeenCalledTimes(2);
+		expect(mockApi.deleteNote).toHaveBeenCalledWith("remote-only-a.md");
+		expect(mockApi.deleteNote).toHaveBeenCalledWith("remote-only-b.md");
+		expect(mockApi.deleteAttachment).toHaveBeenCalledTimes(1);
+		expect(mockApi.deleteAttachment).toHaveBeenCalledWith("old.png");
+	});
+
+	test("backward compat: no opts = no deletions", async () => {
+		const engine = createEngine();
+		(mockApp.vault.getFiles as jest.Mock).mockReturnValue([new TFile("a.md", Date.now())]);
+		(mockApp.vault.cachedRead as jest.Mock).mockResolvedValue("# x");
+		(mockApi.ping as jest.Mock).mockResolvedValue({ ok: true });
+		(mockApi.pushNote as jest.Mock).mockResolvedValue({ note: {}, chunks_indexed: 1 });
+		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+			notes: [{ path: "a.md" }, { path: "remote.md" }],
+			attachments: [],
+		});
+
+		await engine.pushAll(); // no args
+
+		expect(mockApi.deleteNote).not.toHaveBeenCalled();
+	});
+});

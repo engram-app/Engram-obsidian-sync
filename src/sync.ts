@@ -1911,8 +1911,14 @@ export class SyncEngine {
 		};
 	}
 
-	/** Push ALL syncable files (initial import). */
-	async pushAll(): Promise<number> {
+	/** Push every local syncable file to the server.
+	 *
+	 *  @param opts.deleteRemoteExtras — if true, also delete any remote note or
+	 *    attachment that has no local counterpart. Used by the "Push all + delete
+	 *    remote extras" sync direction. Defaults to false (preserves existing
+	 *    behavior for callers that haven't migrated).
+	 */
+	async pushAll(opts: { deleteRemoteExtras?: boolean } = {}): Promise<number> {
 		this.syncLog?.clear();
 
 		// Verify auth before pushing to give a clear error on bad API key
@@ -2000,7 +2006,57 @@ export class SyncEngine {
 		// Persist all hashes accumulated during pushAll + reconcile
 		await this.saveData({ lastSync: this.lastSync });
 
+		if (opts.deleteRemoteExtras) {
+			await this.deleteRemoteExtras();
+		}
+
 		return pushed;
+	}
+
+	/** Delete every remote note + attachment whose path is not present locally.
+	 *  Called only when the user has explicitly picked "Push all + delete remote
+	 *  extras" — we trust the path comparison; no extra confirmation here. */
+	private async deleteRemoteExtras(): Promise<void> {
+		const manifest = await this.api.getManifest();
+		if (!manifest) {
+			rlog().warn("push", "deleteRemoteExtras skipped — backend has no /sync/manifest");
+			return;
+		}
+		const localFiles = this.app.vault.getFiles();
+		const localPaths = new Set(
+			localFiles
+				.filter((f) => this.isSyncable(f) && !this.shouldIgnore(f.path))
+				.map((f) => f.path),
+		);
+
+		const remoteOnlyNotes = manifest.notes
+			.map((n) => n.path)
+			.filter((p) => !localPaths.has(p));
+		const remoteOnlyAttachments = manifest.attachments
+			.map((a) => a.path)
+			.filter((p) => !localPaths.has(p));
+
+		rlog().info(
+			"push",
+			`deleteRemoteExtras — ${remoteOnlyNotes.length} notes, ${remoteOnlyAttachments.length} attachments`,
+		);
+
+		for (const path of remoteOnlyNotes) {
+			try {
+				await this.api.deleteNote(path);
+				this.logEntry("delete", path, "ok", undefined, "remote-extras");
+			} catch (e) {
+				this.logEntry("delete", path, "error", errMsg(e));
+			}
+		}
+		for (const path of remoteOnlyAttachments) {
+			try {
+				await this.api.deleteAttachment(path);
+				this.logEntry("delete", path, "ok", undefined, "remote-extras");
+			} catch (e) {
+				this.logEntry("delete", path, "error", errMsg(e));
+			}
+		}
 	}
 
 	/** Compute MD5 hex hash of a UTF-8 string using Web Crypto API. */
