@@ -1711,17 +1711,6 @@ export class SyncEngine {
 		return pushed;
 	}
 
-	/** Count files that would be synced (not ignored). */
-	countSyncableFiles(): number {
-		const files = this.app.vault.getFiles();
-		return files.filter((f: TFile) => this.isSyncable(f) && !this.shouldIgnore(f.path)).length;
-	}
-
-	/** Check if this is a first sync (no prior sync state). */
-	isFirstSync(): boolean {
-		return !this.lastSync;
-	}
-
 	/** Compute what a sync would do without executing it (dry-run preview).
 	 *
 	 *  mode:

@@ -640,7 +640,7 @@ export default class EngramSyncPlugin extends Plugin {
 	async runSyncFromChoice(choice: SyncChoice): Promise<boolean> {
 		switch (choice) {
 			case "cancel":
-			case "change-vault":
+			case "change-vault": // change-vault side effects are the caller's responsibility
 				return false;
 
 			case "smart-merge": {
@@ -676,9 +676,8 @@ export default class EngramSyncPlugin extends Plugin {
 	}
 
 	/** Compute a sync plan and show SyncPreviewModal. Used after every
-	 *  saveSettings once auth + vault are configured. Replaces the old
-	 *  isFirstSync()-only branch — first-sync is now just one case of the
-	 *  preview UX. */
+	 *  saveSettings once auth + vault are configured. First-sync is just
+	 *  one case of the preview UX. */
 	async doSyncWithFirstSyncCheck(): Promise<void> {
 		try {
 			const plan = await this.syncEngine.computeSyncPlan("full");

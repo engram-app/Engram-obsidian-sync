@@ -81,6 +81,11 @@ function renderActions(parent: HTMLElement, plugin: EngramSyncPlugin, refresh: (
 				showChangeVault: false,
 			});
 			const choice = await modal.awaitChoice();
+			// change-vault is unreachable here (showChangeVault: false), but assert in
+			// case a future caller flips that flag without updating this dispatch site.
+			if (choice === "change-vault") {
+				throw new Error("Sync Center received change-vault choice — caller missing");
+			}
 			await plugin.runSyncFromChoice(choice);
 		} catch (e) {
 			new Notice(`Engram Sync: ${e instanceof Error ? e.message : "sync failed"}`);

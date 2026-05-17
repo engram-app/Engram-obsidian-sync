@@ -637,54 +637,6 @@ describe("SyncEngine.pull (fresh install)", () => {
 	});
 });
 
-describe("SyncEngine.isFirstSync", () => {
-	test("returns true when no lastSync is set", () => {
-		const engine = createEngine();
-		expect(engine.isFirstSync()).toBe(true);
-	});
-
-	test("returns false after setLastSync", () => {
-		const engine = createEngine();
-		engine.setLastSync("2026-01-01T00:00:00Z");
-		expect(engine.isFirstSync()).toBe(false);
-	});
-
-	test("returns false after a pull sets lastSync", async () => {
-		const engine = createEngine();
-
-		(mockApi.getChanges as jest.Mock).mockResolvedValueOnce({
-			changes: [],
-			server_time: "2026-03-01T00:00:00Z",
-		});
-
-		await engine.pull();
-		expect(engine.isFirstSync()).toBe(false);
-	});
-});
-
-describe("SyncEngine.countSyncableFiles", () => {
-	test("counts syncable files excluding ignored paths", () => {
-		(mockApp.vault.getFiles as jest.Mock).mockReturnValueOnce([
-			new TFile("Notes/A.md"),
-			new TFile("Notes/B.md"),
-			new TFile(".obsidian/plugins.md"),
-			new TFile("Drafts/C.md"),
-			new TFile("Assets/image.png"),
-			new TFile("data.json"),
-		]);
-
-		const engine = createEngine({ ignorePatterns: "Drafts/" });
-		// A.md, B.md, image.png — .obsidian hardcoded, Drafts/ user-defined, data.json not syncable
-		expect(engine.countSyncableFiles()).toBe(3);
-	});
-
-	test("returns 0 for empty vault", () => {
-		(mockApp.vault.getFiles as jest.Mock).mockReturnValueOnce([]);
-		const engine = createEngine();
-		expect(engine.countSyncableFiles()).toBe(0);
-	});
-});
-
 describe("SyncEngine.getStatus + onStatusChange", () => {
 	test("initial status is idle with no pending", () => {
 		const engine = createEngine();

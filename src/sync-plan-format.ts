@@ -18,8 +18,7 @@ export function isPlanEmpty(plan: SyncPlan): boolean {
 	);
 }
 
-/** Single-string newline-joined summary. Kept for compatibility with the
- *  prior text-based modal renderer and any callers that log the summary. */
+/** Single-string newline-joined summary. Kept for testability and future use. */
 export function formatPlanSummary(plan: SyncPlan): string {
 	const lines: string[] = [];
 	lines.push(`Vault: ${plan.vaultName}`);

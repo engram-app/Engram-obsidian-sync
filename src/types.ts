@@ -304,9 +304,6 @@ export interface SyncPlan {
 	toDeleteRemote: string[];
 }
 
-/** Result of the pre-sync modal for pull operations. */
-export type PullAction = "pull" | "wipe-pull" | "cancel";
-
 export interface SyncProgress {
 	phase: "deleting" | "pushing" | "pulling" | "attachments" | "complete";
 	current: number;
