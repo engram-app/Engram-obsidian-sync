@@ -1409,6 +1409,43 @@
 	font-weight: 600;
 }
 
+.engram-sync-preview-tree-caption {
+	margin: 1em 0 0.35em 0;
+	font-weight: 600;
+}
+
+.engram-sync-preview-tree {
+	background: var(--code-background, var(--background-secondary));
+	border-radius: 6px;
+	padding: 0.5em 0.75em;
+	margin: 0 0 1em 0;
+	max-height: 260px;
+	overflow-y: auto;
+	font-family: var(--font-monospace);
+	font-size: 0.85em;
+	line-height: 1.45;
+	white-space: pre;
+}
+
+.engram-sync-preview-tree code {
+	background: transparent;
+	padding: 0;
+	display: block;
+}
+
+.engram-sync-preview-tree-row {
+	white-space: pre;
+}
+
+.engram-sync-preview-tree-folder {
+	color: var(--text-normal);
+	font-weight: 600;
+}
+
+.engram-sync-preview-tree-file {
+	color: var(--text-error);
+}
+
 .engram-sync-preview-confirm-input {
 	width: 100%;
 	padding: 0.4em;

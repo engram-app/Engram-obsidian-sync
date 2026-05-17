@@ -2297,6 +2297,19 @@ function computeMatchPercent(plan) {
 function samplePaths(paths, limit) {
   return paths.slice(0, limit);
 }
+function buildDeletionTree(paths) {
+  var _a, _b;
+  let sorted = [...paths].sort(), rows = [], emittedFolders = /* @__PURE__ */ new Set();
+  for (let path of sorted) {
+    let parts = path.split("/"), folders = parts.slice(0, -1), file = (_a = parts[parts.length - 1]) != null ? _a : "", prefix = "";
+    for (let i = 0; i < folders.length; i++) {
+      let folder = (_b = folders[i]) != null ? _b : "";
+      prefix = prefix ? `${prefix}/${folder}` : folder, emittedFolders.has(prefix) || (emittedFolders.add(prefix), rows.push({ kind: "folder", depth: i, label: `${folder}/` }));
+    }
+    rows.push({ kind: "file", depth: folders.length, label: file });
+  }
+  return rows;
+}
 function isDestructiveChoice(choice) {
   return DESTRUCTIVE_CHOICES.has(choice);
 }
@@ -2613,18 +2626,19 @@ var SyncPreviewState = class {
   renderConfirm() {
     let { contentEl } = this, choice = this.state.pendingChoice;
     if (choice == null) return;
-    contentEl.createEl("h2", { text: "Confirm destructive sync" });
+    contentEl.createEl("h2", {
+      text: "Confirm Destructive Sync",
+      cls: "engram-sync-preview-header"
+    });
     let b = optionBreakdown(this.state.plan, choice), summary = contentEl.createDiv({ cls: "engram-sync-preview-confirm-summary" });
     summary.createEl("p", { text: "You are about to:" });
     let ul = summary.createEl("ul");
-    if (b.deleteLocalCount > 0 && ul.createEl("li", { text: `Delete ${b.deleteLocalCount} local files` }), b.deleteRemoteCount > 0 && ul.createEl("li", { text: `Delete ${b.deleteRemoteCount} remote files` }), b.pullCount > 0 && ul.createEl("li", { text: `Download ${b.pullCount} files from server` }), b.pushCount > 0 && ul.createEl("li", { text: `Upload ${b.pushCount} files to server` }), b.samplePaths.length > 0) {
-      let sample = contentEl.createDiv({ cls: "engram-sync-preview-confirm-sample" });
-      sample.createEl("p", { text: "Sample of what gets deleted:" });
-      let sampleUl = sample.createEl("ul");
-      for (let p of b.samplePaths)
-        sampleUl.createEl("li", { text: p });
-    }
-    contentEl.createEl("p", {
+    b.deleteLocalCount > 0 && ul.createEl("li", { text: `Delete ${b.deleteLocalCount} local files` }), b.deleteRemoteCount > 0 && ul.createEl("li", { text: `Delete ${b.deleteRemoteCount} remote files` }), b.pullCount > 0 && ul.createEl("li", { text: `Download ${b.pullCount} files from server` }), b.pushCount > 0 && ul.createEl("li", { text: `Upload ${b.pushCount} files to server` });
+    let deletePaths = this.deletePathsFor(choice);
+    deletePaths.length > 0 && (contentEl.createEl("p", {
+      text: "Files marked for deletion:",
+      cls: "engram-sync-preview-tree-caption"
+    }), this.renderDeletionTree(contentEl, deletePaths)), contentEl.createEl("p", {
       cls: "engram-sync-preview-warning",
       text: "This cannot be undone."
     }), contentEl.createEl("p", { text: "Type DELETE to confirm:" });
@@ -2694,6 +2708,17 @@ var SyncPreviewState = class {
       }
       this.render();
     }
+  }
+  deletePathsFor(choice) {
+    let plan = this.state.plan;
+    return choice === "pull-all-delete-local" ? [...plan.toPush.notes, ...plan.toPush.attachments] : choice === "push-all-delete-remote" ? [...plan.toPull.notes, ...plan.toPull.attachments] : [];
+  }
+  renderDeletionTree(parent, paths) {
+    let code = parent.createEl("pre", { cls: "engram-sync-preview-tree" }).createEl("code"), rows = buildDeletionTree(paths);
+    for (let row of rows)
+      code.createDiv({
+        cls: row.kind === "folder" ? "engram-sync-preview-tree-row engram-sync-preview-tree-folder" : "engram-sync-preview-tree-row engram-sync-preview-tree-file"
+      }).setText(`${"  ".repeat(row.depth)}${row.label}`);
   }
   async applyPickedVault(v) {
     if (this.opts.applyVaultChange) {

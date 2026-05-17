@@ -62,6 +62,44 @@ export function samplePaths(paths: string[], limit: number): string[] {
 	return paths.slice(0, limit);
 }
 
+export type DeletionTreeRow =
+	| { kind: "folder"; depth: number; label: string }
+	| { kind: "file"; depth: number; label: string };
+
+/** Build a folder/file tree from a flat list of vault paths. Folders are
+ *  emitted once even when they contain multiple deleted files, so the result
+ *  reads like an indented directory listing rather than a wall of repeats.
+ *
+ *  Each file row is rendered as the leaf name (e.g. "scratch.md") at the
+ *  depth of its parent directory plus one. Folder rows are rendered as the
+ *  directory name with a trailing slash. The output preserves the input's
+ *  natural sort order so callers don't need to pre-sort. */
+export function buildDeletionTree(paths: string[]): DeletionTreeRow[] {
+	const sorted = [...paths].sort();
+	const rows: DeletionTreeRow[] = [];
+	const emittedFolders = new Set<string>();
+
+	for (const path of sorted) {
+		const parts = path.split("/");
+		const folders = parts.slice(0, -1);
+		const file = parts[parts.length - 1] ?? "";
+
+		let prefix = "";
+		for (let i = 0; i < folders.length; i++) {
+			const folder = folders[i] ?? "";
+			prefix = prefix ? `${prefix}/${folder}` : folder;
+			if (!emittedFolders.has(prefix)) {
+				emittedFolders.add(prefix);
+				rows.push({ kind: "folder", depth: i, label: `${folder}/` });
+			}
+		}
+
+		rows.push({ kind: "file", depth: folders.length, label: file });
+	}
+
+	return rows;
+}
+
 /** True for choices that bulk-delete data on either side. Drives the
  *  typed-DELETE confirm gate in the modal. */
 export function isDestructiveChoice(choice: SyncChoice): boolean {

@@ -1,6 +1,7 @@
 import { type App, Modal } from "obsidian";
 import {
 	type OptionBreakdown,
+	buildDeletionTree,
 	computeMatchPercent,
 	isDestructiveChoice,
 	isPlanEmpty,
@@ -431,9 +432,12 @@ export class SyncPreviewModal extends Modal {
 		const choice = this.state.pendingChoice;
 		if (choice == null) return;
 
-		contentEl.createEl("h2", { text: "Confirm destructive sync" });
+		contentEl.createEl("h2", {
+			text: "Confirm Destructive Sync",
+			cls: "engram-sync-preview-header",
+		});
 
-		const b = optionBreakdown(this.state.plan,choice);
+		const b = optionBreakdown(this.state.plan, choice);
 		const summary = contentEl.createDiv({ cls: "engram-sync-preview-confirm-summary" });
 		summary.createEl("p", { text: "You are about to:" });
 		const ul = summary.createEl("ul");
@@ -450,13 +454,13 @@ export class SyncPreviewModal extends Modal {
 			ul.createEl("li", { text: `Upload ${b.pushCount} files to server` });
 		}
 
-		if (b.samplePaths.length > 0) {
-			const sample = contentEl.createDiv({ cls: "engram-sync-preview-confirm-sample" });
-			sample.createEl("p", { text: "Sample of what gets deleted:" });
-			const sampleUl = sample.createEl("ul");
-			for (const p of b.samplePaths) {
-				sampleUl.createEl("li", { text: p });
-			}
+		const deletePaths = this.deletePathsFor(choice);
+		if (deletePaths.length > 0) {
+			contentEl.createEl("p", {
+				text: "Files marked for deletion:",
+				cls: "engram-sync-preview-tree-caption",
+			});
+			this.renderDeletionTree(contentEl, deletePaths);
 		}
 
 		contentEl.createEl("p", {
@@ -556,6 +560,32 @@ export class SyncPreviewModal extends Modal {
 			this.state.onVaultsError(msg);
 		}
 		this.render();
+	}
+
+	private deletePathsFor(choice: SyncChoice): string[] {
+		const plan = this.state.plan;
+		if (choice === "pull-all-delete-local") {
+			return [...plan.toPush.notes, ...plan.toPush.attachments];
+		}
+		if (choice === "push-all-delete-remote") {
+			return [...plan.toPull.notes, ...plan.toPull.attachments];
+		}
+		return [];
+	}
+
+	private renderDeletionTree(parent: HTMLElement, paths: string[]): void {
+		const pre = parent.createEl("pre", { cls: "engram-sync-preview-tree" });
+		const code = pre.createEl("code");
+		const rows = buildDeletionTree(paths);
+		for (const row of rows) {
+			const line = code.createDiv({
+				cls:
+					row.kind === "folder"
+						? "engram-sync-preview-tree-row engram-sync-preview-tree-folder"
+						: "engram-sync-preview-tree-row engram-sync-preview-tree-file",
+			});
+			line.setText(`${"  ".repeat(row.depth)}${row.label}`);
+		}
 	}
 
 	private async applyPickedVault(v: VaultInfo): Promise<void> {

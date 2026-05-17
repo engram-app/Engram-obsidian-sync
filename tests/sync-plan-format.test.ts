@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	buildDeletionTree,
 	computeMatchPercent,
 	formatPlanSummary,
 	isDestructiveChoice,
@@ -183,5 +184,43 @@ describe("optionBreakdown", () => {
 		expect(b.deleteLocalCount).toBe(0);
 		expect(b.deleteRemoteCount).toBe(0);
 		expect(b.samplePaths).toEqual([]);
+	});
+});
+
+describe("buildDeletionTree", () => {
+	test("empty input yields no rows", () => {
+		expect(buildDeletionTree([])).toEqual([]);
+	});
+
+	test("single root file is a file row at depth 0", () => {
+		expect(buildDeletionTree(["scratch.md"])).toEqual([
+			{ kind: "file", depth: 0, label: "scratch.md" },
+		]);
+	});
+
+	test("emits each parent folder once for siblings", () => {
+		const rows = buildDeletionTree([
+			"daily/2024-01-01.md",
+			"daily/2024-01-02.md",
+			"inbox/note.md",
+		]);
+		expect(rows).toEqual([
+			{ kind: "folder", depth: 0, label: "daily/" },
+			{ kind: "file", depth: 1, label: "2024-01-01.md" },
+			{ kind: "file", depth: 1, label: "2024-01-02.md" },
+			{ kind: "folder", depth: 0, label: "inbox/" },
+			{ kind: "file", depth: 1, label: "note.md" },
+		]);
+	});
+
+	test("nested folders indent by depth", () => {
+		const rows = buildDeletionTree(["a/b/c/leaf.md", "a/b/sibling.md"]);
+		expect(rows).toEqual([
+			{ kind: "folder", depth: 0, label: "a/" },
+			{ kind: "folder", depth: 1, label: "b/" },
+			{ kind: "folder", depth: 2, label: "c/" },
+			{ kind: "file", depth: 3, label: "leaf.md" },
+			{ kind: "file", depth: 2, label: "sibling.md" },
+		]);
 	});
 });
