@@ -1186,3 +1186,88 @@
 	font-weight: 600;
 	margin-top: 2px;
 }
+
+/* SyncPreviewModal */
+.engram-sync-preview-modal h2 {
+	margin-top: 0;
+}
+
+.engram-sync-preview-identity {
+	font-size: 0.9em;
+	color: var(--text-muted);
+	margin-bottom: 0.75em;
+}
+
+.engram-sync-preview-vault-name { }
+
+.engram-sync-preview-server-url { }
+
+.engram-sync-preview-stats {
+	background: var(--background-secondary);
+	padding: 0.5em 0.75em;
+	border-radius: 4px;
+	margin-bottom: 1em;
+}
+
+.engram-sync-preview-stats p {
+	margin: 0.2em 0;
+}
+
+.engram-sync-preview-options {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75em;
+}
+
+.engram-sync-preview-option {
+	width: 100%;
+	text-align: left;
+}
+
+.engram-sync-preview-option-subtitle {
+	margin: 0.2em 0 0.5em 0;
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.engram-sync-preview-no-sample { }
+
+.engram-sync-preview-destructive {
+	background: var(--background-modifier-error);
+	color: var(--text-on-accent);
+}
+
+.engram-sync-preview-sample summary {
+	cursor: pointer;
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.engram-sync-preview-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5em;
+	margin-top: 1.5em;
+}
+
+.engram-sync-preview-warning {
+	color: var(--text-error);
+	font-weight: 600;
+}
+
+.engram-sync-preview-confirm-summary { }
+
+.engram-sync-preview-confirm-sample { }
+
+.engram-sync-preview-confirm-input {
+	width: 100%;
+	padding: 0.4em;
+	font-family: monospace;
+}
+
+.engram-sync-preview-confirm-btn { }
+
+.engram-sync-preview-uptodate {
+	color: var(--text-success, var(--text-accent));
+	font-style: italic;
+}
