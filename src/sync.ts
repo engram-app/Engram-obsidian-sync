@@ -119,6 +119,11 @@ export class SyncEngine {
 	private offline = false;
 	private healthCheckTimer: number | null = null;
 	private ready = false;
+	/** When true, all sync actions (file events, stream events, bulk methods)
+	 *  short-circuit to a no-op. Controlled by the plugin layer based on
+	 *  whether the user has accepted a sync direction in SyncPreviewModal for
+	 *  the current auth+vault fingerprint. */
+	private syncBlocked = false;
 	private activePushCount = 0;
 	private maxConcurrentPushes = 5;
 	private pushWaiters: (() => void)[] = [];
@@ -178,6 +183,15 @@ export class SyncEngine {
 		this.ready = true;
 		devLog().log("lifecycle", "setReady — event handlers enabled");
 		rlog().info("lifecycle", "Engine ready — event handlers enabled");
+	}
+
+	setSyncBlocked(blocked: boolean): void {
+		this.syncBlocked = blocked;
+		devLog().log("lifecycle", `setSyncBlocked(${blocked})`);
+	}
+
+	isSyncBlocked(): boolean {
+		return this.syncBlocked;
 	}
 
 	setLastSync(timestamp: string): void {
@@ -314,6 +328,10 @@ export class SyncEngine {
 
 	/** Handle a vault modify/create event with debounce. */
 	handleModify(file: TAbstractFile): void {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "handleModify short-circuited — gate closed");
+			return;
+		}
 		if (!this.ready) return;
 		if (!this.isSyncable(file)) return;
 		if (this.shouldIgnore(file.path)) return;
@@ -342,6 +360,10 @@ export class SyncEngine {
 
 	/** Handle a vault delete event. */
 	async handleDelete(file: TAbstractFile): Promise<void> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "handleDelete short-circuited — gate closed");
+			return;
+		}
 		if (!this.ready) return;
 		if (this.suppressDeletes) return;
 		if (!this.isSyncable(file)) return;
@@ -383,6 +405,10 @@ export class SyncEngine {
 
 	/** Handle a vault rename event. */
 	async handleRename(file: TAbstractFile, oldPath: string): Promise<void> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "handleRename short-circuited — gate closed");
+			return;
+		}
 		if (!this.ready) return;
 		if (!this.isSyncable(file)) return;
 
@@ -772,6 +798,10 @@ export class SyncEngine {
 
 	/** Pull remote changes and apply to vault. */
 	async pull(): Promise<number> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "pull short-circuited — gate closed");
+			return 0;
+		}
 		if (this.pulling) return 0;
 		if (!this.lastSync) {
 			// First sync — use epoch
@@ -888,6 +918,10 @@ export class SyncEngine {
 	 *    remote counterpart before pulling.
 	 */
 	async pullAll(opts: { deleteLocalExtras?: boolean } = {}): Promise<number> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "pullAll short-circuited — gate closed");
+			return 0;
+		}
 		return this._pullAll(opts.deleteLocalExtras ?? false);
 	}
 
@@ -1149,6 +1183,10 @@ export class SyncEngine {
 
 	/** Handle a WebSocket stream event (upsert or delete). */
 	async handleStreamEvent(event: NoteStreamEvent): Promise<void> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "handleStreamEvent short-circuited — gate closed");
+			return;
+		}
 		if (this.shouldIgnore(event.path)) return;
 		devLog().log("ws", `${event.event_type} ${event.kind ?? "note"}: ${event.path}`);
 		rlog().info("ws", `Event: ${event.event_type} ${event.kind ?? "note"}: ${event.path}`);
@@ -1652,6 +1690,10 @@ export class SyncEngine {
 
 	/** Full bidirectional sync: pull remote changes, then push local changes. */
 	async fullSync(): Promise<{ pulled: number; pushed: number }> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "fullSync short-circuited — gate closed");
+			return { pulled: 0, pushed: 0 };
+		}
 		devLog().log("lifecycle", "fullSync start");
 		rlog().info("lifecycle", "FullSync started");
 		// Verify auth before syncing to give a clear error on bad API key
@@ -1909,6 +1951,10 @@ export class SyncEngine {
 	 *    behavior for callers that haven't migrated).
 	 */
 	async pushAll(opts: { deleteRemoteExtras?: boolean } = {}): Promise<number> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "pushAll short-circuited — gate closed");
+			return 0;
+		}
 		this.syncLog?.clear();
 
 		// Verify auth before pushing to give a clear error on bad API key
