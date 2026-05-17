@@ -17,7 +17,7 @@
  * Reference: https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines#Styling
  */
 import { describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const css = readFileSync(join(import.meta.dir, "..", "styles.css"), "utf8");
@@ -99,9 +99,7 @@ describe("styles.css — every .engram-* class is referenced in src/", () => {
 
 	// Classes set on document.body in lifecycle hooks, not via cls:/addClass —
 	// the simple text-scan can't see them.
-	const LIFECYCLE_CLASSES = new Set<string>([
-		"engram-vault-sync-active",
-	]);
+	const LIFECYCLE_CLASSES = new Set<string>(["engram-vault-sync-active"]);
 
 	const srcDir = join(import.meta.dir, "..", "src");
 	const collectTs = (dir: string, out: string[] = []): string[] => {
@@ -112,7 +110,9 @@ describe("styles.css — every .engram-* class is referenced in src/", () => {
 		}
 		return out;
 	};
-	const tsBlob = collectTs(srcDir).map((p) => readFileSync(p, "utf8")).join("\n");
+	const tsBlob = collectTs(srcDir)
+		.map((p) => readFileSync(p, "utf8"))
+		.join("\n");
 
 	// Literal tokens like "engram-diff-add" and template prefixes like
 	// `engram-diff-${...}` (the `engram-diff-` part is what we keep).
