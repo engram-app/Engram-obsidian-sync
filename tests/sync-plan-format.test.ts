@@ -169,4 +169,14 @@ describe("optionBreakdown", () => {
 		const b = optionBreakdown(big, "pull-all-delete-local");
 		expect(b.samplePaths).toEqual(["a.md", "b.md", "c.md", "d.md", "e.md"]);
 	});
+
+	test("change-vault: all-zero breakdown with empty samplePaths", () => {
+		const b = optionBreakdown(plan, "change-vault");
+		expect(b.pullCount).toBe(0);
+		expect(b.pushCount).toBe(0);
+		expect(b.conflictCount).toBe(0);
+		expect(b.deleteLocalCount).toBe(0);
+		expect(b.deleteRemoteCount).toBe(0);
+		expect(b.samplePaths).toEqual([]);
+	});
 });

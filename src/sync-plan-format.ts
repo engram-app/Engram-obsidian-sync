@@ -52,11 +52,8 @@ export function computeMatchPercent(plan: SyncPlan): number {
 	if (local === 0 && remote === 0) return 100;
 
 	const localOnly = plan.toPush.notes.length;
-	const localShared = Math.max(0, local - localOnly);
-	const remoteOnly = Math.max(0, remote - localShared);
-	const intersection = Math.min(localShared, remote);
-	const union = local + remoteOnly;
-
+	const intersection = Math.max(0, local - localOnly); // notes present on both sides
+	const union = local + Math.max(0, remote - intersection);
 	if (union === 0) return 100;
 	return Math.round((intersection / union) * 100);
 }
