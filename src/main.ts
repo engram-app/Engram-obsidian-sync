@@ -26,9 +26,9 @@ import {
 import { BaseStore } from "./base-store";
 import { destroyDevLog, devLog, initDevLog } from "./dev-log";
 import { destroyRemoteLog, initRemoteLog, rlog } from "./remote-log";
+import { computeSyncFingerprint } from "./sync-fingerprint";
 import { SyncLog } from "./sync-log";
 import { SyncLogModal } from "./sync-log-modal";
-import { computeSyncFingerprint } from "./sync-fingerprint";
 import type { QueueEntry, SyncChoice, SyncIssue } from "./types";
 
 /** Generate a stable client ID for vault registration.
@@ -461,7 +461,10 @@ export default class EngramSyncPlugin extends Plugin {
 					} catch (e) {
 						// biome-ignore lint/suspicious/noConsole: error boundary
 						console.error("Engram Sync: sync after settings change failed", e);
-						rlog().error("lifecycle", `Sync after settings change failed: ${errMsg(e)}`);
+						rlog().error(
+							"lifecycle",
+							`Sync after settings change failed: ${errMsg(e)}`,
+						);
 					}
 				})
 				.catch((e) => {

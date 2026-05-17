@@ -4600,6 +4600,14 @@ var BaseStore = class {
   }
 };
 
+// src/sync-fingerprint.ts
+async function computeSyncFingerprint(settings) {
+  let authPart = settings.refreshToken || settings.apiKey || "", vaultPart = settings.vaultId || "", input = `${authPart}|${vaultPart}`;
+  if (input === "|") return "";
+  let data = new TextEncoder().encode(input), hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 // src/sync-log.ts
 var SyncLog = class {
   constructor(capacity = 500) {
@@ -4673,14 +4681,6 @@ var import_obsidian16 = require("obsidian"), ACTION_ICONS = {
     this.contentEl.empty();
   }
 };
-
-// src/sync-fingerprint.ts
-async function computeSyncFingerprint(settings) {
-  let authPart = settings.refreshToken || settings.apiKey || "", vaultPart = settings.vaultId || "", input = `${authPart}|${vaultPart}`;
-  if (input === "|") return "";
-  let data = new TextEncoder().encode(input), hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 // src/main.ts
 async function generateClientId(app) {
@@ -4833,15 +4833,21 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
         this.openSyncCenterSettings();
       }
     }), this.startSyncInterval(), this.statusBarEl = this.addStatusBarItem(), this.statusBarEl.setText("Engram: ready"), this.statusBarEl.addClass("engram-status-bar-clickable"), this.registerDomEvent(this.statusBarEl, "click", () => {
-      this.settings.apiUrl && this.settings.apiKey && (new import_obsidian17.Notice("Engram sync: syncing..."), this.syncEngine.fullSync().then(({ pulled, pushed }) => {
-        new import_obsidian17.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
-      }).catch((e) => {
-        console.error("Engram Sync: manual sync failed", e), rlog().error(
-          "lifecycle",
-          `Manual sync failed: ${errMsg(e)}`,
-          e instanceof Error ? e.stack : void 0
-        ), new import_obsidian17.Notice("Engram sync: sync failed");
-      }));
+      if (!(!this.settings.apiUrl || !this.settings.apiKey)) {
+        if (this.syncEngine.isSyncBlocked()) {
+          this.doSyncWithFirstSyncCheck();
+          return;
+        }
+        new import_obsidian17.Notice("Engram sync: syncing..."), this.syncEngine.fullSync().then(({ pulled, pushed }) => {
+          new import_obsidian17.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+        }).catch((e) => {
+          console.error("Engram Sync: manual sync failed", e), rlog().error(
+            "lifecycle",
+            `Manual sync failed: ${errMsg(e)}`,
+            e instanceof Error ? e.stack : void 0
+          ), new import_obsidian17.Notice("Engram sync: sync failed");
+        });
+      }
     }), this.setupNoteStream(), this.app.workspace.onLayoutReady(async () => {
       var _a2;
       devLog().log("lifecycle", "layout ready \u2014 starting initial sync"), rlog().info("lifecycle", "Layout ready \u2014 starting initial sync"), this.registerEvent(
@@ -4888,7 +4894,10 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
         let { pulled, pushed } = await this.syncEngine.fullSync();
         (pulled > 0 || pushed > 0) && new import_obsidian17.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
       } catch (e) {
-        console.error("Engram Sync: sync after settings change failed", e), rlog().error("lifecycle", `Sync after settings change failed: ${errMsg(e)}`);
+        console.error("Engram Sync: sync after settings change failed", e), rlog().error(
+          "lifecycle",
+          `Sync after settings change failed: ${errMsg(e)}`
+        );
       }
     }).catch((e) => {
       console.error("Engram Sync: sync after settings change failed", e), rlog().error("lifecycle", `Sync after settings change failed: ${errMsg(e)}`);
@@ -5050,7 +5059,14 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
    *  unblocks the engine. */
   async markSyncGateAccepted() {
     let fp = await computeSyncFingerprint(this.settings);
-    fp !== "" && (this.syncGateAcceptedFor = fp, this.syncEngine.setSyncBlocked(!1), await this.savePluginData(this.syncEngine.getLastSync()), this.updateStatusBar(this.syncEngine.getStatus()));
+    if (fp === "") {
+      rlog().warn(
+        "lifecycle",
+        "markSyncGateAccepted called with empty fingerprint \u2014 auth or vault not configured"
+      );
+      return;
+    }
+    this.syncGateAcceptedFor = fp, this.syncEngine.setSyncBlocked(!1), await this.savePluginData(this.syncEngine.getLastSync()), this.updateStatusBar(this.syncEngine.getStatus());
   }
   /** Compute a sync plan and show SyncPreviewModal. Used after every
    *  saveSettings once auth + vault are configured. First-sync is just
@@ -5087,17 +5103,17 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
   }
   /** Update status bar text and tooltip based on sync state + WebSocket connection. */
   updateStatusBar(status) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e;
     if (!this.statusBarEl) return;
-    let text, tooltip;
-    status.state === "offline" ? (text = status.queued > 0 ? `Engram: offline (${status.queued} queued)` : "Engram: offline", tooltip = "Server unreachable \u2014 changes will sync when connected") : status.state === "error" ? (text = "Engram: error", tooltip = status.error || "Unknown error") : status.state === "syncing" ? (text = status.pending > 0 ? `Engram: syncing (${status.pending})` : "Engram: syncing", tooltip = "Sync in progress...") : status.pending > 0 ? (text = `Engram: pending (${status.pending})`, tooltip = `${status.pending} file(s) queued`) : this.liveConnected ? (text = "Engram: live", tooltip = "WebSocket connected \u2014 live sync active") : (text = "Engram: ready", tooltip = "Click to sync");
-    let errorCount = (_b = (_a = this.syncLog) == null ? void 0 : _a.errorCount()) != null ? _b : 0;
-    if (errorCount > 0 && status.state === "idle" && (text = `Engram: \u26A0 ${errorCount} sync errors`), status.lastSync) {
+    let blocked = (_b = (_a = this.syncEngine) == null ? void 0 : _a.isSyncBlocked()) != null ? _b : !1, text, tooltip;
+    blocked && status.state !== "syncing" ? (text = status.pending > 0 ? `Engram: sync paused (${status.pending} queued)` : "Engram: sync paused", tooltip = "Sync paused \u2014 click to choose a sync direction") : status.state === "offline" ? (text = status.queued > 0 ? `Engram: offline (${status.queued} queued)` : "Engram: offline", tooltip = "Server unreachable \u2014 changes will sync when connected") : status.state === "error" ? (text = "Engram: error", tooltip = status.error || "Unknown error") : status.state === "syncing" ? (text = status.pending > 0 ? `Engram: syncing (${status.pending})` : "Engram: syncing", tooltip = "Sync in progress...") : status.pending > 0 ? (text = `Engram: pending (${status.pending})`, tooltip = `${status.pending} file(s) queued`) : this.liveConnected ? (text = "Engram: live", tooltip = "WebSocket connected \u2014 live sync active") : (text = "Engram: ready", tooltip = "Click to sync");
+    let errorCount = (_d = (_c = this.syncLog) == null ? void 0 : _c.errorCount()) != null ? _d : 0;
+    if (errorCount > 0 && status.state === "idle" && !blocked && (text = `Engram: \u26A0 ${errorCount} sync errors`), status.lastSync) {
       let date = new Date(status.lastSync);
       tooltip += `
 Last sync: ${date.toLocaleString()}`;
     }
-    this.statusBarEl.setText(text), this.statusBarEl.setAttribute("aria-label", tooltip), (_c = this.onStatusBarChange) == null || _c.call(this);
+    this.statusBarEl.setText(text), this.statusBarEl.setAttribute("aria-label", tooltip), (_e = this.onStatusBarChange) == null || _e.call(this);
   }
   startSyncInterval() {
     this.syncInterval && (window.clearInterval(this.syncInterval), this.syncInterval = null), !(!this.settings.apiUrl || !this.settings.apiKey) && (this.syncInterval = window.setInterval(() => {
