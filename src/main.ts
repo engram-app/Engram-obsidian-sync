@@ -741,7 +741,13 @@ export default class EngramSyncPlugin extends Plugin {
 	 *  unblocks the engine. */
 	async markSyncGateAccepted(): Promise<void> {
 		const fp = await computeSyncFingerprint(this.settings);
-		if (fp === "") return; // Nothing to accept if auth/vault not configured
+		if (fp === "") {
+			rlog().warn(
+				"lifecycle",
+				"markSyncGateAccepted called with empty fingerprint — auth or vault not configured",
+			);
+			return;
+		}
 		this.syncGateAcceptedFor = fp;
 		this.syncEngine.setSyncBlocked(false);
 		await this.savePluginData(this.syncEngine.getLastSync());
@@ -806,6 +812,8 @@ export default class EngramSyncPlugin extends Plugin {
 
 	/** Update status bar text and tooltip based on sync state + WebSocket connection. */
 	private updateStatusBar(status: SyncStatus): void {
+		// TODO: surface syncBlocked state — Task 14 wires "sync paused" text +
+		// click-to-reopen-modal here. Currently shows "ready" even when blocked.
 		if (!this.statusBarEl) return;
 
 		let text: string;
