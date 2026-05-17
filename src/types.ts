@@ -18,6 +18,10 @@ export interface EngramSyncSettings {
 	conflictResolution: "auto" | "modal";
 	/** Server-assigned vault ID. Populated after registration. Null until first sync. */
 	vaultId: string | null;
+	/** Server-side name for the selected vault, mirrored from the registration
+	 *  response or the vault picker. Used as the cloud-side label in the sync
+	 *  preview modal. Optional for migration — older saves predate this field. */
+	remoteVaultName?: string;
 	/** Stable client-generated vault identifier (SHA-256 of vault absolute path).
 	 *  Generated once on first load, persisted forever. Used for idempotent registration. */
 	clientId: string;

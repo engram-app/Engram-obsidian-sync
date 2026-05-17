@@ -182,6 +182,41 @@ export function renderVaultSection(ctx: TabContext): void {
 		.setName("Vault selection")
 		.setDesc("Select which vault this plugin syncs with.");
 
+	const currentId = plugin.settings.vaultId;
+	const storedName = plugin.settings.remoteVaultName;
+
+	// Render locked-in UI immediately from saved state — avoids a "Loading
+	// vaults..." flicker every time the user opens settings. The Change
+	// button fetches a fresh list on demand.
+	if (currentId && storedName) {
+		setting.settingEl.addClass("engram-setting-vault-name");
+		const nameEl = setting.controlEl.createSpan({
+			cls: "engram-vault-current-name",
+			text: storedName,
+		});
+		nameEl.setAttribute("title", `Vault id: ${currentId}`);
+
+		setting.addButton((btn) =>
+			btn.setButtonText("Change").onClick(async () => {
+				try {
+					const vaults = await plugin.api.listVaults();
+					const newId = await new VaultSwitchModal(
+						app,
+						vaults,
+						currentId,
+					).waitForChoice();
+					if (newId) {
+						const picked = vaults.find((v) => String(v.id) === newId);
+						if (await applyVaultSwitch(plugin, newId, picked?.name)) redisplay();
+					}
+				} catch (e: unknown) {
+					setting.controlEl.createSpan({ text: ` ${describeListVaultsError(e)}` });
+				}
+			}),
+		);
+		return;
+	}
+
 	const placeholderEl = setting.controlEl.createSpan({ text: "Loading vaults..." });
 
 	plugin.api
@@ -196,7 +231,6 @@ export function renderVaultSection(ctx: TabContext): void {
 				return;
 			}
 
-			const currentId = plugin.settings.vaultId;
 			const current = currentId ? vaults.find((v) => String(v.id) === currentId) : undefined;
 
 			// First-time picker: render the dropdown directly so the user can
@@ -207,7 +241,9 @@ export function renderVaultSection(ctx: TabContext): void {
 						// Vault id set but no longer exists on server — surface it.
 						dropdown.addOption(
 							"",
-							`Pick a vault (previous: id ${currentId} not found)`,
+							storedName
+								? `Pick a vault (previous: '${storedName}' not found)`
+								: `Pick a vault (previous: id ${currentId} not found)`,
 						);
 					} else {
 						dropdown.addOption("", "Pick a vault");
@@ -217,13 +253,19 @@ export function renderVaultSection(ctx: TabContext): void {
 						dropdown.addOption(String(v.id), label);
 					}
 					dropdown.onChange(async (value) => {
-						if (await applyVaultSwitch(plugin, value)) redisplay();
+						const picked = vaults.find((v) => String(v.id) === value);
+						if (await applyVaultSwitch(plugin, value, picked?.name)) redisplay();
 					});
 				});
 				return;
 			}
 
-			// Locked-in display: vault name + Change button → confirm modal.
+			// Locked-in display path for legacy users who have a vaultId but
+			// never stored a remoteVaultName. Capture the name now so future
+			// renders use the fast path above.
+			plugin.settings.remoteVaultName = current.name;
+			void plugin.saveSettings();
+
 			setting.settingEl.addClass("engram-setting-vault-name");
 			const nameEl = setting.controlEl.createSpan({
 				cls: "engram-vault-current-name",
@@ -238,7 +280,10 @@ export function renderVaultSection(ctx: TabContext): void {
 						vaults,
 						currentId,
 					).waitForChoice();
-					if (newId && (await applyVaultSwitch(plugin, newId))) redisplay();
+					if (newId) {
+						const picked = vaults.find((v) => String(v.id) === newId);
+						if (await applyVaultSwitch(plugin, newId, picked?.name)) redisplay();
+					}
 				}),
 			);
 		})
@@ -295,16 +340,23 @@ export function describeListVaultsError(e: unknown): string {
 /** Subset of EngramSyncPlugin used by `applyVaultSwitch`. Defined here so the
  *  helper is unit-testable without dragging in the Obsidian DOM stack. */
 export interface VaultSwitchTarget {
-	settings: { vaultId: string | null };
+	settings: { vaultId: string | null; remoteVaultName?: string };
 	api: { setVaultId: (id: string | null) => void };
 	saveSettings: () => Promise<void>;
 }
 
 /** Apply a user-driven vault switch. Returns `true` if the active vault
- *  actually changed (caller should redisplay). */
-export async function applyVaultSwitch(plugin: VaultSwitchTarget, value: string): Promise<boolean> {
+ *  actually changed (caller should redisplay). When `name` is provided it is
+ *  persisted alongside the id so the sync preview modal can label the cloud
+ *  side without an extra round-trip. */
+export async function applyVaultSwitch(
+	plugin: VaultSwitchTarget,
+	value: string,
+	name?: string,
+): Promise<boolean> {
 	if (!value || value === plugin.settings.vaultId) return false;
 	plugin.settings.vaultId = value;
+	if (name !== undefined) plugin.settings.remoteVaultName = name;
 	plugin.api.setVaultId(value);
 	await plugin.saveSettings();
 	return true;

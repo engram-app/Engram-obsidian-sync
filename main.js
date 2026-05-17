@@ -2147,7 +2147,31 @@ function renderVaultSection(ctx) {
   let { containerEl, app, plugin, redisplay } = ctx;
   if (!plugin.settings.apiKey && !plugin.settings.refreshToken) return;
   new import_obsidian8.Setting(containerEl).setName("Vault").setHeading();
-  let setting = new import_obsidian8.Setting(containerEl).setName("Vault selection").setDesc("Select which vault this plugin syncs with."), placeholderEl = setting.controlEl.createSpan({ text: "Loading vaults..." });
+  let setting = new import_obsidian8.Setting(containerEl).setName("Vault selection").setDesc("Select which vault this plugin syncs with."), currentId = plugin.settings.vaultId, storedName = plugin.settings.remoteVaultName;
+  if (currentId && storedName) {
+    setting.settingEl.addClass("engram-setting-vault-name"), setting.controlEl.createSpan({
+      cls: "engram-vault-current-name",
+      text: storedName
+    }).setAttribute("title", `Vault id: ${currentId}`), setting.addButton(
+      (btn) => btn.setButtonText("Change").onClick(async () => {
+        try {
+          let vaults = await plugin.api.listVaults(), newId = await new VaultSwitchModal(
+            app,
+            vaults,
+            currentId
+          ).waitForChoice();
+          if (newId) {
+            let picked = vaults.find((v) => String(v.id) === newId);
+            await applyVaultSwitch(plugin, newId, picked == null ? void 0 : picked.name) && redisplay();
+          }
+        } catch (e) {
+          setting.controlEl.createSpan({ text: ` ${describeListVaultsError(e)}` });
+        }
+      })
+    );
+    return;
+  }
+  let placeholderEl = setting.controlEl.createSpan({ text: "Loading vaults..." });
   plugin.api.listVaults().then((vaults) => {
     if (placeholderEl.remove(), vaults.length === 0) {
       setting.controlEl.createSpan({
@@ -2155,24 +2179,25 @@ function renderVaultSection(ctx) {
       });
       return;
     }
-    let currentId = plugin.settings.vaultId, current = currentId ? vaults.find((v) => String(v.id) === currentId) : void 0;
+    let current = currentId ? vaults.find((v) => String(v.id) === currentId) : void 0;
     if (!current) {
       setting.addDropdown((dropdown) => {
         currentId ? dropdown.addOption(
           "",
-          `Pick a vault (previous: id ${currentId} not found)`
+          storedName ? `Pick a vault (previous: '${storedName}' not found)` : `Pick a vault (previous: id ${currentId} not found)`
         ) : dropdown.addOption("", "Pick a vault");
         for (let v of vaults) {
           let label = v.is_default ? `${v.name} (default)` : v.name;
           dropdown.addOption(String(v.id), label);
         }
         dropdown.onChange(async (value) => {
-          await applyVaultSwitch(plugin, value) && redisplay();
+          let picked = vaults.find((v) => String(v.id) === value);
+          await applyVaultSwitch(plugin, value, picked == null ? void 0 : picked.name) && redisplay();
         });
       });
       return;
     }
-    setting.settingEl.addClass("engram-setting-vault-name"), setting.controlEl.createSpan({
+    plugin.settings.remoteVaultName = current.name, plugin.saveSettings(), setting.settingEl.addClass("engram-setting-vault-name"), setting.controlEl.createSpan({
       cls: "engram-vault-current-name",
       text: current.is_default ? `${current.name} (default)` : current.name
     }).setAttribute("title", `Vault id: ${current.id}`), setting.addButton(
@@ -2182,7 +2207,10 @@ function renderVaultSection(ctx) {
           vaults,
           currentId
         ).waitForChoice();
-        newId && await applyVaultSwitch(plugin, newId) && redisplay();
+        if (newId) {
+          let picked = vaults.find((v) => String(v.id) === newId);
+          await applyVaultSwitch(plugin, newId, picked == null ? void 0 : picked.name) && redisplay();
+        }
       })
     );
   }).catch((e) => {
@@ -2213,8 +2241,8 @@ function describeListVaultsError(e) {
   let err = e, status = err == null ? void 0 : err.status;
   return status === 401 || status === 403 ? "Sign-in required to load vaults" : status && status >= 500 ? `Server error (${status}) \u2014 check Engram logs` : status && status >= 400 ? `Request failed (${status})` : "Could not reach Engram \u2014 check connection";
 }
-async function applyVaultSwitch(plugin, value) {
-  return !value || value === plugin.settings.vaultId ? !1 : (plugin.settings.vaultId = value, plugin.api.setVaultId(value), await plugin.saveSettings(), !0);
+async function applyVaultSwitch(plugin, value, name) {
+  return !value || value === plugin.settings.vaultId ? !1 : (plugin.settings.vaultId = value, name !== void 0 && (plugin.settings.remoteVaultName = name), plugin.api.setVaultId(value), await plugin.saveSettings(), !0);
 }
 
 // src/tabs/account-tab.ts
@@ -2607,13 +2635,15 @@ var SyncPreviewModal = class extends import_obsidian11.Modal {
     let wrap = parent.createDiv({ cls: "engram-sync-preview-compare" });
     this.renderCompareCard(wrap, {
       emoji: "\u{1F4BB}",
-      label: "This Vault",
+      name: this.plan.vaultName,
+      role: "This Vault",
       notes: this.plan.localNoteCount,
       attachments: this.plan.localAttachmentCount,
       folders: this.plan.localFolderCount
     }), this.renderCompareCard(wrap, {
       emoji: "\u2601\uFE0F",
-      label: "Cloud Server",
+      name: this.opts.remoteVaultName || "Cloud Server",
+      role: "Cloud Server",
       notes: this.plan.serverNoteCount,
       attachments: this.plan.serverAttachmentCount,
       folders: this.plan.serverFolderCount
@@ -2637,9 +2667,12 @@ var SyncPreviewModal = class extends import_obsidian11.Modal {
     }
   }
   renderCompareCard(parent, card) {
-    let el = parent.createDiv({ cls: "engram-sync-preview-compare-card" }), header = el.createDiv({ cls: "engram-sync-preview-compare-card-header" });
-    header.createSpan({ text: card.emoji, cls: "engram-sync-preview-compare-emoji" }), header.createSpan({ text: card.label, cls: "engram-sync-preview-compare-label" });
-    let body = el.createDiv({ cls: "engram-sync-preview-compare-card-body" });
+    let col = parent.createDiv({ cls: "engram-sync-preview-compare-col" }), title = col.createDiv({ cls: "engram-sync-preview-compare-title" });
+    title.createSpan({ text: card.emoji, cls: "engram-sync-preview-compare-emoji" }), title.createSpan({ text: card.name, cls: "engram-sync-preview-compare-name" }), col.createDiv({
+      text: card.role,
+      cls: "engram-sync-preview-compare-role"
+    });
+    let body = col.createDiv({ cls: "engram-sync-preview-compare-card" }).createDiv({ cls: "engram-sync-preview-compare-card-body" });
     this.renderCompareRow(body, "\u{1F4C4}", card.notes, "notes"), this.renderCompareRow(body, "\u{1F4CE}", card.attachments, "attachments"), this.renderCompareRow(body, "\u{1F4C1}", card.folders, "folders");
   }
   renderCompareRow(parent, emoji, count, label) {
@@ -2728,6 +2761,7 @@ function renderActions(parent, plugin, refresh) {
     try {
       let plan = await plugin.syncEngine.computeSyncPlan("full"), choice = await new SyncPreviewModal(plugin.app, plan, {
         serverUrl: plugin.settings.apiUrl,
+        remoteVaultName: plugin.settings.remoteVaultName,
         showChangeVault: !1,
         context: "review"
       }).awaitChoice();
@@ -5025,7 +5059,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
         this.app.vault.getName(),
         this.settings.clientId
       );
-      return this.settings.vaultId = String(result.id), this.api.setVaultId(this.settings.vaultId), await this.saveSettings(), rlog().info("lifecycle", `Vault registered: id=${result.id} slug=${result.slug}`), !0;
+      return this.settings.vaultId = String(result.id), this.settings.remoteVaultName = result.name, this.api.setVaultId(this.settings.vaultId), await this.saveSettings(), rlog().info("lifecycle", `Vault registered: id=${result.id} slug=${result.slug}`), !0;
     } catch (e) {
       return typeof e == "object" && e !== null && e.status === 402 ? (new import_obsidian17.Notice("Engram: Upgrade to pro for multi-vault sync."), rlog().info("lifecycle", "Vault registration blocked \u2014 vault limit reached (402)"), !1) : (console.error("Engram Sync: vault registration failed", e), rlog().error("lifecycle", `Vault registration failed: ${errMsg(e)}`), !1);
     }
@@ -5201,6 +5235,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
     try {
       let plan = await this.syncEngine.computeSyncPlan("full"), context = this.derivePreviewContext(), choice = await new SyncPreviewModal(this.app, plan, {
         serverUrl: this.settings.apiUrl,
+        remoteVaultName: this.settings.remoteVaultName,
         showChangeVault: !0,
         context
       }).awaitChoice();

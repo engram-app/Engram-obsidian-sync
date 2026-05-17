@@ -135,6 +135,8 @@ const OPTIONS_HEADER_BY_CONTEXT: Record<SyncPreviewContext, string> = {
 export interface SyncPreviewOptions {
 	/** Server URL string. Host portion is shown beneath the vault name. */
 	serverUrl: string;
+	/** Server-side vault name. Falls back to "Cloud Server" when missing. */
+	remoteVaultName?: string;
 	/** When true the footer shows a "Change vault" button. Off for triggers
 	 *  outside the vault picker (e.g. Sync Center). */
 	showChangeVault: boolean;
@@ -293,14 +295,16 @@ export class SyncPreviewModal extends Modal {
 
 		this.renderCompareCard(wrap, {
 			emoji: "💻",
-			label: "This Vault",
+			name: this.plan.vaultName,
+			role: "This Vault",
 			notes: this.plan.localNoteCount,
 			attachments: this.plan.localAttachmentCount,
 			folders: this.plan.localFolderCount,
 		});
 		this.renderCompareCard(wrap, {
 			emoji: "☁️",
-			label: "Cloud Server",
+			name: this.opts.remoteVaultName || "Cloud Server",
+			role: "Cloud Server",
 			notes: this.plan.serverNoteCount,
 			attachments: this.plan.serverAttachmentCount,
 			folders: this.plan.serverFolderCount,
@@ -335,17 +339,23 @@ export class SyncPreviewModal extends Modal {
 		parent: HTMLElement,
 		card: {
 			emoji: string;
-			label: string;
+			name: string;
+			role: string;
 			notes: number;
 			attachments: number;
 			folders: number;
 		},
 	): void {
-		const el = parent.createDiv({ cls: "engram-sync-preview-compare-card" });
-		const header = el.createDiv({ cls: "engram-sync-preview-compare-card-header" });
-		header.createSpan({ text: card.emoji, cls: "engram-sync-preview-compare-emoji" });
-		header.createSpan({ text: card.label, cls: "engram-sync-preview-compare-label" });
-		const body = el.createDiv({ cls: "engram-sync-preview-compare-card-body" });
+		const col = parent.createDiv({ cls: "engram-sync-preview-compare-col" });
+		const title = col.createDiv({ cls: "engram-sync-preview-compare-title" });
+		title.createSpan({ text: card.emoji, cls: "engram-sync-preview-compare-emoji" });
+		title.createSpan({ text: card.name, cls: "engram-sync-preview-compare-name" });
+		col.createDiv({
+			text: card.role,
+			cls: "engram-sync-preview-compare-role",
+		});
+		const cardEl = col.createDiv({ cls: "engram-sync-preview-compare-card" });
+		const body = cardEl.createDiv({ cls: "engram-sync-preview-compare-card-body" });
 		this.renderCompareRow(body, "📄", card.notes, "notes");
 		this.renderCompareRow(body, "📎", card.attachments, "attachments");
 		this.renderCompareRow(body, "📁", card.folders, "folders");

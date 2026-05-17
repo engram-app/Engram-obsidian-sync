@@ -1225,25 +1225,44 @@
 	margin-bottom: 0.5em;
 }
 
+.engram-sync-preview-compare-col {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.engram-sync-preview-compare-title {
+	display: flex;
+	align-items: baseline;
+	justify-content: center;
+	gap: 0.35em;
+	font-size: 1.05em;
+	font-weight: 700;
+	color: var(--text-normal);
+	overflow: hidden;
+}
+
+.engram-sync-preview-compare-name {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+}
+
+.engram-sync-preview-compare-role {
+	text-align: center;
+	font-size: 0.8em;
+	color: var(--text-muted);
+	margin-bottom: 0.35em;
+}
+
 .engram-sync-preview-compare-card {
 	background: var(--background-secondary);
 	border-radius: 6px;
 	padding: 0.6em 0.75em;
 }
 
-.engram-sync-preview-compare-card-header {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 0.4em;
-	font-weight: 600;
-	font-size: 0.95em;
-	margin-bottom: 0.35em;
-	color: var(--text-normal);
-}
-
 .engram-sync-preview-compare-emoji {
-	font-size: 1.1em;
 	line-height: 1;
 }
 

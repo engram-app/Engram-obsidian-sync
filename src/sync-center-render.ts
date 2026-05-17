@@ -78,6 +78,7 @@ function renderActions(parent: HTMLElement, plugin: EngramSyncPlugin, refresh: (
 			const plan = await plugin.syncEngine.computeSyncPlan("full");
 			const modal = new SyncPreviewModal(plugin.app, plan, {
 				serverUrl: plugin.settings.apiUrl,
+				remoteVaultName: plugin.settings.remoteVaultName,
 				showChangeVault: false,
 				context: "review",
 			});

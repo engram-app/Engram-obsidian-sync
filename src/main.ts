@@ -491,6 +491,7 @@ export default class EngramSyncPlugin extends Plugin {
 				this.settings.clientId,
 			);
 			this.settings.vaultId = String(result.id);
+			this.settings.remoteVaultName = result.name;
 			this.api.setVaultId(this.settings.vaultId);
 			await this.saveSettings();
 			rlog().info("lifecycle", `Vault registered: id=${result.id} slug=${result.slug}`);
@@ -796,6 +797,7 @@ export default class EngramSyncPlugin extends Plugin {
 			const context = this.derivePreviewContext();
 			const modal = new SyncPreviewModal(this.app, plan, {
 				serverUrl: this.settings.apiUrl,
+				remoteVaultName: this.settings.remoteVaultName,
 				showChangeVault: true,
 				context,
 			});
