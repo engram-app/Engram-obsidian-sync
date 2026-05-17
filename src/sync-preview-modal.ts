@@ -47,7 +47,7 @@ export class SyncPreviewState {
 	}
 
 	canSubmitConfirm(): boolean {
-		return this.view === "confirm" && this.confirmInput === "DELETE";
+		return this.view === "confirm" && this.confirmInput === "delete";
 	}
 
 	submitConfirm(): void {
@@ -159,9 +159,9 @@ const PULL_CARDS: OptionCard[] = [
 ];
 
 const HEADER_BY_CONTEXT: Record<SyncPreviewContext, string> = {
-	"first-time": "Set Up Sync for This Vault",
-	"vault-switch": "New Vault Detected",
-	review: "Sync Preview",
+	"first-time": "Set up sync for this vault",
+	"vault-switch": "New vault detected",
+	review: "Sync preview",
 };
 
 const OPTIONS_HEADER_BY_CONTEXT: Record<SyncPreviewContext, string> = {
@@ -328,15 +328,15 @@ export class SyncPreviewModal extends Modal {
 		this.renderCompareCard(wrap, {
 			emoji: "💻",
 			name: plan.vaultName,
-			role: "This Vault",
+			role: "This vault",
 			notes: plan.localNoteCount,
 			attachments: plan.localAttachmentCount,
 			folders: plan.localFolderCount,
 		});
 		this.renderCompareCard(wrap, {
 			emoji: "☁️",
-			name: this.remoteVaultName || "Cloud Server",
-			role: "Cloud Server",
+			name: this.remoteVaultName || "Cloud server",
+			role: "Cloud server",
 			notes: plan.serverNoteCount,
 			attachments: plan.serverAttachmentCount,
 			folders: plan.serverFolderCount,
@@ -433,7 +433,7 @@ export class SyncPreviewModal extends Modal {
 		if (choice == null) return;
 
 		contentEl.createEl("h2", {
-			text: "Confirm Destructive Sync",
+			text: "Confirm destructive sync",
 			cls: "engram-sync-preview-header",
 		});
 
@@ -467,7 +467,7 @@ export class SyncPreviewModal extends Modal {
 			cls: "engram-sync-preview-warning",
 			text: "This cannot be undone.",
 		});
-		contentEl.createEl("p", { text: "Type DELETE to confirm:" });
+		contentEl.createEl("p", { text: "Type delete to confirm:" });
 
 		const input = contentEl.createEl("input", {
 			type: "text",
@@ -499,7 +499,7 @@ export class SyncPreviewModal extends Modal {
 	private renderVaultPicker(): void {
 		const { contentEl } = this;
 		contentEl.createEl("h2", {
-			text: "Switch Vault",
+			text: "Switch vault",
 			cls: "engram-sync-preview-header",
 		});
 		contentEl.createEl("p", {

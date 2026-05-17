@@ -118,25 +118,25 @@ describe("SyncPreviewState — destructive choices route through confirm view", 
 		expect(resolved.value).toBeNull();
 	});
 
-	test("confirm button disabled until input matches DELETE exactly", () => {
+	test("confirm button disabled until input matches delete exactly", () => {
 		const { state } = newState();
 		state.pickOption("pull-all-delete-local");
 		expect(state.canSubmitConfirm()).toBe(false);
 
-		state.typeConfirm("delete");
+		state.typeConfirm("DELETE");
 		expect(state.canSubmitConfirm()).toBe(false); // case-sensitive
 
-		state.typeConfirm("DELETE ");
+		state.typeConfirm("delete ");
 		expect(state.canSubmitConfirm()).toBe(false); // trailing space rejected
 
-		state.typeConfirm("DELETE");
+		state.typeConfirm("delete");
 		expect(state.canSubmitConfirm()).toBe(true);
 	});
 
 	test("submitConfirm resolves with the pending destructive choice", () => {
 		const { state, resolved } = newState();
 		state.pickOption("pull-all-delete-local");
-		state.typeConfirm("DELETE");
+		state.typeConfirm("delete");
 		state.submitConfirm();
 		expect(resolved.value).toBe("pull-all-delete-local");
 	});
@@ -153,7 +153,7 @@ describe("SyncPreviewState — destructive choices route through confirm view", 
 	test("goBack returns to preview view without resolving", () => {
 		const { state, resolved } = newState();
 		state.pickOption("pull-all-delete-local");
-		state.typeConfirm("DELETE");
+		state.typeConfirm("delete");
 		state.goBack();
 		expect(state.view).toBe("preview");
 		expect(state.pendingChoice).toBeNull();

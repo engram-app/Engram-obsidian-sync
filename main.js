@@ -2417,7 +2417,7 @@ var SyncPreviewState = class {
     this.resolved || this.view !== "confirm" || (this.confirmInput = input);
   }
   canSubmitConfirm() {
-    return this.view === "confirm" && this.confirmInput === "DELETE";
+    return this.view === "confirm" && this.confirmInput === "delete";
   }
   submitConfirm() {
     !this.canSubmitConfirm() || this.pendingChoice == null || this.resolve(this.pendingChoice);
@@ -2485,9 +2485,9 @@ var SyncPreviewState = class {
     cssClass: "engram-sync-preview-option engram-sync-preview-destructive"
   }
 ], HEADER_BY_CONTEXT = {
-  "first-time": "Set Up Sync for This Vault",
-  "vault-switch": "New Vault Detected",
-  review: "Sync Preview"
+  "first-time": "Set up sync for this vault",
+  "vault-switch": "New vault detected",
+  review: "Sync preview"
 }, OPTIONS_HEADER_BY_CONTEXT = {
   "first-time": "Choose from the following first-time sync options",
   "vault-switch": "Choose how to sync this new vault",
@@ -2573,14 +2573,14 @@ var SyncPreviewState = class {
     this.renderCompareCard(wrap, {
       emoji: "\u{1F4BB}",
       name: plan.vaultName,
-      role: "This Vault",
+      role: "This vault",
       notes: plan.localNoteCount,
       attachments: plan.localAttachmentCount,
       folders: plan.localFolderCount
     }), this.renderCompareCard(wrap, {
       emoji: "\u2601\uFE0F",
-      name: this.remoteVaultName || "Cloud Server",
-      role: "Cloud Server",
+      name: this.remoteVaultName || "Cloud server",
+      role: "Cloud server",
       notes: plan.serverNoteCount,
       attachments: plan.serverAttachmentCount,
       folders: plan.serverFolderCount
@@ -2635,7 +2635,7 @@ var SyncPreviewState = class {
     let { contentEl } = this, choice = this.state.pendingChoice;
     if (choice == null) return;
     contentEl.createEl("h2", {
-      text: "Confirm Destructive Sync",
+      text: "Confirm destructive sync",
       cls: "engram-sync-preview-header"
     });
     let b = optionBreakdown(this.state.plan, choice), summary = contentEl.createDiv({ cls: "engram-sync-preview-confirm-summary" });
@@ -2649,7 +2649,7 @@ var SyncPreviewState = class {
     }), this.renderDeletionTree(contentEl, deletePaths, this.keptPathsFor(choice, deletePaths))), contentEl.createEl("p", {
       cls: "engram-sync-preview-warning",
       text: "This cannot be undone."
-    }), contentEl.createEl("p", { text: "Type DELETE to confirm:" });
+    }), contentEl.createEl("p", { text: "Type delete to confirm:" });
     let input = contentEl.createEl("input", {
       type: "text",
       cls: "engram-sync-preview-confirm-input"
@@ -2668,7 +2668,7 @@ var SyncPreviewState = class {
   renderVaultPicker() {
     let { contentEl } = this;
     contentEl.createEl("h2", {
-      text: "Switch Vault",
+      text: "Switch vault",
       cls: "engram-sync-preview-header"
     }), contentEl.createEl("p", {
       text: "Pick a vault to sync with. We will recalculate the sync preview after you choose.",
