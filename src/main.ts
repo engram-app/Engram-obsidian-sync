@@ -373,34 +373,49 @@ export default class EngramSyncPlugin extends Plugin {
 			);
 
 			await this.baseStore?.load();
-			try {
-				if (this.hasAuthConfigured()) {
-					const registered = await this.registerVault();
-					if (!registered) {
-						rlog().info("lifecycle", "Vault not registered — skipping initial sync");
-						return;
-					}
-					const gateOpen = await this.applySyncGate();
-					if (gateOpen) {
-						// User has already accepted a direction for this fingerprint —
-						// run an incremental sync without showing the modal.
-						try {
-							const { pulled, pushed } = await this.syncEngine.fullSync();
-							if (pulled > 0 || pushed > 0) {
-								new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
-							}
-						} catch (e) {
-							// biome-ignore lint/suspicious/noConsole: error boundary
-							console.error("Engram Sync: startup sync failed", e);
-							rlog().error("lifecycle", `Startup sync failed: ${errMsg(e)}`);
-						}
+
+			let registered = false;
+			let gateOpen = false;
+			if (this.hasAuthConfigured()) {
+				try {
+					registered = await this.registerVault();
+					if (registered) {
+						gateOpen = await this.applySyncGate();
 					} else {
-						// Gate closed — show the preview modal so user picks a direction.
-						await this.doSyncWithFirstSyncCheck();
+						rlog().info("lifecycle", "Vault not registered — skipping initial sync");
 					}
+				} catch (e) {
+					// biome-ignore lint/suspicious/noConsole: error boundary
+					console.error("Engram Sync: startup setup failed", e);
+					rlog().error("lifecycle", `Startup setup failed: ${errMsg(e)}`);
 				}
-			} finally {
-				this.syncEngine.setReady();
+			}
+
+			// Engine setup is complete: baseStore loaded, vault registered (or
+			// skipped), sync gate evaluated, listeners armed. Flip readiness
+			// now so handlers can respond to vault events. The sync gate
+			// (`syncBlocked`) independently controls whether handlers push;
+			// readiness must not depend on a user-driven modal choice.
+			this.syncEngine.setReady();
+
+			if (!registered) return;
+
+			if (gateOpen) {
+				// User has already accepted a direction for this fingerprint —
+				// run an incremental sync without showing the modal.
+				try {
+					const { pulled, pushed } = await this.syncEngine.fullSync();
+					if (pulled > 0 || pushed > 0) {
+						new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+					}
+				} catch (e) {
+					// biome-ignore lint/suspicious/noConsole: error boundary
+					console.error("Engram Sync: startup sync failed", e);
+					rlog().error("lifecycle", `Startup sync failed: ${errMsg(e)}`);
+				}
+			} else {
+				// Gate closed — show the preview modal so user picks a direction.
+				await this.doSyncWithFirstSyncCheck();
 			}
 		});
 	}

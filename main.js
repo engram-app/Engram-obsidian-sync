@@ -5034,25 +5034,23 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian16.Plugin
           this.syncEngine.handleModify(file);
         })
       ), await ((_a2 = this.baseStore) == null ? void 0 : _a2.load());
-      try {
-        if (this.hasAuthConfigured()) {
-          if (!await this.registerVault()) {
-            rlog().info("lifecycle", "Vault not registered \u2014 skipping initial sync");
-            return;
-          }
-          if (await this.applySyncGate())
-            try {
-              let { pulled, pushed } = await this.syncEngine.fullSync();
-              (pulled > 0 || pushed > 0) && new import_obsidian16.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
-            } catch (e) {
-              console.error("Engram Sync: startup sync failed", e), rlog().error("lifecycle", `Startup sync failed: ${errMsg(e)}`);
-            }
-          else
-            await this.doSyncWithFirstSyncCheck();
+      let registered = !1, gateOpen = !1;
+      if (this.hasAuthConfigured())
+        try {
+          registered = await this.registerVault(), registered ? gateOpen = await this.applySyncGate() : rlog().info("lifecycle", "Vault not registered \u2014 skipping initial sync");
+        } catch (e) {
+          console.error("Engram Sync: startup setup failed", e), rlog().error("lifecycle", `Startup setup failed: ${errMsg(e)}`);
         }
-      } finally {
-        this.syncEngine.setReady();
-      }
+      if (this.syncEngine.setReady(), !!registered)
+        if (gateOpen)
+          try {
+            let { pulled, pushed } = await this.syncEngine.fullSync();
+            (pulled > 0 || pushed > 0) && new import_obsidian16.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+          } catch (e) {
+            console.error("Engram Sync: startup sync failed", e), rlog().error("lifecycle", `Startup sync failed: ${errMsg(e)}`);
+          }
+        else
+          await this.doSyncWithFirstSyncCheck();
     });
   }
   onunload() {
