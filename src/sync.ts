@@ -2013,9 +2013,13 @@ export class SyncEngine {
 		return pushed;
 	}
 
-	/** Delete every remote note + attachment whose path is not present locally.
-	 *  Called only when the user has explicitly picked "Push all + delete remote
-	 *  extras" — we trust the path comparison; no extra confirmation here. */
+	/** Known limitation: `pushAll(opts={deleteRemoteExtras:true})` triggers TWO
+	 *  `/sync/manifest` fetches in sequence — one inside `reconcile()`, one here.
+	 *  Any note a different client creates between those two reads will be in
+	 *  this method's "remote-only" set and get deleted. The window is small
+	 *  (sub-second) and the user's intent is explicitly destructive, but it's
+	 *  worth refactoring later to share the manifest snapshot if the race
+	 *  surfaces. Tracked in: code review for commit dcb74e2. */
 	private async deleteRemoteExtras(): Promise<void> {
 		const manifest = await this.api.getManifest();
 		if (!manifest) {

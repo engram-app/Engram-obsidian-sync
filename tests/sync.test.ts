@@ -2938,8 +2938,8 @@ describe("SyncEngine.pushAll with deleteRemoteExtras", () => {
 		(mockApp.vault.getFiles as jest.Mock).mockReturnValue(local);
 		(mockApp.vault.cachedRead as jest.Mock).mockResolvedValue("# Content");
 		(mockApi.ping as jest.Mock).mockResolvedValue({ ok: true });
-		(mockApi.pushNote as jest.Mock).mockResolvedValue({ note: {}, chunks_indexed: 1 });
-		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+		(mockApi.pushNote as jest.Mock).mockResolvedValueOnce({ note: {}, chunks_indexed: 1 });
+		(mockApi.getManifest as jest.Mock).mockResolvedValueOnce({
 			notes: [{ path: "kept.md" }, { path: "also.md" }, { path: "remote-only.md" }],
 			attachments: [],
 		});
@@ -2955,15 +2955,20 @@ describe("SyncEngine.pushAll with deleteRemoteExtras", () => {
 		(mockApp.vault.getFiles as jest.Mock).mockReturnValue(local);
 		(mockApp.vault.cachedRead as jest.Mock).mockResolvedValue("# Content");
 		(mockApi.ping as jest.Mock).mockResolvedValue({ ok: true });
-		(mockApi.pushNote as jest.Mock).mockResolvedValue({ note: {}, chunks_indexed: 1 });
-		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+		(mockApi.pushNote as jest.Mock).mockResolvedValueOnce({ note: {}, chunks_indexed: 1 });
+		// pushAll with deleteRemoteExtras:true fetches the manifest TWICE:
+		// once in reconcile() and once in deleteRemoteExtras() — supply both.
+		const manifestSnapshot = {
 			notes: [
 				{ path: "kept.md" },
 				{ path: "remote-only-a.md" },
 				{ path: "remote-only-b.md" },
 			],
 			attachments: [{ path: "old.png" }],
-		});
+		};
+		(mockApi.getManifest as jest.Mock)
+			.mockResolvedValueOnce(manifestSnapshot) // consumed by reconcile()
+			.mockResolvedValueOnce(manifestSnapshot); // consumed by deleteRemoteExtras()
 
 		await engine.pushAll({ deleteRemoteExtras: true });
 
@@ -2979,8 +2984,8 @@ describe("SyncEngine.pushAll with deleteRemoteExtras", () => {
 		(mockApp.vault.getFiles as jest.Mock).mockReturnValue([new TFile("a.md", Date.now())]);
 		(mockApp.vault.cachedRead as jest.Mock).mockResolvedValue("# x");
 		(mockApi.ping as jest.Mock).mockResolvedValue({ ok: true });
-		(mockApi.pushNote as jest.Mock).mockResolvedValue({ note: {}, chunks_indexed: 1 });
-		(mockApi.getManifest as jest.Mock).mockResolvedValue({
+		(mockApi.pushNote as jest.Mock).mockResolvedValueOnce({ note: {}, chunks_indexed: 1 });
+		(mockApi.getManifest as jest.Mock).mockResolvedValueOnce({
 			notes: [{ path: "a.md" }, { path: "remote.md" }],
 			attachments: [],
 		});
