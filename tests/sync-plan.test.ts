@@ -557,7 +557,7 @@ describe("SyncEngine.pushAll with progress", () => {
 		expect(engine.syncLog.entries().length).toBeGreaterThan(0);
 	});
 
-	test("wipePullAll deletes local files and resets sync state before pulling", async () => {
+	test("pullAll({ deleteLocalExtras: true }) deletes local files and resets sync state before pulling", async () => {
 		const file1 = makeTFile("notes/a.md");
 		const file2 = makeTFile("notes/b.md");
 		mockApp.vault.getFiles.mockReturnValue([file1, file2]);
@@ -593,7 +593,7 @@ describe("SyncEngine.pushAll with progress", () => {
 		// Seed some sync state that should be cleared
 		engine.importHashes({ "notes/a.md": 12345 });
 
-		await engine.wipePullAll();
+		await engine.pullAll({ deleteLocalExtras: true });
 
 		// Both local files should have been trashed
 		expect(mockApp.fileManager.trashFile).toHaveBeenCalledTimes(2);

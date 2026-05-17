@@ -885,19 +885,10 @@ export class SyncEngine {
 	/** Force-pull every note + attachment from the server.
 	 *
 	 *  @param opts.deleteLocalExtras — if true, wipe local files that have no
-	 *    remote counterpart before pulling. The legacy `wipePullAll()` is a
-	 *    thin wrapper for this — kept for one release cycle so existing
-	 *    callers (Sync Center) don't need to change in the same PR.
+	 *    remote counterpart before pulling.
 	 */
 	async pullAll(opts: { deleteLocalExtras?: boolean } = {}): Promise<number> {
 		return this._pullAll(opts.deleteLocalExtras ?? false);
-	}
-
-	/** Deprecated alias for `pullAll({ deleteLocalExtras: true })`. Remove
-	 *  after the Sync Center handler in `sync-center-render.ts` is migrated
-	 *  to the new modal (Task 8). */
-	async wipePullAll(): Promise<number> {
-		return this._pullAll(true);
 	}
 
 	private async _pullAll(wipe: boolean): Promise<number> {
@@ -911,8 +902,8 @@ export class SyncEngine {
 		if (wipe) {
 			// Suppress delete sync — we're wiping locally, not deleting from server
 			this.suppressDeletes = true;
-			devLog().log("pull", "wipePullAll: deleting all local syncable files");
-			rlog().info("pull", "WipePullAll started — deleting local files");
+			devLog().log("pull", "pullAll(deleteLocalExtras): deleting all local syncable files");
+			rlog().info("pull", "pullAll(deleteLocalExtras) started — deleting local files");
 			const files = this.app.vault.getFiles();
 			const syncable = files.filter((f) => this.isSyncable(f) && !this.shouldIgnore(f.path));
 			const wipeTotal = syncable.length;
@@ -946,9 +937,9 @@ export class SyncEngine {
 			await this.saveData({ lastSync: "" });
 			devLog().log(
 				"pull",
-				`wipePullAll: deleted ${syncable.length} local files, sync state reset`,
+				`pullAll(deleteLocalExtras): deleted ${syncable.length} local files, sync state reset`,
 			);
-			rlog().info("pull", `WipePullAll deleted ${syncable.length} local files`);
+			rlog().info("pull", `pullAll(deleteLocalExtras) deleted ${syncable.length} local files`);
 			// NOTE: suppressDeletes stays true until the entire pull completes.
 			// Obsidian's delete events fire asynchronously — resetting here would
 			// allow queued events to leak through and soft-delete server data.
@@ -956,11 +947,11 @@ export class SyncEngine {
 
 		devLog().log(
 			"pull",
-			`${wipe ? "wipePullAll" : "pullAll"}: fetching everything from server`,
+			`${wipe ? "pullAll(deleteLocalExtras)" : "pullAll"}: fetching everything from server`,
 		);
 		rlog().info(
 			"pull",
-			`${wipe ? "WipePullAll" : "PullAll"} started — fetching everything from epoch`,
+			`${wipe ? "pullAll(deleteLocalExtras)" : "pullAll"} started — fetching everything from epoch`,
 		);
 		try {
 			const epoch = "1970-01-01T00:00:00Z";

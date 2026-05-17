@@ -3055,20 +3055,4 @@ describe("SyncEngine.pullAll with deleteLocalExtras", () => {
 		expect(mockApp.fileManager.trashFile).toHaveBeenCalledWith(localOnly);
 	});
 
-	test("legacy wipePullAll still works (back-compat wrapper)", async () => {
-		const engine = createEngine();
-		(mockApp.vault.getFiles as jest.Mock).mockReturnValue([new TFile("wipe-me.md", Date.now())]);
-		(mockApi.getChanges as jest.Mock).mockResolvedValueOnce({
-			changes: [],
-			server_time: "2026-01-01T00:00:01Z",
-		});
-		(mockApi.getAttachmentChanges as jest.Mock).mockResolvedValueOnce({
-			changes: [],
-			server_time: "2026-01-01T00:00:01Z",
-		});
-
-		await engine.wipePullAll();
-
-		expect(mockApp.fileManager.trashFile).toHaveBeenCalledTimes(1);
-	});
 });

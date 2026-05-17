@@ -779,56 +779,6 @@
 	margin-top: 16px;
 }
 
-/* ── Pre-sync + wipe modals ──────────────────────────────────── */
-
-.engram-sync-summary {
-	white-space: pre-wrap;
-	font-family: var(--font-monospace);
-	font-size: 0.9em;
-	padding: 12px;
-	background: var(--background-secondary);
-	border-radius: 6px;
-}
-
-.engram-sync-warning {
-	color: var(--text-error);
-	margin-top: 8px;
-}
-
-.engram-button-row {
-	display: flex;
-	justify-content: flex-end;
-	gap: 8px;
-	margin-top: 16px;
-}
-
-.engram-button-row-start {
-	display: flex;
-	gap: 8px;
-	margin-top: 16px;
-}
-
-.engram-btn-danger-outline {
-	color: var(--text-error);
-	border-color: var(--text-error);
-}
-
-.engram-btn-danger-solid {
-	background: var(--text-error);
-	color: var(--text-on-accent);
-	border-color: var(--text-error);
-}
-
-.engram-wipe-warning-strong {
-	color: var(--text-error);
-	font-weight: bold;
-	font-size: 1.05em;
-}
-
-.engram-wipe-warning {
-	color: var(--text-error);
-}
-
 /* About section */
 .engram-about-list {
 	list-style: none;
