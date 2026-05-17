@@ -325,24 +325,32 @@ export default class EngramSyncPlugin extends Plugin {
 		this.statusBarEl.addClass("engram-status-bar-clickable");
 
 		this.registerDomEvent(this.statusBarEl, "click", () => {
-			if (this.settings.apiUrl && this.settings.apiKey) {
-				new Notice("Engram sync: syncing...");
-				this.syncEngine
-					.fullSync()
-					.then(({ pulled, pushed }) => {
-						new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
-					})
-					.catch((e) => {
-						// biome-ignore lint/suspicious/noConsole: error boundary
-						console.error("Engram Sync: manual sync failed", e);
-						rlog().error(
-							"lifecycle",
-							`Manual sync failed: ${errMsg(e)}`,
-							e instanceof Error ? e.stack : undefined,
-						);
-						new Notice("Engram sync: sync failed");
-					});
+			if (!this.settings.apiUrl || !this.settings.apiKey) return;
+
+			if (this.syncEngine.isSyncBlocked()) {
+				// Gate is closed — open SyncPreviewModal so the user can pick
+				// a direction. doSyncWithFirstSyncCheck handles plan compute,
+				// modal open, and dispatch.
+				void this.doSyncWithFirstSyncCheck();
+				return;
 			}
+
+			new Notice("Engram sync: syncing...");
+			this.syncEngine
+				.fullSync()
+				.then(({ pulled, pushed }) => {
+					new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+				})
+				.catch((e) => {
+					// biome-ignore lint/suspicious/noConsole: error boundary
+					console.error("Engram Sync: manual sync failed", e);
+					rlog().error(
+						"lifecycle",
+						`Manual sync failed: ${errMsg(e)}`,
+						e instanceof Error ? e.stack : undefined,
+					);
+					new Notice("Engram sync: sync failed");
+				});
 		});
 
 		// WebSocket live sync
@@ -812,14 +820,22 @@ export default class EngramSyncPlugin extends Plugin {
 
 	/** Update status bar text and tooltip based on sync state + WebSocket connection. */
 	private updateStatusBar(status: SyncStatus): void {
-		// TODO: surface syncBlocked state — Task 14 wires "sync paused" text +
-		// click-to-reopen-modal here. Currently shows "ready" even when blocked.
 		if (!this.statusBarEl) return;
+
+		const blocked = this.syncEngine?.isSyncBlocked() ?? false;
 
 		let text: string;
 		let tooltip: string;
 
-		if (status.state === "offline") {
+		if (blocked && status.state !== "syncing") {
+			// Sync gate closed — user has not picked a direction in SyncPreviewModal
+			// for the current auth+vault fingerprint. Show a click-to-resolve nag.
+			text =
+				status.pending > 0
+					? `Engram: sync paused (${status.pending} queued)`
+					: "Engram: sync paused";
+			tooltip = "Sync paused — click to choose a sync direction";
+		} else if (status.state === "offline") {
 			text =
 				status.queued > 0 ? `Engram: offline (${status.queued} queued)` : "Engram: offline";
 			tooltip = "Server unreachable — changes will sync when connected";
@@ -841,7 +857,7 @@ export default class EngramSyncPlugin extends Plugin {
 		}
 
 		const errorCount = this.syncLog?.errorCount() ?? 0;
-		if (errorCount > 0 && status.state === "idle") {
+		if (errorCount > 0 && status.state === "idle" && !blocked) {
 			text = `Engram: ⚠ ${errorCount} sync errors`;
 		}
 
