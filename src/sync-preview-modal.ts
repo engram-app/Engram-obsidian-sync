@@ -126,6 +126,12 @@ const HEADER_BY_CONTEXT: Record<SyncPreviewContext, string> = {
 	review: "Sync preview",
 };
 
+const OPTIONS_HEADER_BY_CONTEXT: Record<SyncPreviewContext, string> = {
+	"first-time": "Choose from the following first-time sync options",
+	"vault-switch": "Choose how to sync this new vault",
+	review: "Choose a sync direction",
+};
+
 export interface SyncPreviewOptions {
 	/** Server URL string. Host portion is shown beneath the vault name. */
 	serverUrl: string;
@@ -216,6 +222,10 @@ export class SyncPreviewModal extends Modal {
 		}
 
 		const options = contentEl.createDiv({ cls: "engram-sync-preview-options" });
+		options.createDiv({
+			cls: "engram-sync-preview-options-header",
+			text: OPTIONS_HEADER_BY_CONTEXT[context],
+		});
 
 		const mergeRow = options.createDiv({ cls: "engram-sync-preview-options-merge" });
 		this.renderOptionCard(mergeRow, MERGE_CARD);
@@ -304,7 +314,7 @@ export class SyncPreviewModal extends Modal {
 		if (match === 100) matchValue.addClass("is-perfect");
 		matchRow.createSpan({
 			cls: "engram-sync-preview-match-label",
-			text: " vaults match",
+			text: " of vaults currently match",
 		});
 		if (conflicts > 0) {
 			const conflictRow = parent.createDiv({ cls: "engram-sync-preview-conflicts" });

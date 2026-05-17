@@ -2497,6 +2497,10 @@ var SyncPreviewState = class {
   "first-time": "Set up sync for this vault",
   "vault-switch": "New vault detected",
   review: "Sync preview"
+}, OPTIONS_HEADER_BY_CONTEXT = {
+  "first-time": "Choose from the following first-time sync options",
+  "vault-switch": "Choose how to sync this new vault",
+  review: "Choose a sync direction"
 };
 function hostOf(url) {
   if (!url) return "";
@@ -2544,7 +2548,12 @@ var SyncPreviewModal = class extends import_obsidian11.Modal {
       }).addEventListener("click", () => this.state.cancel());
       return;
     }
-    let options = contentEl.createDiv({ cls: "engram-sync-preview-options" }), mergeRow = options.createDiv({ cls: "engram-sync-preview-options-merge" });
+    let options = contentEl.createDiv({ cls: "engram-sync-preview-options" });
+    options.createDiv({
+      cls: "engram-sync-preview-options-header",
+      text: OPTIONS_HEADER_BY_CONTEXT[context]
+    });
+    let mergeRow = options.createDiv({ cls: "engram-sync-preview-options-merge" });
     this.renderOptionCard(mergeRow, MERGE_CARD);
     let grid = options.createDiv({ cls: "engram-sync-preview-options-grid" }), pushCol = grid.createDiv({ cls: "engram-sync-preview-options-col" });
     pushCol.createDiv({
@@ -2607,7 +2616,7 @@ var SyncPreviewModal = class extends import_obsidian11.Modal {
     });
     if (match === 100 && matchValue.addClass("is-perfect"), matchRow.createSpan({
       cls: "engram-sync-preview-match-label",
-      text: " vaults match"
+      text: " of vaults currently match"
     }), conflicts > 0) {
       let conflictRow = parent.createDiv({ cls: "engram-sync-preview-conflicts" });
       conflictRow.createSpan({
