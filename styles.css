@@ -1254,32 +1254,88 @@
 
 .engram-sync-preview-compare-row {
 	font-size: 0.9em;
-	color: var(--text-normal);
-}
-
-.engram-sync-preview-meta {
-	display: flex;
-	gap: 0.75em;
-	flex-wrap: wrap;
-	font-size: 0.85em;
 	color: var(--text-muted);
-	margin-bottom: 1.25em;
+	display: flex;
+	align-items: baseline;
+	gap: 0.1em;
 }
 
-.engram-sync-preview-meta-item.is-perfect {
+.engram-sync-preview-compare-row-count {
+	font-weight: 700;
+	color: var(--text-normal);
+	font-variant-numeric: tabular-nums;
+}
+
+.engram-sync-preview-compare-row-emoji {
+	margin-right: 0.15em;
+}
+
+.engram-sync-preview-match {
+	text-align: center;
+	margin: 0.75em 0 0.25em 0;
+}
+
+.engram-sync-preview-match-value {
+	font-size: 1.75em;
+	font-weight: 700;
+	color: var(--text-normal);
+	font-variant-numeric: tabular-nums;
+}
+
+.engram-sync-preview-match-value.is-perfect {
 	color: var(--text-success, var(--text-accent));
-	font-weight: 600;
 }
 
-.engram-sync-preview-meta-item.is-warning {
+.engram-sync-preview-match-label {
+	font-size: 0.95em;
+	color: var(--text-muted);
+}
+
+.engram-sync-preview-conflicts {
+	text-align: center;
+	margin-bottom: 1em;
+	font-size: 0.9em;
+}
+
+.engram-sync-preview-conflicts-value {
 	color: var(--text-warning, var(--text-error));
 	font-weight: 600;
+}
+
+.engram-sync-preview-conflicts-label {
+	color: var(--text-muted);
 }
 
 .engram-sync-preview-options {
 	display: flex;
 	flex-direction: column;
 	gap: 0.75em;
+}
+
+.engram-sync-preview-options-merge {
+	display: flex;
+	flex-direction: column;
+}
+
+.engram-sync-preview-options-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.75em;
+}
+
+.engram-sync-preview-options-col {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5em;
+}
+
+.engram-sync-preview-options-col-header {
+	font-size: 0.8em;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--text-muted);
+	margin-bottom: 0.15em;
 }
 
 .engram-sync-preview-option-wrap {
@@ -1310,23 +1366,9 @@
 	color: var(--text-muted);
 }
 
-.engram-sync-preview-no-sample {
-	margin-bottom: 0;
-}
-
 .engram-sync-preview-destructive {
 	background: var(--background-modifier-error);
 	color: var(--text-on-accent);
-}
-
-.engram-sync-preview-sample {
-	margin: 0 0 0 1.85em;
-}
-
-.engram-sync-preview-sample summary {
-	cursor: pointer;
-	font-size: 0.85em;
-	color: var(--text-muted);
 }
 
 .engram-sync-preview-footer {

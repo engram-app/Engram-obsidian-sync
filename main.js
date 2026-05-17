@@ -2457,40 +2457,40 @@ var SyncPreviewState = class {
   resolve(choice) {
     this.resolved || (this.resolved = !0, this.view = "done", this.onResolve(choice));
   }
-}, OPTION_CARDS = [
-  {
-    choice: "smart-merge",
-    emoji: "\u2728",
-    label: "Smart merge (recommended)",
-    subtitle: (b) => `Pull ${b.pullCount}, push ${b.pushCount}, merge ${b.conflictCount} conflicts`,
-    cssClass: "engram-sync-preview-option mod-cta"
-  },
-  {
-    choice: "pull-all-keep-local",
-    emoji: "\u2B07\uFE0F",
-    label: "Pull all + keep local extras",
-    subtitle: (b) => `Download ${b.pullCount}, keep all local`,
-    cssClass: "engram-sync-preview-option"
-  },
-  {
-    choice: "pull-all-delete-local",
-    emoji: "\u26A0\uFE0F",
-    label: "Pull all + delete local extras",
-    subtitle: (b) => `Download ${b.pullCount}, delete ${b.deleteLocalCount} local`,
-    cssClass: "engram-sync-preview-option engram-sync-preview-destructive"
-  },
+}, MERGE_CARD = {
+  choice: "smart-merge",
+  emoji: "\u2728",
+  label: "Merge",
+  subtitle: (b) => `Keep files from both sides; resolve ${b.conflictCount} conflict${b.conflictCount === 1 ? "" : "s"} as they appear`,
+  cssClass: "engram-sync-preview-option mod-cta"
+}, PUSH_CARDS = [
   {
     choice: "push-all-keep-remote",
     emoji: "\u2B06\uFE0F",
-    label: "Push all + keep remote extras",
-    subtitle: (b) => `Upload ${b.pushCount}, keep all remote`,
+    label: "Push all + keep remote",
+    subtitle: (b) => `Upload ${b.pushCount}, keep remote extras`,
     cssClass: "engram-sync-preview-option"
   },
   {
     choice: "push-all-delete-remote",
     emoji: "\u26A0\uFE0F",
-    label: "Push all + delete remote extras",
+    label: "Push all + delete remote",
     subtitle: (b) => `Upload ${b.pushCount}, delete ${b.deleteRemoteCount} remote`,
+    cssClass: "engram-sync-preview-option engram-sync-preview-destructive"
+  }
+], PULL_CARDS = [
+  {
+    choice: "pull-all-keep-local",
+    emoji: "\u2B07\uFE0F",
+    label: "Pull all + keep local",
+    subtitle: (b) => `Download ${b.pullCount}, keep local extras`,
+    cssClass: "engram-sync-preview-option"
+  },
+  {
+    choice: "pull-all-delete-local",
+    emoji: "\u26A0\uFE0F",
+    label: "Pull all + delete local",
+    subtitle: (b) => `Download ${b.pullCount}, delete ${b.deleteLocalCount} local`,
     cssClass: "engram-sync-preview-option engram-sync-preview-destructive"
   }
 ], HEADER_BY_CONTEXT = {
@@ -2544,9 +2544,22 @@ var SyncPreviewModal = class extends import_obsidian11.Modal {
       }).addEventListener("click", () => this.state.cancel());
       return;
     }
-    let options = contentEl.createDiv({ cls: "engram-sync-preview-options" });
-    for (let card of OPTION_CARDS)
-      this.renderOptionCard(options, card);
+    let options = contentEl.createDiv({ cls: "engram-sync-preview-options" }), mergeRow = options.createDiv({ cls: "engram-sync-preview-options-merge" });
+    this.renderOptionCard(mergeRow, MERGE_CARD);
+    let grid = options.createDiv({ cls: "engram-sync-preview-options-grid" }), pushCol = grid.createDiv({ cls: "engram-sync-preview-options-col" });
+    pushCol.createDiv({
+      text: "Push (local \u2192 cloud)",
+      cls: "engram-sync-preview-options-col-header"
+    });
+    for (let card of PUSH_CARDS)
+      this.renderOptionCard(pushCol, card);
+    let pullCol = grid.createDiv({ cls: "engram-sync-preview-options-col" });
+    pullCol.createDiv({
+      text: "Pull (cloud \u2192 local)",
+      cls: "engram-sync-preview-options-col-header"
+    });
+    for (let card of PULL_CARDS)
+      this.renderOptionCard(pullCol, card);
     let footer = contentEl.createDiv({ cls: "engram-sync-preview-footer" });
     footer.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.state.cancel()), this.opts.showChangeVault && footer.createEl("button", { text: "Change vault" }).addEventListener("click", () => this.state.changeVault());
   }
@@ -2584,18 +2597,25 @@ var SyncPreviewModal = class extends import_obsidian11.Modal {
       attachments: this.plan.localAttachmentCount
     }), this.renderCompareCard(wrap, {
       emoji: "\u2601\uFE0F",
-      label: "Engram server",
+      label: "Cloud server",
       notes: this.plan.serverNoteCount,
       attachments: this.plan.serverAttachmentCount
     });
-    let match = computeMatchPercent(this.plan), conflicts = this.plan.conflicts.length, meta = parent.createDiv({ cls: "engram-sync-preview-meta" }), matchPill = meta.createSpan({
-      text: `\u{1F517} Match: ${match}%`,
-      cls: "engram-sync-preview-meta-item"
+    let match = computeMatchPercent(this.plan), conflicts = this.plan.conflicts.length, matchRow = parent.createDiv({ cls: "engram-sync-preview-match" }), matchValue = matchRow.createSpan({
+      cls: "engram-sync-preview-match-value",
+      text: `${match}%`
     });
-    if (match === 100 && matchPill.addClass("is-perfect"), conflicts > 0) {
-      let conflictPill = meta.createSpan({
-        text: `\u26A1 Conflicts: ${conflicts}`,
-        cls: "engram-sync-preview-meta-item is-warning"
+    if (match === 100 && matchValue.addClass("is-perfect"), matchRow.createSpan({
+      cls: "engram-sync-preview-match-label",
+      text: " vaults match"
+    }), conflicts > 0) {
+      let conflictRow = parent.createDiv({ cls: "engram-sync-preview-conflicts" });
+      conflictRow.createSpan({
+        cls: "engram-sync-preview-conflicts-value",
+        text: `\u26A1 ${conflicts}`
+      }), conflictRow.createSpan({
+        cls: "engram-sync-preview-conflicts-label",
+        text: ` conflict${conflicts === 1 ? "" : "s"} need resolution`
       });
     }
   }
@@ -2603,32 +2623,24 @@ var SyncPreviewModal = class extends import_obsidian11.Modal {
     let el = parent.createDiv({ cls: "engram-sync-preview-compare-card" }), header = el.createDiv({ cls: "engram-sync-preview-compare-card-header" });
     header.createSpan({ text: card.emoji, cls: "engram-sync-preview-compare-emoji" }), header.createSpan({ text: card.label, cls: "engram-sync-preview-compare-label" });
     let body = el.createDiv({ cls: "engram-sync-preview-compare-card-body" });
-    body.createDiv({
-      text: `\u{1F4C4} ${card.notes} notes`,
-      cls: "engram-sync-preview-compare-row"
-    }), body.createDiv({
-      text: `\u{1F4CE} ${card.attachments} attachments`,
-      cls: "engram-sync-preview-compare-row"
+    this.renderCompareRow(body, "\u{1F4C4}", card.notes, "notes"), this.renderCompareRow(body, "\u{1F4CE}", card.attachments, "attachments");
+  }
+  renderCompareRow(parent, emoji, count, label) {
+    let row = parent.createDiv({ cls: "engram-sync-preview-compare-row" });
+    row.createSpan({ text: `${emoji} `, cls: "engram-sync-preview-compare-row-emoji" }), row.createSpan({
+      text: String(count),
+      cls: "engram-sync-preview-compare-row-count"
+    }), row.createSpan({
+      text: ` ${label}`,
+      cls: "engram-sync-preview-compare-row-label"
     });
   }
   renderOptionCard(parent, card) {
     let b = optionBreakdown(this.plan, card.choice), wrap = parent.createDiv({ cls: "engram-sync-preview-option-wrap" }), btn = wrap.createEl("button", { cls: card.cssClass });
-    btn.createSpan({ text: card.emoji, cls: "engram-sync-preview-option-emoji" }), btn.createSpan({ text: card.label, cls: "engram-sync-preview-option-label" });
-    let subtitle = wrap.createEl("p", {
+    btn.createSpan({ text: card.emoji, cls: "engram-sync-preview-option-emoji" }), btn.createSpan({ text: card.label, cls: "engram-sync-preview-option-label" }), wrap.createEl("p", {
       text: card.subtitle(b),
       cls: "engram-sync-preview-option-subtitle"
-    });
-    if (b.samplePaths.length > 0) {
-      let details = wrap.createEl("details", {
-        cls: "engram-sync-preview-sample"
-      });
-      details.createEl("summary", { text: "Sample paths" });
-      let ul = details.createEl("ul");
-      for (let p of b.samplePaths)
-        ul.createEl("li", { text: p });
-    } else
-      subtitle.addClass("engram-sync-preview-no-sample");
-    btn.addEventListener("click", () => {
+    }), btn.addEventListener("click", () => {
       this.state.pickOption(card.choice), this.render();
     });
   }

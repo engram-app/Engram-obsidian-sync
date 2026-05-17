@@ -70,47 +70,53 @@ export class SyncPreviewState {
 	}
 }
 
-const OPTION_CARDS: Array<{
+interface OptionCard {
 	choice: SyncChoice;
 	emoji: string;
 	label: string;
 	subtitle: (b: OptionBreakdown) => string;
 	cssClass: string;
-}> = [
-	{
-		choice: "smart-merge",
-		emoji: "✨",
-		label: "Smart merge (recommended)",
-		subtitle: (b) =>
-			`Pull ${b.pullCount}, push ${b.pushCount}, merge ${b.conflictCount} conflicts`,
-		cssClass: "engram-sync-preview-option mod-cta",
-	},
-	{
-		choice: "pull-all-keep-local",
-		emoji: "⬇️",
-		label: "Pull all + keep local extras",
-		subtitle: (b) => `Download ${b.pullCount}, keep all local`,
-		cssClass: "engram-sync-preview-option",
-	},
-	{
-		choice: "pull-all-delete-local",
-		emoji: "⚠️",
-		label: "Pull all + delete local extras",
-		subtitle: (b) => `Download ${b.pullCount}, delete ${b.deleteLocalCount} local`,
-		cssClass: "engram-sync-preview-option engram-sync-preview-destructive",
-	},
+}
+
+const MERGE_CARD: OptionCard = {
+	choice: "smart-merge",
+	emoji: "✨",
+	label: "Merge",
+	subtitle: (b) =>
+		`Keep files from both sides; resolve ${b.conflictCount} conflict${b.conflictCount === 1 ? "" : "s"} as they appear`,
+	cssClass: "engram-sync-preview-option mod-cta",
+};
+
+const PUSH_CARDS: OptionCard[] = [
 	{
 		choice: "push-all-keep-remote",
 		emoji: "⬆️",
-		label: "Push all + keep remote extras",
-		subtitle: (b) => `Upload ${b.pushCount}, keep all remote`,
+		label: "Push all + keep remote",
+		subtitle: (b) => `Upload ${b.pushCount}, keep remote extras`,
 		cssClass: "engram-sync-preview-option",
 	},
 	{
 		choice: "push-all-delete-remote",
 		emoji: "⚠️",
-		label: "Push all + delete remote extras",
+		label: "Push all + delete remote",
 		subtitle: (b) => `Upload ${b.pushCount}, delete ${b.deleteRemoteCount} remote`,
+		cssClass: "engram-sync-preview-option engram-sync-preview-destructive",
+	},
+];
+
+const PULL_CARDS: OptionCard[] = [
+	{
+		choice: "pull-all-keep-local",
+		emoji: "⬇️",
+		label: "Pull all + keep local",
+		subtitle: (b) => `Download ${b.pullCount}, keep local extras`,
+		cssClass: "engram-sync-preview-option",
+	},
+	{
+		choice: "pull-all-delete-local",
+		emoji: "⚠️",
+		label: "Pull all + delete local",
+		subtitle: (b) => `Download ${b.pullCount}, delete ${b.deleteLocalCount} local`,
 		cssClass: "engram-sync-preview-option engram-sync-preview-destructive",
 	},
 ];
@@ -211,8 +217,27 @@ export class SyncPreviewModal extends Modal {
 		}
 
 		const options = contentEl.createDiv({ cls: "engram-sync-preview-options" });
-		for (const card of OPTION_CARDS) {
-			this.renderOptionCard(options, card);
+
+		const mergeRow = options.createDiv({ cls: "engram-sync-preview-options-merge" });
+		this.renderOptionCard(mergeRow, MERGE_CARD);
+
+		const grid = options.createDiv({ cls: "engram-sync-preview-options-grid" });
+		const pushCol = grid.createDiv({ cls: "engram-sync-preview-options-col" });
+		pushCol.createDiv({
+			text: "Push (local → cloud)",
+			cls: "engram-sync-preview-options-col-header",
+		});
+		for (const card of PUSH_CARDS) {
+			this.renderOptionCard(pushCol, card);
+		}
+
+		const pullCol = grid.createDiv({ cls: "engram-sync-preview-options-col" });
+		pullCol.createDiv({
+			text: "Pull (cloud → local)",
+			cls: "engram-sync-preview-options-col-header",
+		});
+		for (const card of PULL_CARDS) {
+			this.renderOptionCard(pullCol, card);
 		}
 
 		const footer = contentEl.createDiv({ cls: "engram-sync-preview-footer" });
@@ -265,25 +290,33 @@ export class SyncPreviewModal extends Modal {
 		});
 		this.renderCompareCard(wrap, {
 			emoji: "☁️",
-			label: "Engram server",
+			label: "Cloud server",
 			notes: this.plan.serverNoteCount,
 			attachments: this.plan.serverAttachmentCount,
 		});
 
 		const match = computeMatchPercent(this.plan);
 		const conflicts = this.plan.conflicts.length;
-		const meta = parent.createDiv({ cls: "engram-sync-preview-meta" });
-		const matchPill = meta.createSpan({
-			text: `🔗 Match: ${match}%`,
-			cls: "engram-sync-preview-meta-item",
+		const matchRow = parent.createDiv({ cls: "engram-sync-preview-match" });
+		const matchValue = matchRow.createSpan({
+			cls: "engram-sync-preview-match-value",
+			text: `${match}%`,
 		});
-		if (match === 100) matchPill.addClass("is-perfect");
+		if (match === 100) matchValue.addClass("is-perfect");
+		matchRow.createSpan({
+			cls: "engram-sync-preview-match-label",
+			text: " vaults match",
+		});
 		if (conflicts > 0) {
-			const conflictPill = meta.createSpan({
-				text: `⚡ Conflicts: ${conflicts}`,
-				cls: "engram-sync-preview-meta-item is-warning",
+			const conflictRow = parent.createDiv({ cls: "engram-sync-preview-conflicts" });
+			conflictRow.createSpan({
+				cls: "engram-sync-preview-conflicts-value",
+				text: `⚡ ${conflicts}`,
 			});
-			void conflictPill;
+			conflictRow.createSpan({
+				cls: "engram-sync-preview-conflicts-label",
+				text: ` conflict${conflicts === 1 ? "" : "s"} need resolution`,
+			});
 		}
 	}
 
@@ -296,38 +329,38 @@ export class SyncPreviewModal extends Modal {
 		header.createSpan({ text: card.emoji, cls: "engram-sync-preview-compare-emoji" });
 		header.createSpan({ text: card.label, cls: "engram-sync-preview-compare-label" });
 		const body = el.createDiv({ cls: "engram-sync-preview-compare-card-body" });
-		body.createDiv({
-			text: `📄 ${card.notes} notes`,
-			cls: "engram-sync-preview-compare-row",
+		this.renderCompareRow(body, "📄", card.notes, "notes");
+		this.renderCompareRow(body, "📎", card.attachments, "attachments");
+	}
+
+	private renderCompareRow(
+		parent: HTMLElement,
+		emoji: string,
+		count: number,
+		label: string,
+	): void {
+		const row = parent.createDiv({ cls: "engram-sync-preview-compare-row" });
+		row.createSpan({ text: `${emoji} `, cls: "engram-sync-preview-compare-row-emoji" });
+		row.createSpan({
+			text: String(count),
+			cls: "engram-sync-preview-compare-row-count",
 		});
-		body.createDiv({
-			text: `📎 ${card.attachments} attachments`,
-			cls: "engram-sync-preview-compare-row",
+		row.createSpan({
+			text: ` ${label}`,
+			cls: "engram-sync-preview-compare-row-label",
 		});
 	}
 
-	private renderOptionCard(parent: HTMLElement, card: (typeof OPTION_CARDS)[number]): void {
+	private renderOptionCard(parent: HTMLElement, card: OptionCard): void {
 		const b = optionBreakdown(this.plan, card.choice);
 		const wrap = parent.createDiv({ cls: "engram-sync-preview-option-wrap" });
 		const btn = wrap.createEl("button", { cls: card.cssClass });
 		btn.createSpan({ text: card.emoji, cls: "engram-sync-preview-option-emoji" });
 		btn.createSpan({ text: card.label, cls: "engram-sync-preview-option-label" });
-		const subtitle = wrap.createEl("p", {
+		wrap.createEl("p", {
 			text: card.subtitle(b),
 			cls: "engram-sync-preview-option-subtitle",
 		});
-		if (b.samplePaths.length > 0) {
-			const details = wrap.createEl("details", {
-				cls: "engram-sync-preview-sample",
-			});
-			details.createEl("summary", { text: "Sample paths" });
-			const ul = details.createEl("ul");
-			for (const p of b.samplePaths) {
-				ul.createEl("li", { text: p });
-			}
-		} else {
-			subtitle.addClass("engram-sync-preview-no-sample");
-		}
 		btn.addEventListener("click", () => {
 			this.state.pickOption(card.choice);
 			this.render();
