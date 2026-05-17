@@ -27,7 +27,7 @@ import { destroyDevLog, devLog, initDevLog } from "./dev-log";
 import { destroyRemoteLog, initRemoteLog, rlog } from "./remote-log";
 import { SyncLog } from "./sync-log";
 import { SyncLogModal } from "./sync-log-modal";
-import type { QueueEntry, SyncIssue } from "./types";
+import type { QueueEntry, SyncChoice, SyncIssue } from "./types";
 
 /** Generate a stable client ID for vault registration.
  *  Uses SHA-256 of the vault's absolute path (desktop) or name (mobile fallback). */
@@ -630,6 +630,48 @@ export default class EngramSyncPlugin extends Plugin {
 					window.setTimeout(() => this.connectChannel(attempt + 1), delay);
 				}
 			});
+	}
+
+	/** Dispatch a user's SyncChoice to the appropriate engine method.
+	 *  Returns true if a sync ran (regardless of success); false if the choice
+	 *  was a no-op (`cancel`, `change-vault`). Caller is responsible for the
+	 *  side effects of `change-vault` (clearing vaultId + reopening the picker). */
+	async runSyncFromChoice(choice: SyncChoice): Promise<boolean> {
+		switch (choice) {
+			case "cancel":
+			case "change-vault":
+				return false;
+
+			case "smart-merge": {
+				const { pulled, pushed } = await this.syncEngine.fullSync();
+				new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+				return true;
+			}
+
+			case "pull-all-delete-local": {
+				const pulled = await this.syncEngine.pullAll({ deleteLocalExtras: true });
+				new Notice(`Engram Sync: pulled ${pulled} (local extras deleted)`);
+				return true;
+			}
+
+			case "pull-all-keep-local": {
+				const pulled = await this.syncEngine.pullAll({ deleteLocalExtras: false });
+				new Notice(`Engram Sync: pulled ${pulled}`);
+				return true;
+			}
+
+			case "push-all-delete-remote": {
+				const pushed = await this.syncEngine.pushAll({ deleteRemoteExtras: true });
+				new Notice(`Engram Sync: pushed ${pushed} (remote extras deleted)`);
+				return true;
+			}
+
+			case "push-all-keep-remote": {
+				const pushed = await this.syncEngine.pushAll({ deleteRemoteExtras: false });
+				new Notice(`Engram Sync: pushed ${pushed}`);
+				return true;
+			}
+		}
 	}
 
 	/** Run sync, showing first-sync modal if no prior sync state exists. */
