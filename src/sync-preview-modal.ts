@@ -4,6 +4,7 @@ import {
 	isDestructiveChoice,
 	isPlanEmpty,
 	optionBreakdown,
+	type OptionBreakdown,
 } from "./sync-plan-format";
 import type { SyncChoice, SyncPlan } from "./types";
 
@@ -72,52 +73,37 @@ export class SyncPreviewState {
 const OPTION_CARDS: Array<{
 	choice: SyncChoice;
 	label: string;
-	subtitle: (plan: SyncPlan) => string;
+	subtitle: (b: OptionBreakdown) => string;
 	cssClass: string;
 }> = [
 	{
 		choice: "smart-merge",
 		label: "Smart merge (recommended)",
-		subtitle: (plan) => {
-			const b = optionBreakdown(plan, "smart-merge");
-			return `Pull ${b.pullCount}, push ${b.pushCount}, merge ${b.conflictCount} conflicts`;
-		},
+		subtitle: (b) => `Pull ${b.pullCount}, push ${b.pushCount}, merge ${b.conflictCount} conflicts`,
 		cssClass: "engram-sync-preview-option mod-cta",
 	},
 	{
 		choice: "pull-all-delete-local",
 		label: "Pull all + delete local extras",
-		subtitle: (plan) => {
-			const b = optionBreakdown(plan, "pull-all-delete-local");
-			return `Download ${b.pullCount}, delete ${b.deleteLocalCount} local`;
-		},
+		subtitle: (b) => `Download ${b.pullCount}, delete ${b.deleteLocalCount} local`,
 		cssClass: "engram-sync-preview-option engram-sync-preview-destructive",
 	},
 	{
 		choice: "pull-all-keep-local",
 		label: "Pull all + keep local extras",
-		subtitle: (plan) => {
-			const b = optionBreakdown(plan, "pull-all-keep-local");
-			return `Download ${b.pullCount}, keep all local`;
-		},
+		subtitle: (b) => `Download ${b.pullCount}, keep all local`,
 		cssClass: "engram-sync-preview-option",
 	},
 	{
 		choice: "push-all-delete-remote",
 		label: "Push all + delete remote extras",
-		subtitle: (plan) => {
-			const b = optionBreakdown(plan, "push-all-delete-remote");
-			return `Upload ${b.pushCount}, delete ${b.deleteRemoteCount} remote`;
-		},
+		subtitle: (b) => `Upload ${b.pushCount}, delete ${b.deleteRemoteCount} remote`,
 		cssClass: "engram-sync-preview-option engram-sync-preview-destructive",
 	},
 	{
 		choice: "push-all-keep-remote",
 		label: "Push all + keep remote extras",
-		subtitle: (plan) => {
-			const b = optionBreakdown(plan, "push-all-keep-remote");
-			return `Upload ${b.pushCount}, keep all remote`;
-		},
+		subtitle: (b) => `Upload ${b.pushCount}, keep all remote`,
 		cssClass: "engram-sync-preview-option",
 	},
 ];
@@ -148,6 +134,7 @@ export class SyncPreviewModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.contentEl.addClass("engram-sync-preview-modal");
 		this.render();
 	}
 
@@ -170,7 +157,6 @@ export class SyncPreviewModal extends Modal {
 	private render(): void {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass("engram-sync-preview-modal");
 
 		if (this.state.view === "preview") {
 			this.renderPreview();
@@ -231,15 +217,15 @@ export class SyncPreviewModal extends Modal {
 		parent: HTMLElement,
 		card: (typeof OPTION_CARDS)[number],
 	): void {
+		const b = optionBreakdown(this.plan, card.choice);
 		const btn = parent.createEl("button", {
 			text: card.label,
 			cls: card.cssClass,
 		});
 		const subtitle = parent.createEl("p", {
-			text: card.subtitle(this.plan),
+			text: card.subtitle(b),
 			cls: "engram-sync-preview-option-subtitle",
 		});
-		const b = optionBreakdown(this.plan, card.choice);
 		if (b.samplePaths.length > 0) {
 			const details = parent.createEl("details", {
 				cls: "engram-sync-preview-sample",
