@@ -4835,6 +4835,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian16.Plugin
     this.syncInterval = null;
     this.noteStream = null;
     this.statusBarEl = null;
+    this.settingTab = null;
     this.liveConnected = !1;
     /** Fires whenever the status bar text/state changes — used by the settings
      *  panel to keep its top status row in sync with sync engine + WebSocket
@@ -5231,7 +5232,10 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian16.Plugin
         context,
         initialView: opts.startInVaultPicker ? "vault-picker" : "preview",
         listVaults: () => this.api.listVaults(),
-        applyVaultChange: async (id, name) => (this.settings.vaultId = id, this.settings.remoteVaultName = name, this.api.setVaultId(id), this.syncEngine.updateSettings(this.settings), await this.syncEngine.resetForVaultChange(), this.syncGateAcceptedFor = null, this.syncEngine.setSyncBlocked(!0), await this.savePluginData(this.syncEngine.getLastSync()), this.syncEngine.computeSyncPlan("full"))
+        applyVaultChange: async (id, name) => {
+          var _a;
+          return this.settings.vaultId = id, this.settings.remoteVaultName = name, this.api.setVaultId(id), this.syncEngine.updateSettings(this.settings), await this.syncEngine.resetForVaultChange(), this.syncGateAcceptedFor = null, this.syncEngine.setSyncBlocked(!0), await this.savePluginData(this.syncEngine.getLastSync()), (_a = this.settingTab) == null || _a.display(), this.syncEngine.computeSyncPlan("full");
+        }
       }).awaitChoice();
       await this.runSyncFromChoice(choice);
     } catch (e) {

@@ -74,6 +74,7 @@ export default class EngramSyncPlugin extends Plugin {
 	private syncInterval: number | null = null;
 	noteStream: NoteChannel | null = null;
 	private statusBarEl: HTMLElement | null = null;
+	private settingTab: EngramSyncSettingTab | null = null;
 	private liveConnected = false;
 
 	/** Fires whenever the status bar text/state changes — used by the settings
@@ -818,6 +819,9 @@ export default class EngramSyncPlugin extends Plugin {
 					this.syncGateAcceptedFor = null;
 					this.syncEngine.setSyncBlocked(true);
 					await this.savePluginData(this.syncEngine.getLastSync());
+					// Re-render the settings tab so the vault name span and
+					// any other vault-derived UI pick up the switch.
+					this.settingTab?.display();
 					return this.syncEngine.computeSyncPlan("full");
 				},
 			});
