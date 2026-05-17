@@ -3379,6 +3379,12 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   getLastSync() {
     return this.lastSync;
   }
+  /** Reset all per-vault sync bookkeeping. Used when the user switches the
+   *  active server vault inside the SyncPreviewModal so the next sync starts
+   *  from a clean slate (lastSync empty, no stale per-file hashes). */
+  async resetForVaultChange() {
+    this.syncState.clear(), this.lastSync = "", await this.saveData({ lastSync: "" }), devLog().log("lifecycle", "resetForVaultChange: lastSync + syncState cleared");
+  }
   /** Export sync state for persistence across sessions. */
   exportSyncState() {
     return Object.fromEntries(this.syncState);
@@ -4299,13 +4305,14 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     let prePullSync = this.lastSync, pulled = await this.pull(), pushed = await this.pushModifiedFiles(prePullSync);
     return pushed > 0 && await this.saveData({ lastSync: this.lastSync }), devLog().log("lifecycle", `fullSync done \u2014 pulled=${pulled} pushed=${pushed}`), rlog().info("lifecycle", `FullSync done \u2014 pulled=${pulled} pushed=${pushed}`), { pulled, pushed };
   }
-  /** Push all files that have been modified since last sync. */
+  /** Push all files that have been modified since last sync, plus any
+   *  syncable file that the engine has never seen (no syncState entry).
+   *  The untracked branch covers the first-sync case and the post
+   *  vault-change case where we cleared sync state — neither would
+   *  otherwise touch the push path because lastSync is empty and the
+   *  mtime comparison short-circuits. */
   async pushModifiedFiles(sinceTimestamp) {
-    let since = sinceTimestamp || this.lastSync;
-    if (!since) return 0;
-    let sinceMs = new Date(since).getTime(), files = this.app.vault.getFiles(), pushed = 0, toSync = files.filter(
-      (f) => this.isSyncable(f) && !this.shouldIgnore(f.path) && f.stat.mtime > sinceMs
-    );
+    let since = sinceTimestamp || this.lastSync, sinceMs = since ? new Date(since).getTime() : 0, files = this.app.vault.getFiles(), pushed = 0, toSync = files.filter((f) => !this.isSyncable(f) || this.shouldIgnore(f.path) ? !1 : this.syncState.has(f.path) ? f.stat.mtime > sinceMs : !0);
     devLog().log("push", `pushModifiedFiles: ${toSync.length} files modified since ${since}`), rlog().info("push", `PushModified: ${toSync.length} files modified since ${since}`);
     for (let i = 0; i < toSync.length; i += 10) {
       let batch = toSync.slice(i, i + 10), results = await Promise.all(batch.map((f) => this.pushFile(f)));
@@ -5224,7 +5231,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian16.Plugin
         context,
         initialView: opts.startInVaultPicker ? "vault-picker" : "preview",
         listVaults: () => this.api.listVaults(),
-        applyVaultChange: async (id, name) => (this.settings.vaultId = id, this.settings.remoteVaultName = name, this.api.setVaultId(id), this.syncEngine.updateSettings(this.settings), this.syncGateAcceptedFor = null, this.syncEngine.setSyncBlocked(!0), await this.savePluginData(this.syncEngine.getLastSync()), this.syncEngine.computeSyncPlan("full"))
+        applyVaultChange: async (id, name) => (this.settings.vaultId = id, this.settings.remoteVaultName = name, this.api.setVaultId(id), this.syncEngine.updateSettings(this.settings), await this.syncEngine.resetForVaultChange(), this.syncGateAcceptedFor = null, this.syncEngine.setSyncBlocked(!0), await this.savePluginData(this.syncEngine.getLastSync()), this.syncEngine.computeSyncPlan("full"))
       }).awaitChoice();
       await this.runSyncFromChoice(choice);
     } catch (e) {

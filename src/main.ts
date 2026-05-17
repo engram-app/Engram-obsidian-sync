@@ -810,6 +810,11 @@ export default class EngramSyncPlugin extends Plugin {
 					this.settings.remoteVaultName = name;
 					this.api.setVaultId(id);
 					this.syncEngine.updateSettings(this.settings);
+					// Last sync and per-file hashes are scoped to the previous
+					// server vault. Without this reset, fullSync compares
+					// local mtime to a stale lastSync and pushes nothing —
+					// even when the new vault is empty.
+					await this.syncEngine.resetForVaultChange();
 					this.syncGateAcceptedFor = null;
 					this.syncEngine.setSyncBlocked(true);
 					await this.savePluginData(this.syncEngine.getLastSync());

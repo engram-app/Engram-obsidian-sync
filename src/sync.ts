@@ -214,6 +214,16 @@ export class SyncEngine {
 		return this.lastSync;
 	}
 
+	/** Reset all per-vault sync bookkeeping. Used when the user switches the
+	 *  active server vault inside the SyncPreviewModal so the next sync starts
+	 *  from a clean slate (lastSync empty, no stale per-file hashes). */
+	async resetForVaultChange(): Promise<void> {
+		this.syncState.clear();
+		this.lastSync = "";
+		await this.saveData({ lastSync: "" });
+		devLog().log("lifecycle", "resetForVaultChange: lastSync + syncState cleared");
+	}
+
 	/** Export sync state for persistence across sessions. */
 	exportSyncState(): Record<string, FileSyncState> {
 		return Object.fromEntries(this.syncState);
@@ -1739,20 +1749,24 @@ export class SyncEngine {
 		return { pulled, pushed };
 	}
 
-	/** Push all files that have been modified since last sync. */
+	/** Push all files that have been modified since last sync, plus any
+	 *  syncable file that the engine has never seen (no syncState entry).
+	 *  The untracked branch covers the first-sync case and the post
+	 *  vault-change case where we cleared sync state — neither would
+	 *  otherwise touch the push path because lastSync is empty and the
+	 *  mtime comparison short-circuits. */
 	private async pushModifiedFiles(sinceTimestamp?: string): Promise<number> {
 		const since = sinceTimestamp || this.lastSync;
-		if (!since) return 0;
-
-		const sinceMs = new Date(since).getTime();
+		const sinceMs = since ? new Date(since).getTime() : 0;
 		const files = this.app.vault.getFiles();
 		let pushed = 0;
 
 		// Batch in groups of 10
-		const toSync = files.filter(
-			(f: TFile) =>
-				this.isSyncable(f) && !this.shouldIgnore(f.path) && f.stat.mtime > sinceMs,
-		);
+		const toSync = files.filter((f: TFile) => {
+			if (!this.isSyncable(f) || this.shouldIgnore(f.path)) return false;
+			if (!this.syncState.has(f.path)) return true;
+			return f.stat.mtime > sinceMs;
+		});
 		devLog().log("push", `pushModifiedFiles: ${toSync.length} files modified since ${since}`);
 		rlog().info("push", `PushModified: ${toSync.length} files modified since ${since}`);
 
