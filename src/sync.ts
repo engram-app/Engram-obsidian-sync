@@ -34,6 +34,18 @@ function isHttpStatus(e: unknown, status: number): boolean {
 	return typeof e === "object" && e !== null && (e as { status?: number }).status === status;
 }
 
+/** Count distinct parent folders across the given file paths. Files at the
+ *  root contribute nothing; "a/b/c.md" contributes "a/b". Used by the sync
+ *  preview to surface "how many folders contain files" per side. */
+function countFolders(paths: Iterable<string>): number {
+	const set = new Set<string>();
+	for (const p of paths) {
+		const idx = p.lastIndexOf("/");
+		if (idx > 0) set.add(p.substring(0, idx));
+	}
+	return set.size;
+}
+
 /** How long (ms) after a push completes to suppress WebSocket echoes for that path. */
 const ECHO_COOLDOWN_MS = 5000;
 
@@ -1925,6 +1937,19 @@ export class SyncEngine {
 			}
 		}
 
+		const localFolderCount = countFolders([...localNotes, ...localAttachments]);
+		const serverPaths = manifestNotePaths
+			? [...manifestNotePaths, ...(manifestAttachPaths ?? new Set<string>())]
+			: [
+					...[...serverNotes.entries()]
+						.filter(([, v]) => !v.deleted)
+						.map(([k]) => k),
+					...[...serverAttachments.entries()]
+						.filter(([, v]) => !v.deleted)
+						.map(([k]) => k),
+				];
+		const serverFolderCount = countFolders(serverPaths);
+
 		return {
 			vaultName: this.app.vault.getName(),
 			serverNoteCount:
@@ -1932,8 +1957,10 @@ export class SyncEngine {
 			serverAttachmentCount:
 				manifestAttachCount ??
 				[...serverAttachments.values()].filter((v) => !v.deleted).length,
+			serverFolderCount,
 			localNoteCount: localNotes.length,
 			localAttachmentCount: localAttachments.length,
+			localFolderCount,
 			toPush: {
 				notes: mode === "pull-all" ? [] : toPushNotes,
 				attachments: mode === "pull-all" ? [] : toPushAttachments,

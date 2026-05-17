@@ -2357,17 +2357,17 @@ function optionBreakdown(plan, choice) {
   switch (choice) {
     case "smart-merge":
       return {
-        pullCount: plan.toPull.notes.length,
-        pushCount: plan.toPush.notes.length,
+        pullCount: plan.toPull.notes.length + plan.toPull.attachments.length,
+        pushCount: plan.toPush.notes.length + plan.toPush.attachments.length,
         conflictCount: plan.conflicts.length,
         deleteLocalCount: 0,
         deleteRemoteCount: 0,
         samplePaths: samplePaths(plan.conflicts, 5)
       };
     case "pull-all-delete-local": {
-      let localOnly = plan.toPush.notes;
+      let localOnly = [...plan.toPush.notes, ...plan.toPush.attachments];
       return {
-        pullCount: plan.serverNoteCount,
+        pullCount: plan.serverNoteCount + plan.serverAttachmentCount,
         pushCount: 0,
         conflictCount: 0,
         deleteLocalCount: localOnly.length,
@@ -2377,18 +2377,21 @@ function optionBreakdown(plan, choice) {
     }
     case "pull-all-keep-local":
       return {
-        pullCount: plan.serverNoteCount,
+        pullCount: plan.serverNoteCount + plan.serverAttachmentCount,
         pushCount: 0,
         conflictCount: 0,
         deleteLocalCount: 0,
         deleteRemoteCount: 0,
-        samplePaths: samplePaths(plan.toPull.notes, 5)
+        samplePaths: samplePaths(
+          [...plan.toPull.notes, ...plan.toPull.attachments],
+          5
+        )
       };
     case "push-all-delete-remote": {
-      let remoteOnly = plan.toPull.notes;
+      let remoteOnly = [...plan.toPull.notes, ...plan.toPull.attachments];
       return {
         pullCount: 0,
-        pushCount: plan.localNoteCount,
+        pushCount: plan.localNoteCount + plan.localAttachmentCount,
         conflictCount: 0,
         deleteLocalCount: 0,
         deleteRemoteCount: remoteOnly.length,
@@ -2398,11 +2401,14 @@ function optionBreakdown(plan, choice) {
     case "push-all-keep-remote":
       return {
         pullCount: 0,
-        pushCount: plan.localNoteCount,
+        pushCount: plan.localNoteCount + plan.localAttachmentCount,
         conflictCount: 0,
         deleteLocalCount: 0,
         deleteRemoteCount: 0,
-        samplePaths: samplePaths(plan.toPush.notes, 5)
+        samplePaths: samplePaths(
+          [...plan.toPush.notes, ...plan.toPush.attachments],
+          5
+        )
       };
     case "cancel":
     case "change-vault":
@@ -2601,14 +2607,16 @@ var SyncPreviewModal = class extends import_obsidian11.Modal {
     let wrap = parent.createDiv({ cls: "engram-sync-preview-compare" });
     this.renderCompareCard(wrap, {
       emoji: "\u{1F4BB}",
-      label: "This vault",
+      label: "This Vault",
       notes: this.plan.localNoteCount,
-      attachments: this.plan.localAttachmentCount
+      attachments: this.plan.localAttachmentCount,
+      folders: this.plan.localFolderCount
     }), this.renderCompareCard(wrap, {
       emoji: "\u2601\uFE0F",
-      label: "Cloud server",
+      label: "Cloud Server",
       notes: this.plan.serverNoteCount,
-      attachments: this.plan.serverAttachmentCount
+      attachments: this.plan.serverAttachmentCount,
+      folders: this.plan.serverFolderCount
     });
     let match = computeMatchPercent(this.plan), conflicts = this.plan.conflicts.length, matchRow = parent.createDiv({ cls: "engram-sync-preview-match" }), matchValue = matchRow.createSpan({
       cls: "engram-sync-preview-match-value",
@@ -2632,7 +2640,7 @@ var SyncPreviewModal = class extends import_obsidian11.Modal {
     let el = parent.createDiv({ cls: "engram-sync-preview-compare-card" }), header = el.createDiv({ cls: "engram-sync-preview-compare-card-header" });
     header.createSpan({ text: card.emoji, cls: "engram-sync-preview-compare-emoji" }), header.createSpan({ text: card.label, cls: "engram-sync-preview-compare-label" });
     let body = el.createDiv({ cls: "engram-sync-preview-compare-card-body" });
-    this.renderCompareRow(body, "\u{1F4C4}", card.notes, "notes"), this.renderCompareRow(body, "\u{1F4CE}", card.attachments, "attachments");
+    this.renderCompareRow(body, "\u{1F4C4}", card.notes, "notes"), this.renderCompareRow(body, "\u{1F4CE}", card.attachments, "attachments"), this.renderCompareRow(body, "\u{1F4C1}", card.folders, "folders");
   }
   renderCompareRow(parent, emoji, count, label) {
     let row = parent.createDiv({ cls: "engram-sync-preview-compare-row" });
@@ -3221,6 +3229,14 @@ function threeWayMerge(base, local, remote) {
 // src/sync.ts
 function isHttpStatus(e, status) {
   return typeof e == "object" && e !== null && e.status === status;
+}
+function countFolders(paths) {
+  let set = /* @__PURE__ */ new Set();
+  for (let p of paths) {
+    let idx = p.lastIndexOf("/");
+    idx > 0 && set.add(p.substring(0, idx));
+  }
+  return set.size;
 }
 var ECHO_COOLDOWN_MS = 5e3, HEALTH_CHECK_INTERVAL_MS = 3e4, ALWAYS_IGNORED = [".trash/", ".git/"], STALE_THRESHOLD_S = 3600;
 function fnv1a(s) {
@@ -4345,12 +4361,18 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     let toPushAttachments = [];
     for (let path of localAttachments)
       serverHasAttach(path) || toPushAttachments.push(path);
+    let localFolderCount = countFolders([...localNotes, ...localAttachments]), serverPaths = manifestNotePaths ? [...manifestNotePaths, ...manifestAttachPaths != null ? manifestAttachPaths : /* @__PURE__ */ new Set()] : [
+      ...[...serverNotes.entries()].filter(([, v]) => !v.deleted).map(([k]) => k),
+      ...[...serverAttachments.entries()].filter(([, v]) => !v.deleted).map(([k]) => k)
+    ], serverFolderCount = countFolders(serverPaths);
     return {
       vaultName: this.app.vault.getName(),
       serverNoteCount: manifestNoteCount != null ? manifestNoteCount : [...serverNotes.values()].filter((v) => !v.deleted).length,
       serverAttachmentCount: manifestAttachCount != null ? manifestAttachCount : [...serverAttachments.values()].filter((v) => !v.deleted).length,
+      serverFolderCount,
       localNoteCount: localNotes.length,
       localAttachmentCount: localAttachments.length,
+      localFolderCount,
       toPush: {
         notes: mode === "pull-all" ? [] : toPushNotes,
         attachments: mode === "pull-all" ? [] : toPushAttachments

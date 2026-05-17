@@ -87,14 +87,15 @@ export interface OptionBreakdown {
  *  a single SyncPlan so each option card in the modal can render its own
  *  numbers without the caller re-deriving them.
  *
- *  All counts are notes-only (attachments excluded) to match the UI's
- *  note-centric display. */
+ *  Counts are total files (notes + attachments) to match what the engine
+ *  actually moves. Conflict count stays notes-only because the conflict
+ *  modal only handles text content. */
 export function optionBreakdown(plan: SyncPlan, choice: SyncChoice): OptionBreakdown {
 	switch (choice) {
 		case "smart-merge":
 			return {
-				pullCount: plan.toPull.notes.length,
-				pushCount: plan.toPush.notes.length,
+				pullCount: plan.toPull.notes.length + plan.toPull.attachments.length,
+				pushCount: plan.toPush.notes.length + plan.toPush.attachments.length,
 				conflictCount: plan.conflicts.length,
 				deleteLocalCount: 0,
 				deleteRemoteCount: 0,
@@ -102,9 +103,9 @@ export function optionBreakdown(plan: SyncPlan, choice: SyncChoice): OptionBreak
 			};
 
 		case "pull-all-delete-local": {
-			const localOnly = plan.toPush.notes;
+			const localOnly = [...plan.toPush.notes, ...plan.toPush.attachments];
 			return {
-				pullCount: plan.serverNoteCount,
+				pullCount: plan.serverNoteCount + plan.serverAttachmentCount,
 				pushCount: 0,
 				conflictCount: 0,
 				deleteLocalCount: localOnly.length,
@@ -115,19 +116,22 @@ export function optionBreakdown(plan: SyncPlan, choice: SyncChoice): OptionBreak
 
 		case "pull-all-keep-local":
 			return {
-				pullCount: plan.serverNoteCount,
+				pullCount: plan.serverNoteCount + plan.serverAttachmentCount,
 				pushCount: 0,
 				conflictCount: 0,
 				deleteLocalCount: 0,
 				deleteRemoteCount: 0,
-				samplePaths: samplePaths(plan.toPull.notes, 5),
+				samplePaths: samplePaths(
+					[...plan.toPull.notes, ...plan.toPull.attachments],
+					5,
+				),
 			};
 
 		case "push-all-delete-remote": {
-			const remoteOnly = plan.toPull.notes;
+			const remoteOnly = [...plan.toPull.notes, ...plan.toPull.attachments];
 			return {
 				pullCount: 0,
-				pushCount: plan.localNoteCount,
+				pushCount: plan.localNoteCount + plan.localAttachmentCount,
 				conflictCount: 0,
 				deleteLocalCount: 0,
 				deleteRemoteCount: remoteOnly.length,
@@ -138,11 +142,14 @@ export function optionBreakdown(plan: SyncPlan, choice: SyncChoice): OptionBreak
 		case "push-all-keep-remote":
 			return {
 				pullCount: 0,
-				pushCount: plan.localNoteCount,
+				pushCount: plan.localNoteCount + plan.localAttachmentCount,
 				conflictCount: 0,
 				deleteLocalCount: 0,
 				deleteRemoteCount: 0,
-				samplePaths: samplePaths(plan.toPush.notes, 5),
+				samplePaths: samplePaths(
+					[...plan.toPush.notes, ...plan.toPush.attachments],
+					5,
+				),
 			};
 
 		case "cancel":

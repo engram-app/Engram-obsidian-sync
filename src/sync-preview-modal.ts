@@ -293,15 +293,17 @@ export class SyncPreviewModal extends Modal {
 
 		this.renderCompareCard(wrap, {
 			emoji: "💻",
-			label: "This vault",
+			label: "This Vault",
 			notes: this.plan.localNoteCount,
 			attachments: this.plan.localAttachmentCount,
+			folders: this.plan.localFolderCount,
 		});
 		this.renderCompareCard(wrap, {
 			emoji: "☁️",
-			label: "Cloud server",
+			label: "Cloud Server",
 			notes: this.plan.serverNoteCount,
 			attachments: this.plan.serverAttachmentCount,
+			folders: this.plan.serverFolderCount,
 		});
 
 		const match = computeMatchPercent(this.plan);
@@ -331,7 +333,13 @@ export class SyncPreviewModal extends Modal {
 
 	private renderCompareCard(
 		parent: HTMLElement,
-		card: { emoji: string; label: string; notes: number; attachments: number },
+		card: {
+			emoji: string;
+			label: string;
+			notes: number;
+			attachments: number;
+			folders: number;
+		},
 	): void {
 		const el = parent.createDiv({ cls: "engram-sync-preview-compare-card" });
 		const header = el.createDiv({ cls: "engram-sync-preview-compare-card-header" });
@@ -340,6 +348,7 @@ export class SyncPreviewModal extends Modal {
 		const body = el.createDiv({ cls: "engram-sync-preview-compare-card-body" });
 		this.renderCompareRow(body, "📄", card.notes, "notes");
 		this.renderCompareRow(body, "📎", card.attachments, "attachments");
+		this.renderCompareRow(body, "📁", card.folders, "folders");
 	}
 
 	private renderCompareRow(

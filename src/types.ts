@@ -296,8 +296,10 @@ export interface SyncPlan {
 	vaultName: string;
 	serverNoteCount: number;
 	serverAttachmentCount: number;
+	serverFolderCount: number;
 	localNoteCount: number;
 	localAttachmentCount: number;
+	localFolderCount: number;
 	toPush: { notes: string[]; attachments: string[] };
 	toPull: { notes: string[]; attachments: string[] };
 	conflicts: string[];

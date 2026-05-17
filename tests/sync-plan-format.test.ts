@@ -14,8 +14,10 @@ function makePlan(overrides: Partial<SyncPlan> = {}): SyncPlan {
 		vaultName: "Personal Notes",
 		serverNoteCount: 198,
 		serverAttachmentCount: 8,
+		serverFolderCount: 12,
 		localNoteCount: 234,
 		localAttachmentCount: 12,
+		localFolderCount: 15,
 		toPush: { notes: [], attachments: [] },
 		toPull: { notes: [], attachments: [] },
 		conflicts: [],
@@ -111,50 +113,52 @@ describe("isDestructiveChoice", () => {
 describe("optionBreakdown", () => {
 	const plan = makePlan({
 		localNoteCount: 5,
+		localAttachmentCount: 2,
 		serverNoteCount: 4,
+		serverAttachmentCount: 3,
 		toPush: { notes: ["a.md", "b.md"], attachments: ["pic.png"] },
-		toPull: { notes: ["x.md"], attachments: [] },
+		toPull: { notes: ["x.md"], attachments: ["img.png"] },
 		conflicts: ["dup.md"],
 		toDeleteLocal: ["gone-on-server.md"],
 		toDeleteRemote: [],
 	});
 
-	test("smart-merge: counts merge actions, no deletions", () => {
+	test("smart-merge: counts include attachments alongside notes", () => {
 		const b = optionBreakdown(plan, "smart-merge");
-		expect(b.pullCount).toBe(1);
-		expect(b.pushCount).toBe(2);
+		expect(b.pullCount).toBe(2); // 1 note + 1 attachment
+		expect(b.pushCount).toBe(3); // 2 notes + 1 attachment
 		expect(b.conflictCount).toBe(1);
 		expect(b.deleteLocalCount).toBe(0);
 		expect(b.deleteRemoteCount).toBe(0);
 	});
 
-	test("pull-all-delete-local: pulls all remote (notes+attachments), deletes local-only", () => {
+	test("pull-all-delete-local: pulls all remote files, deletes local-only files", () => {
 		const b = optionBreakdown(plan, "pull-all-delete-local");
-		expect(b.pullCount).toBe(4); // serverNoteCount
-		expect(b.deleteLocalCount).toBe(2);
+		expect(b.pullCount).toBe(7); // serverNoteCount + serverAttachmentCount
+		expect(b.deleteLocalCount).toBe(3); // local-only notes + attachments
 		expect(b.deleteRemoteCount).toBe(0);
 		expect(b.pushCount).toBe(0);
 	});
 
-	test("pull-all-keep-local: pulls all remote, no deletions", () => {
+	test("pull-all-keep-local: pulls all remote files, no deletions", () => {
 		const b = optionBreakdown(plan, "pull-all-keep-local");
-		expect(b.pullCount).toBe(4);
+		expect(b.pullCount).toBe(7);
 		expect(b.deleteLocalCount).toBe(0);
 		expect(b.deleteRemoteCount).toBe(0);
 		expect(b.pushCount).toBe(0);
 	});
 
-	test("push-all-delete-remote: pushes all local, deletes remote-only", () => {
+	test("push-all-delete-remote: pushes all local files, deletes remote-only files", () => {
 		const b = optionBreakdown(plan, "push-all-delete-remote");
-		expect(b.pushCount).toBe(5);
-		expect(b.deleteRemoteCount).toBe(1);
+		expect(b.pushCount).toBe(7); // localNoteCount + localAttachmentCount
+		expect(b.deleteRemoteCount).toBe(2); // remote-only notes + attachments
 		expect(b.deleteLocalCount).toBe(0);
 		expect(b.pullCount).toBe(0);
 	});
 
-	test("push-all-keep-remote: pushes all local, no deletions", () => {
+	test("push-all-keep-remote: pushes all local files, no deletions", () => {
 		const b = optionBreakdown(plan, "push-all-keep-remote");
-		expect(b.pushCount).toBe(5);
+		expect(b.pushCount).toBe(7);
 		expect(b.deleteRemoteCount).toBe(0);
 		expect(b.deleteLocalCount).toBe(0);
 		expect(b.pullCount).toBe(0);
