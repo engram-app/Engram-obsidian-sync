@@ -802,10 +802,17 @@ export default class EngramSyncPlugin extends Plugin {
 				initialView: opts.startInVaultPicker ? "vault-picker" : "preview",
 				listVaults: () => this.api.listVaults(),
 				applyVaultChange: async (id, name) => {
+					// Persist the new vault target without going through
+					// saveSettings — that path would re-fire
+					// doSyncWithFirstSyncCheck for the closed gate and stack
+					// a second modal on top of this one.
 					this.settings.vaultId = id;
 					this.settings.remoteVaultName = name;
 					this.api.setVaultId(id);
-					await this.saveSettings();
+					this.syncEngine.updateSettings(this.settings);
+					this.syncGateAcceptedFor = null;
+					this.syncEngine.setSyncBlocked(true);
+					await this.savePluginData(this.syncEngine.getLastSync());
 					return this.syncEngine.computeSyncPlan("full");
 				},
 			});

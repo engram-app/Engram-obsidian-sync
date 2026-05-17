@@ -5224,7 +5224,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian16.Plugin
         context,
         initialView: opts.startInVaultPicker ? "vault-picker" : "preview",
         listVaults: () => this.api.listVaults(),
-        applyVaultChange: async (id, name) => (this.settings.vaultId = id, this.settings.remoteVaultName = name, this.api.setVaultId(id), await this.saveSettings(), this.syncEngine.computeSyncPlan("full"))
+        applyVaultChange: async (id, name) => (this.settings.vaultId = id, this.settings.remoteVaultName = name, this.api.setVaultId(id), this.syncEngine.updateSettings(this.settings), this.syncGateAcceptedFor = null, this.syncEngine.setSyncBlocked(!0), await this.savePluginData(this.syncEngine.getLastSync()), this.syncEngine.computeSyncPlan("full"))
       }).awaitChoice();
       await this.runSyncFromChoice(choice);
     } catch (e) {
