@@ -355,3 +355,21 @@ export interface ReconcileResult {
 	diverged: string[];
 	extraOnServer: string[];
 }
+
+/** User's chosen sync direction in the SyncPreviewModal.
+ *  Drives dispatch in main.ts → runSyncFromChoice. */
+export type SyncChoice =
+	| "smart-merge"
+	| "pull-all-delete-local"
+	| "pull-all-keep-local"
+	| "push-all-delete-remote"
+	| "push-all-keep-remote"
+	| "cancel"
+	| "change-vault";
+
+/** Subset of SyncChoice values that delete data on either side. Used by the
+ *  modal to gate behind the typed-DELETE confirm view. */
+export const DESTRUCTIVE_CHOICES = new Set<SyncChoice>([
+	"pull-all-delete-local",
+	"push-all-delete-remote",
+]);
