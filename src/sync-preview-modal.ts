@@ -1,10 +1,10 @@
 import { type App, Modal } from "obsidian";
 import {
+	type OptionBreakdown,
 	computeMatchPercent,
 	isDestructiveChoice,
 	isPlanEmpty,
 	optionBreakdown,
-	type OptionBreakdown,
 } from "./sync-plan-format";
 import type { SyncChoice, SyncPlan } from "./types";
 
@@ -79,7 +79,8 @@ const OPTION_CARDS: Array<{
 	{
 		choice: "smart-merge",
 		label: "Smart merge (recommended)",
-		subtitle: (b) => `Pull ${b.pullCount}, push ${b.pushCount}, merge ${b.conflictCount} conflicts`,
+		subtitle: (b) =>
+			`Pull ${b.pullCount}, push ${b.pushCount}, merge ${b.conflictCount} conflicts`,
 		cssClass: "engram-sync-preview-option mod-cta",
 	},
 	{
@@ -213,10 +214,7 @@ export class SyncPreviewModal extends Modal {
 		}
 	}
 
-	private renderOptionCard(
-		parent: HTMLElement,
-		card: (typeof OPTION_CARDS)[number],
-	): void {
+	private renderOptionCard(parent: HTMLElement, card: (typeof OPTION_CARDS)[number]): void {
 		const b = optionBreakdown(this.plan, card.choice);
 		const btn = parent.createEl("button", {
 			text: card.label,

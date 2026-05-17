@@ -10,11 +10,12 @@ import { ApiKeyAuth, type AuthProvider, OAuthAuth, type RefreshFn } from "./auth
 import { NoteChannel } from "./channel";
 import { ConflictModal } from "./conflict-modal";
 import { errMsg } from "./error-util";
-import { SyncPreviewModal } from "./sync-preview-modal";
 import { SearchModal } from "./search-modal";
 import { SEARCH_VIEW_TYPE, SearchView } from "./search-view";
 import { EngramSyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync";
+import { SYNC_CENTER_VIEW_TYPE, SyncCenterView } from "./sync-center-view";
+import { SyncPreviewModal } from "./sync-preview-modal";
 import {
 	DEFAULT_SETTINGS,
 	type EngramSyncSettings,

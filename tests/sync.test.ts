@@ -2999,7 +2999,9 @@ describe("SyncEngine.pushAll with deleteRemoteExtras", () => {
 describe("SyncEngine.pullAll with deleteLocalExtras", () => {
 	test("keep-local mode: pulls remote, never trashes local files", async () => {
 		const engine = createEngine();
-		(mockApp.vault.getFiles as jest.Mock).mockReturnValue([new TFile("local-only.md", Date.now())]);
+		(mockApp.vault.getFiles as jest.Mock).mockReturnValue([
+			new TFile("local-only.md", Date.now()),
+		]);
 		(mockApi.getChanges as jest.Mock).mockResolvedValueOnce({
 			changes: [
 				{
@@ -3054,5 +3056,4 @@ describe("SyncEngine.pullAll with deleteLocalExtras", () => {
 		expect(mockApp.fileManager.trashFile).toHaveBeenCalledTimes(1);
 		expect(mockApp.fileManager.trashFile).toHaveBeenCalledWith(localOnly);
 	});
-
 });

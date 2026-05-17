@@ -939,7 +939,10 @@ export class SyncEngine {
 				"pull",
 				`pullAll(deleteLocalExtras): deleted ${syncable.length} local files, sync state reset`,
 			);
-			rlog().info("pull", `pullAll(deleteLocalExtras) deleted ${syncable.length} local files`);
+			rlog().info(
+				"pull",
+				`pullAll(deleteLocalExtras) deleted ${syncable.length} local files`,
+			);
 			// NOTE: suppressDeletes stays true until the entire pull completes.
 			// Obsidian's delete events fire asynchronously — resetting here would
 			// allow queued events to leak through and soft-delete server data.
@@ -2031,9 +2034,7 @@ export class SyncEngine {
 				.map((f) => f.path),
 		);
 
-		const remoteOnlyNotes = manifest.notes
-			.map((n) => n.path)
-			.filter((p) => !localPaths.has(p));
+		const remoteOnlyNotes = manifest.notes.map((n) => n.path).filter((p) => !localPaths.has(p));
 		const remoteOnlyAttachments = manifest.attachments
 			.map((a) => a.path)
 			.filter((p) => !localPaths.has(p));

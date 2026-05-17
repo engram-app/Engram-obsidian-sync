@@ -158,4 +158,3 @@ export function optionBreakdown(plan: SyncPlan, choice: SyncChoice): OptionBreak
 			};
 	}
 }
-
