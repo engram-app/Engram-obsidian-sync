@@ -57,10 +57,46 @@ describe("SyncPreviewState — non-destructive choices", () => {
 		expect(resolved.value).toBe("cancel");
 	});
 
-	test("change-vault resolves with change-vault", () => {
+	test("enterVaultPicker switches view and primes loading state", () => {
 		const { state, resolved } = newState();
-		state.changeVault();
-		expect(resolved.value).toBe("change-vault");
+		state.enterVaultPicker();
+		expect(state.view).toBe("vault-picker");
+		expect(state.vaultsLoading).toBe(true);
+		expect(resolved.value).toBeNull();
+	});
+
+	test("exitVaultPicker returns to preview without resolving", () => {
+		const { state, resolved } = newState();
+		state.enterVaultPicker();
+		state.exitVaultPicker();
+		expect(state.view).toBe("preview");
+		expect(state.vaultsLoading).toBe(false);
+		expect(resolved.value).toBeNull();
+	});
+
+	test("onVaultsLoaded clears loading flag and stores list", () => {
+		const { state } = newState();
+		state.enterVaultPicker();
+		state.onVaultsLoaded([
+			{ id: 7, name: "Alt", slug: "alt", is_default: false, created_at: "" },
+		]);
+		expect(state.vaultsLoading).toBe(false);
+		expect(state.vaults?.length).toBe(1);
+	});
+
+	test("onVaultsError surfaces a message and clears loading", () => {
+		const { state } = newState();
+		state.enterVaultPicker();
+		state.onVaultsError("nope");
+		expect(state.vaultsLoading).toBe(false);
+		expect(state.vaultsError).toBe("nope");
+	});
+
+	test("replacePlan swaps the plan reference", () => {
+		const { state } = newState();
+		const next = makePlan({ vaultName: "Switched" });
+		state.replacePlan(next);
+		expect(state.plan.vaultName).toBe("Switched");
 	});
 });
 

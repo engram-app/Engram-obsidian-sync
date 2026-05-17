@@ -6,21 +6,28 @@ import {
 	isPlanEmpty,
 	optionBreakdown,
 } from "./sync-plan-format";
-import type { SyncChoice, SyncPlan, SyncPreviewContext } from "./types";
+import type { SyncChoice, SyncPlan, SyncPreviewContext, VaultInfo } from "./types";
 
 /** Pure state machine for the SyncPreviewModal. Owns view + input state and
  *  the resolve callback. Tested directly; the Modal class is a thin DOM
  *  wrapper that delegates to it. */
 export class SyncPreviewState {
-	view: "preview" | "confirm" | "done" = "preview";
+	view: "preview" | "confirm" | "vault-picker" | "done" = "preview";
 	pendingChoice: SyncChoice | null = null;
 	confirmInput = "";
+	/** Mutable so the modal can swap in a fresh plan after applyVaultChange. */
+	plan: SyncPlan;
+	vaultsLoading = false;
+	vaults: VaultInfo[] | null = null;
+	vaultsError: string | null = null;
 	private resolved = false;
 
 	constructor(
-		readonly plan: SyncPlan,
+		initialPlan: SyncPlan,
 		private readonly onResolve: (choice: SyncChoice) => void,
-	) {}
+	) {
+		this.plan = initialPlan;
+	}
 
 	pickOption(choice: SyncChoice): void {
 		if (this.resolved) return;
@@ -54,12 +61,42 @@ export class SyncPreviewState {
 		this.confirmInput = "";
 	}
 
-	cancel(): void {
-		this.resolve("cancel");
+	enterVaultPicker(): void {
+		if (this.resolved) return;
+		this.view = "vault-picker";
+		this.vaultsLoading = true;
+		this.vaults = null;
+		this.vaultsError = null;
 	}
 
-	changeVault(): void {
-		this.resolve("change-vault");
+	onVaultsLoaded(vaults: VaultInfo[]): void {
+		this.vaultsLoading = false;
+		this.vaults = vaults;
+		this.vaultsError = null;
+	}
+
+	onVaultsError(message: string): void {
+		this.vaultsLoading = false;
+		this.vaults = null;
+		this.vaultsError = message;
+	}
+
+	exitVaultPicker(): void {
+		if (this.resolved) return;
+		this.view = "preview";
+		this.vaultsLoading = false;
+		this.vaults = null;
+		this.vaultsError = null;
+	}
+
+	/** Swap in the SyncPlan that came back from applyVaultChange. Caller is
+	 *  responsible for re-rendering. */
+	replacePlan(plan: SyncPlan): void {
+		this.plan = plan;
+	}
+
+	cancel(): void {
+		this.resolve("cancel");
 	}
 
 	private resolve(choice: SyncChoice): void {
@@ -121,9 +158,9 @@ const PULL_CARDS: OptionCard[] = [
 ];
 
 const HEADER_BY_CONTEXT: Record<SyncPreviewContext, string> = {
-	"first-time": "Set up sync for this vault",
-	"vault-switch": "New vault detected",
-	review: "Sync preview",
+	"first-time": "Set Up Sync For This Vault",
+	"vault-switch": "New Vault Detected",
+	review: "Sync Preview",
 };
 
 const OPTIONS_HEADER_BY_CONTEXT: Record<SyncPreviewContext, string> = {
@@ -133,8 +170,6 @@ const OPTIONS_HEADER_BY_CONTEXT: Record<SyncPreviewContext, string> = {
 };
 
 export interface SyncPreviewOptions {
-	/** Server URL string. Host portion is shown beneath the vault name. */
-	serverUrl: string;
 	/** Server-side vault name. Falls back to "Cloud Server" when missing. */
 	remoteVaultName?: string;
 	/** When true the footer shows a "Change vault" button. Off for triggers
@@ -142,30 +177,29 @@ export interface SyncPreviewOptions {
 	showChangeVault: boolean;
 	/** Drives header copy. Defaults to "review" when not provided. */
 	context?: SyncPreviewContext;
-}
-
-/** Extract host (no scheme, no path) from a server URL, with graceful
- *  fallback to the raw string when the value isn't a parseable URL. */
-function hostOf(url: string): string {
-	if (!url) return "";
-	try {
-		return new URL(url).host;
-	} catch {
-		return url;
-	}
+	/** Fetches the list of vaults the user can switch to. Called when the
+	 *  user presses Change Vault. Required when showChangeVault is true. */
+	listVaults?: () => Promise<VaultInfo[]>;
+	/** Persists a vault switch and returns the new SyncPlan so the modal can
+	 *  re-render in place. Required when showChangeVault is true. */
+	applyVaultChange?: (id: string, name: string) => Promise<SyncPlan>;
 }
 
 export class SyncPreviewModal extends Modal {
 	private state: SyncPreviewState;
 	private resolvedChoice: SyncChoice | null = null;
 	private resolveFn: ((c: SyncChoice) => void) | null = null;
+	/** Mirrors state.plan.vaultName + opts.remoteVaultName so the picker view
+	 *  can swap in fresh values after applyVaultChange. */
+	private remoteVaultName: string | undefined;
 
 	constructor(
 		app: App,
-		private readonly plan: SyncPlan,
+		plan: SyncPlan,
 		private readonly opts: SyncPreviewOptions,
 	) {
 		super(app);
+		this.remoteVaultName = opts.remoteVaultName;
 		this.state = new SyncPreviewState(plan, (choice) => {
 			this.resolvedChoice = choice;
 			this.close();
@@ -199,6 +233,8 @@ export class SyncPreviewModal extends Modal {
 
 		if (this.state.view === "preview") {
 			this.renderPreview();
+		} else if (this.state.view === "vault-picker") {
+			this.renderVaultPicker();
 		} else {
 			this.renderConfirm();
 		}
@@ -206,11 +242,10 @@ export class SyncPreviewModal extends Modal {
 
 	private renderPreview(): void {
 		const { contentEl } = this;
-		const empty = isPlanEmpty(this.plan);
+		const empty = isPlanEmpty(this.state.plan);
 		const context = this.opts.context ?? "review";
 
 		this.renderHeader(contentEl, empty ? "up-to-date" : context);
-		this.renderIdentity(contentEl);
 		this.renderComparison(contentEl);
 
 		if (empty) {
@@ -256,7 +291,9 @@ export class SyncPreviewModal extends Modal {
 		cancelBtn.addEventListener("click", () => this.state.cancel());
 		if (this.opts.showChangeVault) {
 			const changeBtn = footer.createEl("button", { text: "Change vault" });
-			changeBtn.addEventListener("click", () => this.state.changeVault());
+			changeBtn.addEventListener("click", () => {
+				void this.openVaultPicker();
+			});
 		}
 	}
 
@@ -275,43 +312,29 @@ export class SyncPreviewModal extends Modal {
 		});
 	}
 
-	private renderIdentity(parent: HTMLElement): void {
-		const identity = parent.createDiv({ cls: "engram-sync-preview-identity" });
-		identity.createEl("div", {
-			text: this.plan.vaultName,
-			cls: "engram-sync-preview-vault-name",
-		});
-		const host = hostOf(this.opts.serverUrl);
-		if (host) {
-			identity.createEl("div", {
-				text: host,
-				cls: "engram-sync-preview-server-host",
-			});
-		}
-	}
-
 	private renderComparison(parent: HTMLElement): void {
 		const wrap = parent.createDiv({ cls: "engram-sync-preview-compare" });
+		const plan = this.state.plan;
 
 		this.renderCompareCard(wrap, {
 			emoji: "💻",
-			name: this.plan.vaultName,
+			name: plan.vaultName,
 			role: "This Vault",
-			notes: this.plan.localNoteCount,
-			attachments: this.plan.localAttachmentCount,
-			folders: this.plan.localFolderCount,
+			notes: plan.localNoteCount,
+			attachments: plan.localAttachmentCount,
+			folders: plan.localFolderCount,
 		});
 		this.renderCompareCard(wrap, {
 			emoji: "☁️",
-			name: this.opts.remoteVaultName || "Cloud Server",
+			name: this.remoteVaultName || "Cloud Server",
 			role: "Cloud Server",
-			notes: this.plan.serverNoteCount,
-			attachments: this.plan.serverAttachmentCount,
-			folders: this.plan.serverFolderCount,
+			notes: plan.serverNoteCount,
+			attachments: plan.serverAttachmentCount,
+			folders: plan.serverFolderCount,
 		});
 
-		const match = computeMatchPercent(this.plan);
-		const conflicts = this.plan.conflicts.length;
+		const match = computeMatchPercent(plan);
+		const conflicts = plan.conflicts.length;
 		const matchRow = parent.createDiv({ cls: "engram-sync-preview-match" });
 		const matchValue = matchRow.createSpan({
 			cls: "engram-sync-preview-match-value",
@@ -380,7 +403,7 @@ export class SyncPreviewModal extends Modal {
 	}
 
 	private renderOptionCard(parent: HTMLElement, card: OptionCard): void {
-		const b = optionBreakdown(this.plan, card.choice);
+		const b = optionBreakdown(this.state.plan,card.choice);
 		const wrap = parent.createDiv({ cls: "engram-sync-preview-option-wrap" });
 		const btn = wrap.createEl("button", { cls: card.cssClass });
 		btn.createSpan({ text: card.emoji, cls: "engram-sync-preview-option-emoji" });
@@ -402,7 +425,7 @@ export class SyncPreviewModal extends Modal {
 
 		contentEl.createEl("h2", { text: "Confirm destructive sync" });
 
-		const b = optionBreakdown(this.plan, choice);
+		const b = optionBreakdown(this.state.plan,choice);
 		const summary = contentEl.createDiv({ cls: "engram-sync-preview-confirm-summary" });
 		summary.createEl("p", { text: "You are about to:" });
 		const ul = summary.createEl("ul");
@@ -459,5 +482,87 @@ export class SyncPreviewModal extends Modal {
 		});
 
 		input.focus();
+	}
+
+	private renderVaultPicker(): void {
+		const { contentEl } = this;
+		contentEl.createEl("h2", {
+			text: "Switch Vault",
+			cls: "engram-sync-preview-header",
+		});
+		contentEl.createEl("p", {
+			text: "Pick a vault to sync with. We will recalculate the sync preview after you choose.",
+			cls: "engram-sync-preview-picker-help",
+		});
+
+		const body = contentEl.createDiv({ cls: "engram-sync-preview-picker-body" });
+
+		if (this.state.vaultsLoading) {
+			body.createEl("p", { text: "Loading vaults…" });
+		} else if (this.state.vaultsError) {
+			body.createEl("p", {
+				text: this.state.vaultsError,
+				cls: "engram-sync-preview-picker-error",
+			});
+		} else if (this.state.vaults && this.state.vaults.length > 0) {
+			const list = body.createDiv({ cls: "engram-sync-preview-picker-list" });
+			for (const v of this.state.vaults) {
+				const item = list.createEl("button", {
+					cls: "engram-sync-preview-picker-item",
+				});
+				item.createSpan({
+					text: v.name,
+					cls: "engram-sync-preview-picker-item-name",
+				});
+				if (v.is_default) {
+					item.createSpan({
+						text: " (default)",
+						cls: "engram-sync-preview-picker-item-default",
+					});
+				}
+				item.addEventListener("click", () => {
+					void this.applyPickedVault(v);
+				});
+			}
+		} else {
+			body.createEl("p", { text: "No other vaults available." });
+		}
+
+		const footer = contentEl.createDiv({ cls: "engram-sync-preview-footer" });
+		const backBtn = footer.createEl("button", { text: "Back" });
+		backBtn.addEventListener("click", () => {
+			this.state.exitVaultPicker();
+			this.render();
+		});
+	}
+
+	private async openVaultPicker(): Promise<void> {
+		if (!this.opts.listVaults) return;
+		this.state.enterVaultPicker();
+		this.render();
+		try {
+			const vaults = await this.opts.listVaults();
+			this.state.onVaultsLoaded(vaults);
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : "Could not load vaults";
+			this.state.onVaultsError(msg);
+		}
+		this.render();
+	}
+
+	private async applyPickedVault(v: VaultInfo): Promise<void> {
+		if (!this.opts.applyVaultChange) return;
+		this.state.vaultsLoading = true;
+		this.render();
+		try {
+			const newPlan = await this.opts.applyVaultChange(String(v.id), v.name);
+			this.state.replacePlan(newPlan);
+			this.remoteVaultName = v.name;
+			this.state.exitVaultPicker();
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : "Failed to switch vault";
+			this.state.onVaultsError(msg);
+		}
+		this.render();
 	}
 }

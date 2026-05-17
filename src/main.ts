@@ -796,30 +796,19 @@ export default class EngramSyncPlugin extends Plugin {
 			const plan = await this.syncEngine.computeSyncPlan("full");
 			const context = this.derivePreviewContext();
 			const modal = new SyncPreviewModal(this.app, plan, {
-				serverUrl: this.settings.apiUrl,
 				remoteVaultName: this.settings.remoteVaultName,
 				showChangeVault: true,
 				context,
+				listVaults: () => this.api.listVaults(),
+				applyVaultChange: async (id, name) => {
+					this.settings.vaultId = id;
+					this.settings.remoteVaultName = name;
+					this.api.setVaultId(id);
+					await this.saveSettings();
+					return this.syncEngine.computeSyncPlan("full");
+				},
 			});
 			const choice = await modal.awaitChoice();
-
-			if (choice === "change-vault") {
-				// Clear the vault selection and reopen the settings UI so the
-				// vault picker dropdown is visible again. We deliberately do
-				// NOT preselect a tab — the user landed in whichever tab they
-				// were using and we want to keep them there.
-				this.settings.vaultId = null;
-				this.api.setVaultId(null);
-				await this.savePluginData(this.syncEngine.getLastSync());
-				const setting = (
-					this.app as unknown as {
-						setting: { open(): void; openTabById(id: string): void };
-					}
-				).setting;
-				setting.open();
-				setting.openTabById(this.manifest.id);
-				return;
-			}
 
 			await this.runSyncFromChoice(choice);
 		} catch (e) {

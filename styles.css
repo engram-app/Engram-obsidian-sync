@@ -436,6 +436,16 @@
 	background-color: var(--text-muted, #888888);
 }
 
+.engram-status-dot.is-waiting {
+	background-color: var(--text-warning, #e5a100);
+}
+
+.engram-status-open-sync-btn {
+	margin-left: 12px;
+	padding: 2px 10px;
+	font-size: 0.85em;
+}
+
 .engram-sync-progress {
 	display: none;
 	padding: 12px 0;
@@ -1202,20 +1212,38 @@
 	margin-right: 0.15em;
 }
 
-.engram-sync-preview-identity {
-	margin-bottom: 1.25em;
-}
-
-.engram-sync-preview-vault-name {
-	font-size: 1.15em;
-	font-weight: 600;
-	color: var(--text-normal);
-}
-
-.engram-sync-preview-server-host {
-	font-size: 0.8em;
+.engram-sync-preview-picker-help {
 	color: var(--text-muted);
-	margin-top: 1px;
+	margin: 0.25em 0 1em 0;
+}
+
+.engram-sync-preview-picker-body {
+	margin-bottom: 1em;
+}
+
+.engram-sync-preview-picker-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5em;
+}
+
+.engram-sync-preview-picker-item {
+	text-align: left;
+	width: 100%;
+	padding: 0.6em 0.75em;
+}
+
+.engram-sync-preview-picker-item-name {
+	font-weight: 600;
+}
+
+.engram-sync-preview-picker-item-default {
+	color: var(--text-muted);
+	font-size: 0.85em;
+}
+
+.engram-sync-preview-picker-error {
+	color: var(--text-error);
 }
 
 .engram-sync-preview-compare {
