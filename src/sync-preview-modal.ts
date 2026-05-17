@@ -6,7 +6,7 @@ import {
 	isPlanEmpty,
 	optionBreakdown,
 } from "./sync-plan-format";
-import type { SyncChoice, SyncPlan } from "./types";
+import type { SyncChoice, SyncPlan, SyncPreviewContext } from "./types";
 
 /** Pure state machine for the SyncPreviewModal. Owns view + input state and
  *  the resolve callback. Tested directly; the Modal class is a thin DOM
@@ -72,49 +72,74 @@ export class SyncPreviewState {
 
 const OPTION_CARDS: Array<{
 	choice: SyncChoice;
+	emoji: string;
 	label: string;
 	subtitle: (b: OptionBreakdown) => string;
 	cssClass: string;
 }> = [
 	{
 		choice: "smart-merge",
+		emoji: "✨",
 		label: "Smart merge (recommended)",
 		subtitle: (b) =>
 			`Pull ${b.pullCount}, push ${b.pushCount}, merge ${b.conflictCount} conflicts`,
 		cssClass: "engram-sync-preview-option mod-cta",
 	},
 	{
-		choice: "pull-all-delete-local",
-		label: "Pull all + delete local extras",
-		subtitle: (b) => `Download ${b.pullCount}, delete ${b.deleteLocalCount} local`,
-		cssClass: "engram-sync-preview-option engram-sync-preview-destructive",
-	},
-	{
 		choice: "pull-all-keep-local",
+		emoji: "⬇️",
 		label: "Pull all + keep local extras",
 		subtitle: (b) => `Download ${b.pullCount}, keep all local`,
 		cssClass: "engram-sync-preview-option",
 	},
 	{
-		choice: "push-all-delete-remote",
-		label: "Push all + delete remote extras",
-		subtitle: (b) => `Upload ${b.pushCount}, delete ${b.deleteRemoteCount} remote`,
+		choice: "pull-all-delete-local",
+		emoji: "⚠️",
+		label: "Pull all + delete local extras",
+		subtitle: (b) => `Download ${b.pullCount}, delete ${b.deleteLocalCount} local`,
 		cssClass: "engram-sync-preview-option engram-sync-preview-destructive",
 	},
 	{
 		choice: "push-all-keep-remote",
+		emoji: "⬆️",
 		label: "Push all + keep remote extras",
 		subtitle: (b) => `Upload ${b.pushCount}, keep all remote`,
 		cssClass: "engram-sync-preview-option",
 	},
+	{
+		choice: "push-all-delete-remote",
+		emoji: "⚠️",
+		label: "Push all + delete remote extras",
+		subtitle: (b) => `Upload ${b.pushCount}, delete ${b.deleteRemoteCount} remote`,
+		cssClass: "engram-sync-preview-option engram-sync-preview-destructive",
+	},
 ];
 
+const HEADER_BY_CONTEXT: Record<SyncPreviewContext, string> = {
+	"first-time": "Set up sync for this vault",
+	"vault-switch": "New vault detected",
+	review: "Sync preview",
+};
+
 export interface SyncPreviewOptions {
-	/** Server URL string for the identity strip. */
+	/** Server URL string. Host portion is shown beneath the vault name. */
 	serverUrl: string;
 	/** When true the footer shows a "Change vault" button. Off for triggers
 	 *  outside the vault picker (e.g. Sync Center). */
 	showChangeVault: boolean;
+	/** Drives header copy. Defaults to "review" when not provided. */
+	context?: SyncPreviewContext;
+}
+
+/** Extract host (no scheme, no path) from a server URL, with graceful
+ *  fallback to the raw string when the value isn't a parseable URL. */
+function hostOf(url: string): string {
+	if (!url) return "";
+	try {
+		return new URL(url).host;
+	} catch {
+		return url;
+	}
 }
 
 export class SyncPreviewModal extends Modal {
@@ -168,34 +193,21 @@ export class SyncPreviewModal extends Modal {
 
 	private renderPreview(): void {
 		const { contentEl } = this;
-		contentEl.createEl("h2", { text: "Engram sync — preview" });
+		const empty = isPlanEmpty(this.plan);
+		const context = this.opts.context ?? "review";
 
-		const identity = contentEl.createDiv({ cls: "engram-sync-preview-identity" });
-		identity.createEl("span", {
-			text: `Vault: ${this.plan.vaultName}`,
-			cls: "engram-sync-preview-vault-name",
-		});
-		identity.createEl("span", {
-			text: ` → ${this.opts.serverUrl}`,
-			cls: "engram-sync-preview-server-url",
-		});
+		this.renderHeader(contentEl, empty ? "up-to-date" : context);
+		this.renderIdentity(contentEl);
+		this.renderComparison(contentEl);
 
-		const stats = contentEl.createDiv({ cls: "engram-sync-preview-stats" });
-		stats.createEl("p", {
-			text: `Local: ${this.plan.localNoteCount} notes · ${this.plan.localAttachmentCount} attachments`,
-		});
-		stats.createEl("p", {
-			text: `Remote: ${this.plan.serverNoteCount} notes`,
-		});
-		stats.createEl("p", {
-			text: `Match: ${computeMatchPercent(this.plan)}% · Conflicts: ${this.plan.conflicts.length}`,
-		});
-
-		if (isPlanEmpty(this.plan)) {
-			contentEl.createEl("p", {
-				cls: "engram-sync-preview-uptodate",
-				text: "Everything is in sync. You can close this dialog.",
+		if (empty) {
+			const footer = contentEl.createDiv({ cls: "engram-sync-preview-footer" });
+			const closeBtn = footer.createEl("button", {
+				text: "Close",
+				cls: "mod-cta",
 			});
+			closeBtn.addEventListener("click", () => this.state.cancel());
+			return;
 		}
 
 		const options = contentEl.createDiv({ cls: "engram-sync-preview-options" });
@@ -204,28 +216,108 @@ export class SyncPreviewModal extends Modal {
 		}
 
 		const footer = contentEl.createDiv({ cls: "engram-sync-preview-footer" });
-
 		const cancelBtn = footer.createEl("button", { text: "Cancel" });
 		cancelBtn.addEventListener("click", () => this.state.cancel());
-
 		if (this.opts.showChangeVault) {
 			const changeBtn = footer.createEl("button", { text: "Change vault" });
 			changeBtn.addEventListener("click", () => this.state.changeVault());
 		}
 	}
 
+	private renderHeader(parent: HTMLElement, context: SyncPreviewContext | "up-to-date"): void {
+		if (context === "up-to-date") {
+			const h = parent.createEl("h2", {
+				cls: "engram-sync-preview-header engram-sync-preview-header-success",
+			});
+			h.createSpan({ text: "✅ ", cls: "engram-sync-preview-header-emoji" });
+			h.createSpan({ text: "Everything is in sync" });
+			return;
+		}
+		parent.createEl("h2", {
+			text: HEADER_BY_CONTEXT[context],
+			cls: "engram-sync-preview-header",
+		});
+	}
+
+	private renderIdentity(parent: HTMLElement): void {
+		const identity = parent.createDiv({ cls: "engram-sync-preview-identity" });
+		identity.createEl("div", {
+			text: this.plan.vaultName,
+			cls: "engram-sync-preview-vault-name",
+		});
+		const host = hostOf(this.opts.serverUrl);
+		if (host) {
+			identity.createEl("div", {
+				text: host,
+				cls: "engram-sync-preview-server-host",
+			});
+		}
+	}
+
+	private renderComparison(parent: HTMLElement): void {
+		const wrap = parent.createDiv({ cls: "engram-sync-preview-compare" });
+
+		this.renderCompareCard(wrap, {
+			emoji: "💻",
+			label: "This vault",
+			notes: this.plan.localNoteCount,
+			attachments: this.plan.localAttachmentCount,
+		});
+		this.renderCompareCard(wrap, {
+			emoji: "☁️",
+			label: "Engram server",
+			notes: this.plan.serverNoteCount,
+			attachments: this.plan.serverAttachmentCount,
+		});
+
+		const match = computeMatchPercent(this.plan);
+		const conflicts = this.plan.conflicts.length;
+		const meta = parent.createDiv({ cls: "engram-sync-preview-meta" });
+		const matchPill = meta.createSpan({
+			text: `🔗 Match: ${match}%`,
+			cls: "engram-sync-preview-meta-item",
+		});
+		if (match === 100) matchPill.addClass("is-perfect");
+		if (conflicts > 0) {
+			const conflictPill = meta.createSpan({
+				text: `⚡ Conflicts: ${conflicts}`,
+				cls: "engram-sync-preview-meta-item is-warning",
+			});
+			void conflictPill;
+		}
+	}
+
+	private renderCompareCard(
+		parent: HTMLElement,
+		card: { emoji: string; label: string; notes: number; attachments: number },
+	): void {
+		const el = parent.createDiv({ cls: "engram-sync-preview-compare-card" });
+		const header = el.createDiv({ cls: "engram-sync-preview-compare-card-header" });
+		header.createSpan({ text: card.emoji, cls: "engram-sync-preview-compare-emoji" });
+		header.createSpan({ text: card.label, cls: "engram-sync-preview-compare-label" });
+		const body = el.createDiv({ cls: "engram-sync-preview-compare-card-body" });
+		body.createDiv({
+			text: `📄 ${card.notes} notes`,
+			cls: "engram-sync-preview-compare-row",
+		});
+		body.createDiv({
+			text: `📎 ${card.attachments} attachments`,
+			cls: "engram-sync-preview-compare-row",
+		});
+	}
+
 	private renderOptionCard(parent: HTMLElement, card: (typeof OPTION_CARDS)[number]): void {
 		const b = optionBreakdown(this.plan, card.choice);
-		const btn = parent.createEl("button", {
-			text: card.label,
-			cls: card.cssClass,
-		});
-		const subtitle = parent.createEl("p", {
+		const wrap = parent.createDiv({ cls: "engram-sync-preview-option-wrap" });
+		const btn = wrap.createEl("button", { cls: card.cssClass });
+		btn.createSpan({ text: card.emoji, cls: "engram-sync-preview-option-emoji" });
+		btn.createSpan({ text: card.label, cls: "engram-sync-preview-option-label" });
+		const subtitle = wrap.createEl("p", {
 			text: card.subtitle(b),
 			cls: "engram-sync-preview-option-subtitle",
 		});
 		if (b.samplePaths.length > 0) {
-			const details = parent.createEl("details", {
+			const details = wrap.createEl("details", {
 				cls: "engram-sync-preview-sample",
 			});
 			details.createEl("summary", { text: "Sample paths" });
@@ -245,7 +337,7 @@ export class SyncPreviewModal extends Modal {
 	private renderConfirm(): void {
 		const { contentEl } = this;
 		const choice = this.state.pendingChoice;
-		if (choice == null) return; // defensive — shouldn't happen
+		if (choice == null) return;
 
 		contentEl.createEl("h2", { text: "Confirm destructive sync" });
 

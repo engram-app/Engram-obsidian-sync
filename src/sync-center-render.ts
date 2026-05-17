@@ -79,6 +79,7 @@ function renderActions(parent: HTMLElement, plugin: EngramSyncPlugin, refresh: (
 			const modal = new SyncPreviewModal(plugin.app, plan, {
 				serverUrl: plugin.settings.apiUrl,
 				showChangeVault: false,
+				context: "review",
 			});
 			const choice = await modal.awaitChoice();
 			// change-vault is unreachable here (showChangeVault: false), but assert in

@@ -6,6 +6,7 @@ function makePlan(overrides: Partial<SyncPlan> = {}): SyncPlan {
 	return {
 		vaultName: "Test Vault",
 		serverNoteCount: 100,
+		serverAttachmentCount: 0,
 		localNoteCount: 80,
 		localAttachmentCount: 0,
 		toPush: { notes: [], attachments: [] },

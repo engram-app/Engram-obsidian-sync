@@ -13,6 +13,7 @@ function makePlan(overrides: Partial<SyncPlan> = {}): SyncPlan {
 	return {
 		vaultName: "Personal Notes",
 		serverNoteCount: 198,
+		serverAttachmentCount: 8,
 		localNoteCount: 234,
 		localAttachmentCount: 12,
 		toPush: { notes: [], attachments: [] },

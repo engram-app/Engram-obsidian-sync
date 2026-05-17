@@ -20,6 +20,7 @@ import {
 	DEFAULT_SETTINGS,
 	type EngramSyncSettings,
 	type FileSyncState,
+	type SyncPreviewContext,
 	type SyncStatus,
 } from "./types";
 
@@ -777,15 +778,26 @@ export default class EngramSyncPlugin extends Plugin {
 		this.updateStatusBar(this.syncEngine.getStatus());
 	}
 
+	/** Decide which header copy the SyncPreviewModal should use based on the
+	 *  saved gate fingerprint. Never accepted before = first-time onboarding;
+	 *  accepted but for a different fingerprint = vault/account switched;
+	 *  otherwise the user is re-reviewing. */
+	private derivePreviewContext(): SyncPreviewContext {
+		if (this.syncGateAcceptedFor == null) return "first-time";
+		return "vault-switch";
+	}
+
 	/** Compute a sync plan and show SyncPreviewModal. Used after every
 	 *  saveSettings once auth + vault are configured. First-sync is just
 	 *  one case of the preview UX. */
 	async doSyncWithFirstSyncCheck(): Promise<void> {
 		try {
 			const plan = await this.syncEngine.computeSyncPlan("full");
+			const context = this.derivePreviewContext();
 			const modal = new SyncPreviewModal(this.app, plan, {
 				serverUrl: this.settings.apiUrl,
 				showChangeVault: true,
+				context,
 			});
 			const choice = await modal.awaitChoice();
 

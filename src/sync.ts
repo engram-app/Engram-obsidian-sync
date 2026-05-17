@@ -1771,6 +1771,7 @@ export class SyncEngine {
 		let manifestNotePaths: Set<string> | null = null;
 		let manifestAttachPaths: Set<string> | null = null;
 		let manifestNoteCount: number | null = null;
+		let manifestAttachCount: number | null = null;
 
 		if (mode === "full" && this.lastSync) {
 			const manifest = await this.api.getManifest();
@@ -1778,6 +1779,7 @@ export class SyncEngine {
 				manifestNotePaths = new Set(manifest.notes.map((n) => n.path));
 				manifestAttachPaths = new Set(manifest.attachments.map((a) => a.path));
 				manifestNoteCount = manifest.notes.length;
+				manifestAttachCount = manifest.attachments.length;
 			}
 		}
 
@@ -1927,6 +1929,9 @@ export class SyncEngine {
 			vaultName: this.app.vault.getName(),
 			serverNoteCount:
 				manifestNoteCount ?? [...serverNotes.values()].filter((v) => !v.deleted).length,
+			serverAttachmentCount:
+				manifestAttachCount ??
+				[...serverAttachments.values()].filter((v) => !v.deleted).length,
 			localNoteCount: localNotes.length,
 			localAttachmentCount: localAttachments.length,
 			toPush: {

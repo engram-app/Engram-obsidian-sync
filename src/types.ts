@@ -295,6 +295,7 @@ export interface VaultInfo {
 export interface SyncPlan {
 	vaultName: string;
 	serverNoteCount: number;
+	serverAttachmentCount: number;
 	localNoteCount: number;
 	localAttachmentCount: number;
 	toPush: { notes: string[]; attachments: string[] };
@@ -352,6 +353,12 @@ export interface ReconcileResult {
 	diverged: string[];
 	extraOnServer: string[];
 }
+
+/** Why the SyncPreviewModal opened. Controls header copy.
+ *  - "first-time": user has never accepted a sync gate before.
+ *  - "vault-switch": gate fingerprint exists but doesn't match (vault/account changed).
+ *  - "review": gate already accepted; user re-opened (Sync Center, status bar). */
+export type SyncPreviewContext = "first-time" | "vault-switch" | "review";
 
 /** User's chosen sync direction in the SyncPreviewModal.
  *  Drives dispatch in main.ts → runSyncFromChoice. */

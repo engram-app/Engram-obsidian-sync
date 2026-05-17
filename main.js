@@ -2460,35 +2460,53 @@ var SyncPreviewState = class {
 }, OPTION_CARDS = [
   {
     choice: "smart-merge",
+    emoji: "\u2728",
     label: "Smart merge (recommended)",
     subtitle: (b) => `Pull ${b.pullCount}, push ${b.pushCount}, merge ${b.conflictCount} conflicts`,
     cssClass: "engram-sync-preview-option mod-cta"
   },
   {
-    choice: "pull-all-delete-local",
-    label: "Pull all + delete local extras",
-    subtitle: (b) => `Download ${b.pullCount}, delete ${b.deleteLocalCount} local`,
-    cssClass: "engram-sync-preview-option engram-sync-preview-destructive"
-  },
-  {
     choice: "pull-all-keep-local",
+    emoji: "\u2B07\uFE0F",
     label: "Pull all + keep local extras",
     subtitle: (b) => `Download ${b.pullCount}, keep all local`,
     cssClass: "engram-sync-preview-option"
   },
   {
-    choice: "push-all-delete-remote",
-    label: "Push all + delete remote extras",
-    subtitle: (b) => `Upload ${b.pushCount}, delete ${b.deleteRemoteCount} remote`,
+    choice: "pull-all-delete-local",
+    emoji: "\u26A0\uFE0F",
+    label: "Pull all + delete local extras",
+    subtitle: (b) => `Download ${b.pullCount}, delete ${b.deleteLocalCount} local`,
     cssClass: "engram-sync-preview-option engram-sync-preview-destructive"
   },
   {
     choice: "push-all-keep-remote",
+    emoji: "\u2B06\uFE0F",
     label: "Push all + keep remote extras",
     subtitle: (b) => `Upload ${b.pushCount}, keep all remote`,
     cssClass: "engram-sync-preview-option"
+  },
+  {
+    choice: "push-all-delete-remote",
+    emoji: "\u26A0\uFE0F",
+    label: "Push all + delete remote extras",
+    subtitle: (b) => `Upload ${b.pushCount}, delete ${b.deleteRemoteCount} remote`,
+    cssClass: "engram-sync-preview-option engram-sync-preview-destructive"
   }
-], SyncPreviewModal = class extends import_obsidian11.Modal {
+], HEADER_BY_CONTEXT = {
+  "first-time": "Set up sync for this vault",
+  "vault-switch": "New vault detected",
+  review: "Sync preview"
+};
+function hostOf(url) {
+  if (!url) return "";
+  try {
+    return new URL(url).host;
+  } catch (e) {
+    return url;
+  }
+}
+var SyncPreviewModal = class extends import_obsidian11.Modal {
   constructor(app, plan, opts) {
     super(app);
     this.plan = plan;
@@ -2517,43 +2535,91 @@ var SyncPreviewState = class {
     contentEl.empty(), this.state.view === "preview" ? this.renderPreview() : this.renderConfirm();
   }
   renderPreview() {
-    let { contentEl } = this;
-    contentEl.createEl("h2", { text: "Engram sync \u2014 preview" });
-    let identity = contentEl.createDiv({ cls: "engram-sync-preview-identity" });
-    identity.createEl("span", {
-      text: `Vault: ${this.plan.vaultName}`,
-      cls: "engram-sync-preview-vault-name"
-    }), identity.createEl("span", {
-      text: ` \u2192 ${this.opts.serverUrl}`,
-      cls: "engram-sync-preview-server-url"
-    });
-    let stats = contentEl.createDiv({ cls: "engram-sync-preview-stats" });
-    stats.createEl("p", {
-      text: `Local: ${this.plan.localNoteCount} notes \xB7 ${this.plan.localAttachmentCount} attachments`
-    }), stats.createEl("p", {
-      text: `Remote: ${this.plan.serverNoteCount} notes`
-    }), stats.createEl("p", {
-      text: `Match: ${computeMatchPercent(this.plan)}% \xB7 Conflicts: ${this.plan.conflicts.length}`
-    }), isPlanEmpty(this.plan) && contentEl.createEl("p", {
-      cls: "engram-sync-preview-uptodate",
-      text: "Everything is in sync. You can close this dialog."
-    });
+    var _a;
+    let { contentEl } = this, empty = isPlanEmpty(this.plan), context = (_a = this.opts.context) != null ? _a : "review";
+    if (this.renderHeader(contentEl, empty ? "up-to-date" : context), this.renderIdentity(contentEl), this.renderComparison(contentEl), empty) {
+      contentEl.createDiv({ cls: "engram-sync-preview-footer" }).createEl("button", {
+        text: "Close",
+        cls: "mod-cta"
+      }).addEventListener("click", () => this.state.cancel());
+      return;
+    }
     let options = contentEl.createDiv({ cls: "engram-sync-preview-options" });
     for (let card of OPTION_CARDS)
       this.renderOptionCard(options, card);
     let footer = contentEl.createDiv({ cls: "engram-sync-preview-footer" });
     footer.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.state.cancel()), this.opts.showChangeVault && footer.createEl("button", { text: "Change vault" }).addEventListener("click", () => this.state.changeVault());
   }
+  renderHeader(parent, context) {
+    if (context === "up-to-date") {
+      let h = parent.createEl("h2", {
+        cls: "engram-sync-preview-header engram-sync-preview-header-success"
+      });
+      h.createSpan({ text: "\u2705 ", cls: "engram-sync-preview-header-emoji" }), h.createSpan({ text: "Everything is in sync" });
+      return;
+    }
+    parent.createEl("h2", {
+      text: HEADER_BY_CONTEXT[context],
+      cls: "engram-sync-preview-header"
+    });
+  }
+  renderIdentity(parent) {
+    let identity = parent.createDiv({ cls: "engram-sync-preview-identity" });
+    identity.createEl("div", {
+      text: this.plan.vaultName,
+      cls: "engram-sync-preview-vault-name"
+    });
+    let host = hostOf(this.opts.serverUrl);
+    host && identity.createEl("div", {
+      text: host,
+      cls: "engram-sync-preview-server-host"
+    });
+  }
+  renderComparison(parent) {
+    let wrap = parent.createDiv({ cls: "engram-sync-preview-compare" });
+    this.renderCompareCard(wrap, {
+      emoji: "\u{1F4BB}",
+      label: "This vault",
+      notes: this.plan.localNoteCount,
+      attachments: this.plan.localAttachmentCount
+    }), this.renderCompareCard(wrap, {
+      emoji: "\u2601\uFE0F",
+      label: "Engram server",
+      notes: this.plan.serverNoteCount,
+      attachments: this.plan.serverAttachmentCount
+    });
+    let match = computeMatchPercent(this.plan), conflicts = this.plan.conflicts.length, meta = parent.createDiv({ cls: "engram-sync-preview-meta" }), matchPill = meta.createSpan({
+      text: `\u{1F517} Match: ${match}%`,
+      cls: "engram-sync-preview-meta-item"
+    });
+    if (match === 100 && matchPill.addClass("is-perfect"), conflicts > 0) {
+      let conflictPill = meta.createSpan({
+        text: `\u26A1 Conflicts: ${conflicts}`,
+        cls: "engram-sync-preview-meta-item is-warning"
+      });
+    }
+  }
+  renderCompareCard(parent, card) {
+    let el = parent.createDiv({ cls: "engram-sync-preview-compare-card" }), header = el.createDiv({ cls: "engram-sync-preview-compare-card-header" });
+    header.createSpan({ text: card.emoji, cls: "engram-sync-preview-compare-emoji" }), header.createSpan({ text: card.label, cls: "engram-sync-preview-compare-label" });
+    let body = el.createDiv({ cls: "engram-sync-preview-compare-card-body" });
+    body.createDiv({
+      text: `\u{1F4C4} ${card.notes} notes`,
+      cls: "engram-sync-preview-compare-row"
+    }), body.createDiv({
+      text: `\u{1F4CE} ${card.attachments} attachments`,
+      cls: "engram-sync-preview-compare-row"
+    });
+  }
   renderOptionCard(parent, card) {
-    let b = optionBreakdown(this.plan, card.choice), btn = parent.createEl("button", {
-      text: card.label,
-      cls: card.cssClass
-    }), subtitle = parent.createEl("p", {
+    let b = optionBreakdown(this.plan, card.choice), wrap = parent.createDiv({ cls: "engram-sync-preview-option-wrap" }), btn = wrap.createEl("button", { cls: card.cssClass });
+    btn.createSpan({ text: card.emoji, cls: "engram-sync-preview-option-emoji" }), btn.createSpan({ text: card.label, cls: "engram-sync-preview-option-label" });
+    let subtitle = wrap.createEl("p", {
       text: card.subtitle(b),
       cls: "engram-sync-preview-option-subtitle"
     });
     if (b.samplePaths.length > 0) {
-      let details = parent.createEl("details", {
+      let details = wrap.createEl("details", {
         cls: "engram-sync-preview-sample"
       });
       details.createEl("summary", { text: "Sample paths" });
@@ -2633,7 +2699,8 @@ function renderActions(parent, plugin, refresh) {
     try {
       let plan = await plugin.syncEngine.computeSyncPlan("full"), choice = await new SyncPreviewModal(plugin.app, plan, {
         serverUrl: plugin.settings.apiUrl,
-        showChangeVault: !1
+        showChangeVault: !1,
+        context: "review"
       }).awaitChoice();
       if (choice === "change-vault")
         throw new Error("Sync Center received change-vault choice \u2014 caller missing");
@@ -4198,10 +4265,10 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
    *  - "pull-all" — pull only: compute toPull, skip toPush
    */
   async computeSyncPlan(mode) {
-    let epoch = "1970-01-01T00:00:00Z", manifestNotePaths = null, manifestAttachPaths = null, manifestNoteCount = null;
+    let epoch = "1970-01-01T00:00:00Z", manifestNotePaths = null, manifestAttachPaths = null, manifestNoteCount = null, manifestAttachCount = null;
     if (mode === "full" && this.lastSync) {
       let manifest = await this.api.getManifest();
-      manifest && (manifestNotePaths = new Set(manifest.notes.map((n) => n.path)), manifestAttachPaths = new Set(manifest.attachments.map((a) => a.path)), manifestNoteCount = manifest.notes.length);
+      manifest && (manifestNotePaths = new Set(manifest.notes.map((n) => n.path)), manifestAttachPaths = new Set(manifest.attachments.map((a) => a.path)), manifestNoteCount = manifest.notes.length, manifestAttachCount = manifest.attachments.length);
     }
     let needsDeltaAsInventory = mode === "full" && this.lastSync !== "" && manifestNotePaths === null, since = mode !== "full" || needsDeltaAsInventory ? epoch : this.lastSync || epoch, [noteResp, attachResp] = await Promise.all([
       this.api.getChanges(since),
@@ -4260,6 +4327,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     return {
       vaultName: this.app.vault.getName(),
       serverNoteCount: manifestNoteCount != null ? manifestNoteCount : [...serverNotes.values()].filter((v) => !v.deleted).length,
+      serverAttachmentCount: manifestAttachCount != null ? manifestAttachCount : [...serverAttachments.values()].filter((v) => !v.deleted).length,
       localNoteCount: localNotes.length,
       localAttachmentCount: localAttachments.length,
       toPush: {
@@ -5076,14 +5144,22 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
     }
     this.syncGateAcceptedFor = fp, this.syncEngine.setSyncBlocked(!1), await this.savePluginData(this.syncEngine.getLastSync()), this.updateStatusBar(this.syncEngine.getStatus());
   }
+  /** Decide which header copy the SyncPreviewModal should use based on the
+   *  saved gate fingerprint. Never accepted before = first-time onboarding;
+   *  accepted but for a different fingerprint = vault/account switched;
+   *  otherwise the user is re-reviewing. */
+  derivePreviewContext() {
+    return this.syncGateAcceptedFor == null ? "first-time" : "vault-switch";
+  }
   /** Compute a sync plan and show SyncPreviewModal. Used after every
    *  saveSettings once auth + vault are configured. First-sync is just
    *  one case of the preview UX. */
   async doSyncWithFirstSyncCheck() {
     try {
-      let plan = await this.syncEngine.computeSyncPlan("full"), choice = await new SyncPreviewModal(this.app, plan, {
+      let plan = await this.syncEngine.computeSyncPlan("full"), context = this.derivePreviewContext(), choice = await new SyncPreviewModal(this.app, plan, {
         serverUrl: this.settings.apiUrl,
-        showChangeVault: !0
+        showChangeVault: !0,
+        context
       }).awaitChoice();
       if (choice === "change-vault") {
         this.settings.vaultId = null, this.api.setVaultId(null), await this.savePluginData(this.syncEngine.getLastSync());
