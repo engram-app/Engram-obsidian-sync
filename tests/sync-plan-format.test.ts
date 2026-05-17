@@ -1,0 +1,172 @@
+import { describe, expect, test } from "bun:test";
+import {
+	computeMatchPercent,
+	formatPlanSummary,
+	isDestructiveChoice,
+	isPlanEmpty,
+	optionBreakdown,
+	samplePaths,
+} from "../src/sync-plan-format";
+import type { SyncPlan } from "../src/types";
+
+function makePlan(overrides: Partial<SyncPlan> = {}): SyncPlan {
+	return {
+		vaultName: "Personal Notes",
+		serverNoteCount: 198,
+		localNoteCount: 234,
+		localAttachmentCount: 12,
+		toPush: { notes: [], attachments: [] },
+		toPull: { notes: [], attachments: [] },
+		conflicts: [],
+		toDeleteLocal: [],
+		toDeleteRemote: [],
+		...overrides,
+	};
+}
+
+describe("isPlanEmpty", () => {
+	test("empty plan is empty", () => {
+		expect(isPlanEmpty(makePlan())).toBe(true);
+	});
+	test("plan with pushes is not empty", () => {
+		expect(isPlanEmpty(makePlan({ toPush: { notes: ["a.md"], attachments: [] } }))).toBe(false);
+	});
+	test("plan with deletions is not empty", () => {
+		expect(isPlanEmpty(makePlan({ toDeleteLocal: ["a.md"] }))).toBe(false);
+	});
+});
+
+describe("formatPlanSummary", () => {
+	test("shows vault name + server/local counts", () => {
+		const lines = formatPlanSummary(makePlan());
+		expect(lines).toContain("Vault: Personal Notes");
+		expect(lines).toContain("Server: 198 notes · Local: 234 notes");
+	});
+	test("pluralizes correctly", () => {
+		const one = makePlan({ toPush: { notes: ["a.md"], attachments: [] } });
+		const many = makePlan({ toPush: { notes: ["a.md", "b.md"], attachments: [] } });
+		expect(formatPlanSummary(one)).toContain("1 note to push");
+		expect(formatPlanSummary(many)).toContain("2 notes to push");
+	});
+});
+
+describe("computeMatchPercent", () => {
+	test("returns 100 when local and remote are empty", () => {
+		expect(computeMatchPercent(makePlan({ localNoteCount: 0, serverNoteCount: 0 }))).toBe(100);
+	});
+	test("returns 0 when nothing overlaps", () => {
+		const plan = makePlan({
+			localNoteCount: 5,
+			serverNoteCount: 5,
+			toPush: { notes: ["a.md", "b.md", "c.md", "d.md", "e.md"], attachments: [] },
+			toPull: { notes: ["v.md", "w.md", "x.md", "y.md", "z.md"], attachments: [] },
+		});
+		expect(computeMatchPercent(plan)).toBe(0);
+	});
+	test("computes |intersection| / |union| over note paths", () => {
+		// 3 local notes total, 2 remote-only (toPull), 1 local-only (toPush), 1 in
+		// both (it's not in toPush or toPull → already in sync).
+		// local: total 2 = {shared.md, only-local.md}
+		// remote: total 3 = {shared.md, only-remote-a.md, only-remote-b.md}
+		// intersection = 1, union = 4 → 25%
+		const plan = makePlan({
+			localNoteCount: 2,
+			serverNoteCount: 3,
+			toPush: { notes: ["only-local.md"], attachments: [] },
+			toPull: { notes: ["only-remote-a.md", "only-remote-b.md"], attachments: [] },
+		});
+		expect(computeMatchPercent(plan)).toBe(25);
+	});
+});
+
+describe("samplePaths", () => {
+	test("returns first N paths", () => {
+		const paths = ["a.md", "b.md", "c.md", "d.md", "e.md", "f.md", "g.md"];
+		expect(samplePaths(paths, 3)).toEqual(["a.md", "b.md", "c.md"]);
+	});
+	test("returns all paths when fewer than N", () => {
+		expect(samplePaths(["a.md", "b.md"], 5)).toEqual(["a.md", "b.md"]);
+	});
+	test("returns empty array for empty input", () => {
+		expect(samplePaths([], 5)).toEqual([]);
+	});
+});
+
+describe("isDestructiveChoice", () => {
+	test("pull-all-delete-local is destructive", () => {
+		expect(isDestructiveChoice("pull-all-delete-local")).toBe(true);
+	});
+	test("push-all-delete-remote is destructive", () => {
+		expect(isDestructiveChoice("push-all-delete-remote")).toBe(true);
+	});
+	test("smart-merge is not destructive", () => {
+		expect(isDestructiveChoice("smart-merge")).toBe(false);
+	});
+	test("cancel is not destructive", () => {
+		expect(isDestructiveChoice("cancel")).toBe(false);
+	});
+});
+
+describe("optionBreakdown", () => {
+	const plan = makePlan({
+		localNoteCount: 5,
+		serverNoteCount: 4,
+		toPush: { notes: ["a.md", "b.md"], attachments: ["pic.png"] },
+		toPull: { notes: ["x.md"], attachments: [] },
+		conflicts: ["dup.md"],
+		toDeleteLocal: ["gone-on-server.md"],
+		toDeleteRemote: [],
+	});
+
+	test("smart-merge: counts merge actions, no deletions", () => {
+		const b = optionBreakdown(plan, "smart-merge");
+		expect(b.pullCount).toBe(1);
+		expect(b.pushCount).toBe(2);
+		expect(b.conflictCount).toBe(1);
+		expect(b.deleteLocalCount).toBe(0);
+		expect(b.deleteRemoteCount).toBe(0);
+	});
+
+	test("pull-all-delete-local: pulls all remote (notes+attachments), deletes local-only", () => {
+		const b = optionBreakdown(plan, "pull-all-delete-local");
+		expect(b.pullCount).toBe(4); // serverNoteCount
+		expect(b.deleteLocalCount).toBe(2);
+		expect(b.deleteRemoteCount).toBe(0);
+		expect(b.pushCount).toBe(0);
+	});
+
+	test("pull-all-keep-local: pulls all remote, no deletions", () => {
+		const b = optionBreakdown(plan, "pull-all-keep-local");
+		expect(b.pullCount).toBe(4);
+		expect(b.deleteLocalCount).toBe(0);
+		expect(b.deleteRemoteCount).toBe(0);
+		expect(b.pushCount).toBe(0);
+	});
+
+	test("push-all-delete-remote: pushes all local, deletes remote-only", () => {
+		const b = optionBreakdown(plan, "push-all-delete-remote");
+		expect(b.pushCount).toBe(5);
+		expect(b.deleteRemoteCount).toBe(1);
+		expect(b.deleteLocalCount).toBe(0);
+		expect(b.pullCount).toBe(0);
+	});
+
+	test("push-all-keep-remote: pushes all local, no deletions", () => {
+		const b = optionBreakdown(plan, "push-all-keep-remote");
+		expect(b.pushCount).toBe(5);
+		expect(b.deleteRemoteCount).toBe(0);
+		expect(b.deleteLocalCount).toBe(0);
+		expect(b.pullCount).toBe(0);
+	});
+
+	test("includes sample paths for the destructive bucket", () => {
+		const big = makePlan({
+			toPush: {
+				notes: ["a.md", "b.md", "c.md", "d.md", "e.md", "f.md", "g.md"],
+				attachments: [],
+			},
+		});
+		const b = optionBreakdown(big, "pull-all-delete-local");
+		expect(b.samplePaths).toEqual(["a.md", "b.md", "c.md", "d.md", "e.md"]);
+	});
+});
