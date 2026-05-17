@@ -82,8 +82,7 @@ const MERGE_CARD: OptionCard = {
 	choice: "smart-merge",
 	emoji: "✨",
 	label: "Merge",
-	subtitle: (b) =>
-		`Keep files from both sides; resolve ${b.conflictCount} conflict${b.conflictCount === 1 ? "" : "s"} as they appear`,
+	subtitle: () => "Keep files from both sides; resolve conflicts as they appear",
 	cssClass: "engram-sync-preview-option mod-cta",
 };
 
@@ -340,13 +339,13 @@ export class SyncPreviewModal extends Modal {
 		label: string,
 	): void {
 		const row = parent.createDiv({ cls: "engram-sync-preview-compare-row" });
-		row.createSpan({ text: `${emoji} `, cls: "engram-sync-preview-compare-row-emoji" });
+		row.createSpan({ text: emoji, cls: "engram-sync-preview-compare-row-emoji" });
 		row.createSpan({
 			text: String(count),
 			cls: "engram-sync-preview-compare-row-count",
 		});
 		row.createSpan({
-			text: ` ${label}`,
+			text: label,
 			cls: "engram-sync-preview-compare-row-label",
 		});
 	}

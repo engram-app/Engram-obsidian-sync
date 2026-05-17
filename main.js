@@ -2461,7 +2461,7 @@ var SyncPreviewState = class {
   choice: "smart-merge",
   emoji: "\u2728",
   label: "Merge",
-  subtitle: (b) => `Keep files from both sides; resolve ${b.conflictCount} conflict${b.conflictCount === 1 ? "" : "s"} as they appear`,
+  subtitle: () => "Keep files from both sides; resolve conflicts as they appear",
   cssClass: "engram-sync-preview-option mod-cta"
 }, PUSH_CARDS = [
   {
@@ -2627,11 +2627,11 @@ var SyncPreviewModal = class extends import_obsidian11.Modal {
   }
   renderCompareRow(parent, emoji, count, label) {
     let row = parent.createDiv({ cls: "engram-sync-preview-compare-row" });
-    row.createSpan({ text: `${emoji} `, cls: "engram-sync-preview-compare-row-emoji" }), row.createSpan({
+    row.createSpan({ text: emoji, cls: "engram-sync-preview-compare-row-emoji" }), row.createSpan({
       text: String(count),
       cls: "engram-sync-preview-compare-row-count"
     }), row.createSpan({
-      text: ` ${label}`,
+      text: label,
       cls: "engram-sync-preview-compare-row-label"
     });
   }
