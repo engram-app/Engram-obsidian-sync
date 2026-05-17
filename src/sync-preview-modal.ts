@@ -412,7 +412,7 @@ export class SyncPreviewModal extends Modal {
 	}
 
 	private renderOptionCard(parent: HTMLElement, card: OptionCard): void {
-		const b = optionBreakdown(this.state.plan,card.choice);
+		const b = optionBreakdown(this.state.plan, card.choice);
 		const wrap = parent.createDiv({ cls: "engram-sync-preview-option-wrap" });
 		const btn = wrap.createEl("button", { cls: card.cssClass });
 		btn.createSpan({ text: card.emoji, cls: "engram-sync-preview-option-emoji" });
@@ -460,11 +460,7 @@ export class SyncPreviewModal extends Modal {
 				text: "Files marked for deletion:",
 				cls: "engram-sync-preview-tree-caption",
 			});
-			this.renderDeletionTree(
-				contentEl,
-				deletePaths,
-				this.keptPathsFor(choice, deletePaths),
-			);
+			this.renderDeletionTree(contentEl, deletePaths, this.keptPathsFor(choice, deletePaths));
 		}
 
 		contentEl.createEl("p", {
@@ -591,11 +587,7 @@ export class SyncPreviewModal extends Modal {
 		return [];
 	}
 
-	private renderDeletionTree(
-		parent: HTMLElement,
-		paths: string[],
-		keptPaths: string[],
-	): void {
+	private renderDeletionTree(parent: HTMLElement, paths: string[], keptPaths: string[]): void {
 		const pre = parent.createEl("pre", { cls: "engram-sync-preview-tree" });
 		const code = pre.createEl("code");
 		const rows = buildDeletionTree(paths, keptPaths);

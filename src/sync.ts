@@ -1955,9 +1955,7 @@ export class SyncEngine {
 		const serverPaths = manifestNotePaths
 			? [...manifestNotePaths, ...(manifestAttachPaths ?? new Set<string>())]
 			: [
-					...[...serverNotes.entries()]
-						.filter(([, v]) => !v.deleted)
-						.map(([k]) => k),
+					...[...serverNotes.entries()].filter(([, v]) => !v.deleted).map(([k]) => k),
 					...[...serverAttachments.entries()]
 						.filter(([, v]) => !v.deleted)
 						.map(([k]) => k),

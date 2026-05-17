@@ -75,7 +75,7 @@ function folderPrefixesOf(paths: Iterable<string>): Set<string> {
 		const parts = p.split("/");
 		let prefix = "";
 		for (let i = 0; i < parts.length - 1; i++) {
-			prefix = prefix ? `${prefix}/${parts[i]}` : parts[i] ?? "";
+			prefix = prefix ? `${prefix}/${parts[i]}` : (parts[i] ?? "");
 			set.add(prefix);
 		}
 	}
@@ -180,10 +180,7 @@ export function optionBreakdown(plan: SyncPlan, choice: SyncChoice): OptionBreak
 				conflictCount: 0,
 				deleteLocalCount: 0,
 				deleteRemoteCount: 0,
-				samplePaths: samplePaths(
-					[...plan.toPull.notes, ...plan.toPull.attachments],
-					5,
-				),
+				samplePaths: samplePaths([...plan.toPull.notes, ...plan.toPull.attachments], 5),
 			};
 
 		case "push-all-delete-remote": {
@@ -205,10 +202,7 @@ export function optionBreakdown(plan: SyncPlan, choice: SyncChoice): OptionBreak
 				conflictCount: 0,
 				deleteLocalCount: 0,
 				deleteRemoteCount: 0,
-				samplePaths: samplePaths(
-					[...plan.toPush.notes, ...plan.toPush.attachments],
-					5,
-				),
+				samplePaths: samplePaths([...plan.toPush.notes, ...plan.toPush.attachments], 5),
 			};
 
 		case "cancel":

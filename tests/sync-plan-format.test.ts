@@ -243,10 +243,7 @@ describe("buildDeletionTree", () => {
 	});
 
 	test("parent of a partially-deleted child is not marked deleted", () => {
-		const rows = buildDeletionTree(
-			["projects/old/file.md"],
-			["projects/keep.md"],
-		);
+		const rows = buildDeletionTree(["projects/old/file.md"], ["projects/keep.md"]);
 		const projects = rows.find((r) => r.kind === "folder" && r.label === "projects/");
 		const old = rows.find((r) => r.kind === "folder" && r.label === "old/");
 		expect(projects?.kind === "folder" && projects.deleted).toBe(false);

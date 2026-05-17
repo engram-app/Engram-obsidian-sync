@@ -2356,10 +2356,7 @@ function optionBreakdown(plan, choice) {
         conflictCount: 0,
         deleteLocalCount: 0,
         deleteRemoteCount: 0,
-        samplePaths: samplePaths(
-          [...plan.toPull.notes, ...plan.toPull.attachments],
-          5
-        )
+        samplePaths: samplePaths([...plan.toPull.notes, ...plan.toPull.attachments], 5)
       };
     case "push-all-delete-remote": {
       let remoteOnly = [...plan.toPull.notes, ...plan.toPull.attachments];
@@ -2379,10 +2376,7 @@ function optionBreakdown(plan, choice) {
         conflictCount: 0,
         deleteLocalCount: 0,
         deleteRemoteCount: 0,
-        samplePaths: samplePaths(
-          [...plan.toPush.notes, ...plan.toPush.attachments],
-          5
-        )
+        samplePaths: samplePaths([...plan.toPush.notes, ...plan.toPush.attachments], 5)
       };
     case "cancel":
     case "change-vault":
@@ -2652,11 +2646,7 @@ var SyncPreviewState = class {
     deletePaths.length > 0 && (contentEl.createEl("p", {
       text: "Files marked for deletion:",
       cls: "engram-sync-preview-tree-caption"
-    }), this.renderDeletionTree(
-      contentEl,
-      deletePaths,
-      this.keptPathsFor(choice, deletePaths)
-    )), contentEl.createEl("p", {
+    }), this.renderDeletionTree(contentEl, deletePaths, this.keptPathsFor(choice, deletePaths))), contentEl.createEl("p", {
       cls: "engram-sync-preview-warning",
       text: "This cannot be undone."
     }), contentEl.createEl("p", { text: "Type DELETE to confirm:" });
