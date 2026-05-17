@@ -11,6 +11,8 @@ function makePlan(overrides: Partial<SyncPlan> = {}): SyncPlan {
 		localNoteCount: 80,
 		localAttachmentCount: 0,
 		localFolderCount: 0,
+		localPaths: [],
+		serverPaths: [],
 		toPush: { notes: [], attachments: [] },
 		toPull: { notes: [], attachments: [] },
 		conflicts: [],

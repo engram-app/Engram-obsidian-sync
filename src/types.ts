@@ -304,6 +304,13 @@ export interface SyncPlan {
 	localNoteCount: number;
 	localAttachmentCount: number;
 	localFolderCount: number;
+	/** Every syncable path that currently exists locally. Used by the deletion
+	 *  preview tree to decide whether a folder is fully going away or just
+	 *  losing some leaves. */
+	localPaths: string[];
+	/** Every path the server has in this vault. Same role as localPaths, for
+	 *  the push-all-delete-remote preview. */
+	serverPaths: string[];
 	toPush: { notes: string[]; attachments: string[] };
 	toPull: { notes: string[]; attachments: string[] };
 	conflicts: string[];

@@ -1442,6 +1442,10 @@
 	font-weight: 600;
 }
 
+.engram-sync-preview-tree-folder-deleted {
+	color: var(--text-error);
+}
+
 .engram-sync-preview-tree-file {
 	color: var(--text-error);
 }

@@ -1975,6 +1975,8 @@ export class SyncEngine {
 			localNoteCount: localNotes.length,
 			localAttachmentCount: localAttachments.length,
 			localFolderCount,
+			localPaths: [...localNotes, ...localAttachments],
+			serverPaths,
 			toPush: {
 				notes: mode === "pull-all" ? [] : toPushNotes,
 				attachments: mode === "pull-all" ? [] : toPushAttachments,

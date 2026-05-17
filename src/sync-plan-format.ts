@@ -63,21 +63,41 @@ export function samplePaths(paths: string[], limit: number): string[] {
 }
 
 export type DeletionTreeRow =
-	| { kind: "folder"; depth: number; label: string }
+	| { kind: "folder"; depth: number; label: string; deleted: boolean }
 	| { kind: "file"; depth: number; label: string };
 
+/** Set of every folder prefix touched by the given paths. "a/b/file.md"
+ *  contributes both "a" and "a/b". Used to test whether any surviving path
+ *  lives inside a given folder. */
+function folderPrefixesOf(paths: Iterable<string>): Set<string> {
+	const set = new Set<string>();
+	for (const p of paths) {
+		const parts = p.split("/");
+		let prefix = "";
+		for (let i = 0; i < parts.length - 1; i++) {
+			prefix = prefix ? `${prefix}/${parts[i]}` : parts[i] ?? "";
+			set.add(prefix);
+		}
+	}
+	return set;
+}
+
 /** Build a folder/file tree from a flat list of vault paths. Folders are
- *  emitted once even when they contain multiple deleted files, so the result
- *  reads like an indented directory listing rather than a wall of repeats.
+ *  emitted once even when they contain multiple deleted files.
  *
- *  Each file row is rendered as the leaf name (e.g. "scratch.md") at the
- *  depth of its parent directory plus one. Folder rows are rendered as the
- *  directory name with a trailing slash. The output preserves the input's
- *  natural sort order so callers don't need to pre-sort. */
-export function buildDeletionTree(paths: string[]): DeletionTreeRow[] {
+ *  When `keptPaths` is provided, a folder row is marked `deleted: true` when
+ *  no path in that set has the folder as a prefix — i.e. the folder is going
+ *  away entirely, not just losing some leaves. Without `keptPaths` every
+ *  folder defaults to `deleted: false` (caller is opting out of the
+ *  full-vs-partial distinction). */
+export function buildDeletionTree(
+	paths: string[],
+	keptPaths?: Iterable<string>,
+): DeletionTreeRow[] {
 	const sorted = [...paths].sort();
 	const rows: DeletionTreeRow[] = [];
 	const emittedFolders = new Set<string>();
+	const survivingFolders = keptPaths ? folderPrefixesOf(keptPaths) : null;
 
 	for (const path of sorted) {
 		const parts = path.split("/");
@@ -90,7 +110,8 @@ export function buildDeletionTree(paths: string[]): DeletionTreeRow[] {
 			prefix = prefix ? `${prefix}/${folder}` : folder;
 			if (!emittedFolders.has(prefix)) {
 				emittedFolders.add(prefix);
-				rows.push({ kind: "folder", depth: i, label: `${folder}/` });
+				const deleted = survivingFolders ? !survivingFolders.has(prefix) : false;
+				rows.push({ kind: "folder", depth: i, label: `${folder}/`, deleted });
 			}
 		}
 

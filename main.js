@@ -2297,14 +2297,28 @@ function computeMatchPercent(plan) {
 function samplePaths(paths, limit) {
   return paths.slice(0, limit);
 }
-function buildDeletionTree(paths) {
+function folderPrefixesOf(paths) {
+  var _a;
+  let set = /* @__PURE__ */ new Set();
+  for (let p of paths) {
+    let parts = p.split("/"), prefix = "";
+    for (let i = 0; i < parts.length - 1; i++)
+      prefix = prefix ? `${prefix}/${parts[i]}` : (_a = parts[i]) != null ? _a : "", set.add(prefix);
+  }
+  return set;
+}
+function buildDeletionTree(paths, keptPaths) {
   var _a, _b;
-  let sorted = [...paths].sort(), rows = [], emittedFolders = /* @__PURE__ */ new Set();
+  let sorted = [...paths].sort(), rows = [], emittedFolders = /* @__PURE__ */ new Set(), survivingFolders = keptPaths ? folderPrefixesOf(keptPaths) : null;
   for (let path of sorted) {
     let parts = path.split("/"), folders = parts.slice(0, -1), file = (_a = parts[parts.length - 1]) != null ? _a : "", prefix = "";
     for (let i = 0; i < folders.length; i++) {
       let folder = (_b = folders[i]) != null ? _b : "";
-      prefix = prefix ? `${prefix}/${folder}` : folder, emittedFolders.has(prefix) || (emittedFolders.add(prefix), rows.push({ kind: "folder", depth: i, label: `${folder}/` }));
+      if (prefix = prefix ? `${prefix}/${folder}` : folder, !emittedFolders.has(prefix)) {
+        emittedFolders.add(prefix);
+        let deleted = survivingFolders ? !survivingFolders.has(prefix) : !1;
+        rows.push({ kind: "folder", depth: i, label: `${folder}/`, deleted });
+      }
     }
     rows.push({ kind: "file", depth: folders.length, label: file });
   }
@@ -2638,7 +2652,11 @@ var SyncPreviewState = class {
     deletePaths.length > 0 && (contentEl.createEl("p", {
       text: "Files marked for deletion:",
       cls: "engram-sync-preview-tree-caption"
-    }), this.renderDeletionTree(contentEl, deletePaths)), contentEl.createEl("p", {
+    }), this.renderDeletionTree(
+      contentEl,
+      deletePaths,
+      this.keptPathsFor(choice, deletePaths)
+    )), contentEl.createEl("p", {
       cls: "engram-sync-preview-warning",
       text: "This cannot be undone."
     }), contentEl.createEl("p", { text: "Type DELETE to confirm:" });
@@ -2713,12 +2731,18 @@ var SyncPreviewState = class {
     let plan = this.state.plan;
     return choice === "pull-all-delete-local" ? [...plan.toPush.notes, ...plan.toPush.attachments] : choice === "push-all-delete-remote" ? [...plan.toPull.notes, ...plan.toPull.attachments] : [];
   }
-  renderDeletionTree(parent, paths) {
-    let code = parent.createEl("pre", { cls: "engram-sync-preview-tree" }).createEl("code"), rows = buildDeletionTree(paths);
-    for (let row of rows)
-      code.createDiv({
-        cls: row.kind === "folder" ? "engram-sync-preview-tree-row engram-sync-preview-tree-folder" : "engram-sync-preview-tree-row engram-sync-preview-tree-file"
-      }).setText(`${"  ".repeat(row.depth)}${row.label}`);
+  /** Paths that remain on the affected side after the destructive sync —
+   *  used to decide whether a folder row is going away entirely. */
+  keptPathsFor(choice, deletePaths) {
+    let plan = this.state.plan, deleted = new Set(deletePaths);
+    return choice === "pull-all-delete-local" ? plan.localPaths.filter((p) => !deleted.has(p)) : choice === "push-all-delete-remote" ? plan.serverPaths.filter((p) => !deleted.has(p)) : [];
+  }
+  renderDeletionTree(parent, paths, keptPaths) {
+    let code = parent.createEl("pre", { cls: "engram-sync-preview-tree" }).createEl("code"), rows = buildDeletionTree(paths, keptPaths);
+    for (let row of rows) {
+      let cls = "engram-sync-preview-tree-row";
+      row.kind === "file" ? cls += " engram-sync-preview-tree-file" : row.deleted ? cls += " engram-sync-preview-tree-folder engram-sync-preview-tree-folder-deleted" : cls += " engram-sync-preview-tree-folder", code.createDiv({ cls }).setText(`${"  ".repeat(row.depth)}${row.label}`);
+    }
   }
   async applyPickedVault(v) {
     if (this.opts.applyVaultChange) {
@@ -4424,6 +4448,8 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
       localNoteCount: localNotes.length,
       localAttachmentCount: localAttachments.length,
       localFolderCount,
+      localPaths: [...localNotes, ...localAttachments],
+      serverPaths,
       toPush: {
         notes: mode === "pull-all" ? [] : toPushNotes,
         attachments: mode === "pull-all" ? [] : toPushAttachments

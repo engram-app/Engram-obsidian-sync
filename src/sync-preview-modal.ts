@@ -460,7 +460,11 @@ export class SyncPreviewModal extends Modal {
 				text: "Files marked for deletion:",
 				cls: "engram-sync-preview-tree-caption",
 			});
-			this.renderDeletionTree(contentEl, deletePaths);
+			this.renderDeletionTree(
+				contentEl,
+				deletePaths,
+				this.keptPathsFor(choice, deletePaths),
+			);
 		}
 
 		contentEl.createEl("p", {
@@ -573,17 +577,38 @@ export class SyncPreviewModal extends Modal {
 		return [];
 	}
 
-	private renderDeletionTree(parent: HTMLElement, paths: string[]): void {
+	/** Paths that remain on the affected side after the destructive sync —
+	 *  used to decide whether a folder row is going away entirely. */
+	private keptPathsFor(choice: SyncChoice, deletePaths: string[]): string[] {
+		const plan = this.state.plan;
+		const deleted = new Set(deletePaths);
+		if (choice === "pull-all-delete-local") {
+			return plan.localPaths.filter((p) => !deleted.has(p));
+		}
+		if (choice === "push-all-delete-remote") {
+			return plan.serverPaths.filter((p) => !deleted.has(p));
+		}
+		return [];
+	}
+
+	private renderDeletionTree(
+		parent: HTMLElement,
+		paths: string[],
+		keptPaths: string[],
+	): void {
 		const pre = parent.createEl("pre", { cls: "engram-sync-preview-tree" });
 		const code = pre.createEl("code");
-		const rows = buildDeletionTree(paths);
+		const rows = buildDeletionTree(paths, keptPaths);
 		for (const row of rows) {
-			const line = code.createDiv({
-				cls:
-					row.kind === "folder"
-						? "engram-sync-preview-tree-row engram-sync-preview-tree-folder"
-						: "engram-sync-preview-tree-row engram-sync-preview-tree-file",
-			});
+			let cls = "engram-sync-preview-tree-row";
+			if (row.kind === "file") {
+				cls += " engram-sync-preview-tree-file";
+			} else if (row.deleted) {
+				cls += " engram-sync-preview-tree-folder engram-sync-preview-tree-folder-deleted";
+			} else {
+				cls += " engram-sync-preview-tree-folder";
+			}
+			const line = code.createDiv({ cls });
 			line.setText(`${"  ".repeat(row.depth)}${row.label}`);
 		}
 	}

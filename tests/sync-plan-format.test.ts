@@ -19,6 +19,8 @@ function makePlan(overrides: Partial<SyncPlan> = {}): SyncPlan {
 		localNoteCount: 234,
 		localAttachmentCount: 12,
 		localFolderCount: 15,
+		localPaths: [],
+		serverPaths: [],
 		toPush: { notes: [], attachments: [] },
 		toPull: { notes: [], attachments: [] },
 		conflicts: [],
@@ -205,10 +207,10 @@ describe("buildDeletionTree", () => {
 			"inbox/note.md",
 		]);
 		expect(rows).toEqual([
-			{ kind: "folder", depth: 0, label: "daily/" },
+			{ kind: "folder", depth: 0, label: "daily/", deleted: false },
 			{ kind: "file", depth: 1, label: "2024-01-01.md" },
 			{ kind: "file", depth: 1, label: "2024-01-02.md" },
-			{ kind: "folder", depth: 0, label: "inbox/" },
+			{ kind: "folder", depth: 0, label: "inbox/", deleted: false },
 			{ kind: "file", depth: 1, label: "note.md" },
 		]);
 	});
@@ -216,11 +218,38 @@ describe("buildDeletionTree", () => {
 	test("nested folders indent by depth", () => {
 		const rows = buildDeletionTree(["a/b/c/leaf.md", "a/b/sibling.md"]);
 		expect(rows).toEqual([
-			{ kind: "folder", depth: 0, label: "a/" },
-			{ kind: "folder", depth: 1, label: "b/" },
-			{ kind: "folder", depth: 2, label: "c/" },
+			{ kind: "folder", depth: 0, label: "a/", deleted: false },
+			{ kind: "folder", depth: 1, label: "b/", deleted: false },
+			{ kind: "folder", depth: 2, label: "c/", deleted: false },
 			{ kind: "file", depth: 3, label: "leaf.md" },
 			{ kind: "file", depth: 2, label: "sibling.md" },
 		]);
+	});
+
+	test("folder is marked deleted when no kept path lives inside it", () => {
+		const rows = buildDeletionTree(
+			["old/a.md", "old/b.md", "shared/c.md"],
+			["shared/survivor.md", "shared/c.md"],
+		);
+		const old = rows.find((r) => r.kind === "folder" && r.label === "old/");
+		const shared = rows.find((r) => r.kind === "folder" && r.label === "shared/");
+		expect(old).toEqual({ kind: "folder", depth: 0, label: "old/", deleted: true });
+		expect(shared).toEqual({
+			kind: "folder",
+			depth: 0,
+			label: "shared/",
+			deleted: false,
+		});
+	});
+
+	test("parent of a partially-deleted child is not marked deleted", () => {
+		const rows = buildDeletionTree(
+			["projects/old/file.md"],
+			["projects/keep.md"],
+		);
+		const projects = rows.find((r) => r.kind === "folder" && r.label === "projects/");
+		const old = rows.find((r) => r.kind === "folder" && r.label === "old/");
+		expect(projects?.kind === "folder" && projects.deleted).toBe(false);
+		expect(old?.kind === "folder" && old.deleted).toBe(true);
 	});
 });
