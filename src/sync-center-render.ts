@@ -6,7 +6,7 @@
  */
 import { Notice, Setting, normalizePath } from "obsidian";
 import type EngramSyncPlugin from "./main";
-import { PreSyncModal, WipeConfirmModal } from "./pre-sync-modal";
+import { SyncPreviewModal } from "./sync-preview-modal";
 import type { SyncIssue, SyncIssueCategory, SyncLogEntry } from "./types";
 
 /** Build an Obsidian Setting heading inside `parent` so the section title
@@ -73,52 +73,17 @@ function renderHeader(parent: HTMLElement, plugin: EngramSyncPlugin): void {
 function renderActions(parent: HTMLElement, plugin: EngramSyncPlugin, refresh: () => void): void {
 	const strip = parent.createDiv({ cls: "engram-sync-center-actions" });
 
-	makeActionButton(strip, "Sync now", async () => {
+	makeActionButton(strip, "Sync...", async () => {
 		try {
 			const plan = await plugin.syncEngine.computeSyncPlan("full");
-			const confirmed = await new PreSyncModal(plugin.app, plan).awaitConfirmation();
-			if (!confirmed) return;
-			new Notice("Engram sync: syncing...");
-			const { pulled, pushed } = await plugin.syncEngine.fullSync();
-			new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+			const modal = new SyncPreviewModal(plugin.app, plan, {
+				serverUrl: plugin.settings.apiUrl,
+				showChangeVault: false,
+			});
+			const choice = await modal.awaitChoice();
+			await plugin.runSyncFromChoice(choice);
 		} catch (e) {
 			new Notice(`Engram Sync: ${e instanceof Error ? e.message : "sync failed"}`);
-		}
-		refresh();
-	});
-
-	makeActionButton(strip, "Push all", async () => {
-		try {
-			const plan = await plugin.syncEngine.computeSyncPlan("push-all");
-			const confirmed = await new PreSyncModal(plugin.app, plan).awaitConfirmation();
-			if (!confirmed) return;
-			const count = await plugin.syncEngine.pushAll();
-			new Notice(`Engram Sync: pushed ${count} files`);
-		} catch (e) {
-			new Notice(`Engram Sync: ${e instanceof Error ? e.message : "push failed"}`);
-		}
-		refresh();
-	});
-
-	makeActionButton(strip, "Pull all", async () => {
-		try {
-			const plan = await plugin.syncEngine.computeSyncPlan("pull-all");
-			const action = await new PreSyncModal(plugin.app, plan, true).awaitPullAction();
-			if (action === "cancel") return;
-			if (action === "wipe-pull") {
-				const confirmed = await new WipeConfirmModal(
-					plugin.app,
-					plan.localNoteCount,
-					plan.localAttachmentCount,
-					plan.serverNoteCount,
-				).awaitConfirmation();
-				if (!confirmed) return;
-				await plugin.syncEngine.wipePullAll();
-			} else {
-				await plugin.syncEngine.pullAll();
-			}
-		} catch (e) {
-			new Notice(`Engram Sync: ${e instanceof Error ? e.message : "pull failed"}`);
 		}
 		refresh();
 	});
