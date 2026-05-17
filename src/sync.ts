@@ -882,13 +882,20 @@ export class SyncEngine {
 		}
 	}
 
-	/** Force-pull ALL notes and attachments from the server, overwriting local files.
-	 *  Ignores lastSync — fetches everything. Skips conflict detection. */
-	async pullAll(): Promise<number> {
-		return this._pullAll(false);
+	/** Force-pull every note + attachment from the server.
+	 *
+	 *  @param opts.deleteLocalExtras — if true, wipe local files that have no
+	 *    remote counterpart before pulling. The legacy `wipePullAll()` is a
+	 *    thin wrapper for this — kept for one release cycle so existing
+	 *    callers (Sync Center) don't need to change in the same PR.
+	 */
+	async pullAll(opts: { deleteLocalExtras?: boolean } = {}): Promise<number> {
+		return this._pullAll(opts.deleteLocalExtras ?? false);
 	}
 
-	/** Wipe all local syncable files, reset sync state, then pull everything from server. */
+	/** Deprecated alias for `pullAll({ deleteLocalExtras: true })`. Remove
+	 *  after the Sync Center handler in `sync-center-render.ts` is migrated
+	 *  to the new modal (Task 8). */
 	async wipePullAll(): Promise<number> {
 		return this._pullAll(true);
 	}
