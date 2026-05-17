@@ -10,7 +10,7 @@ import { ApiKeyAuth, type AuthProvider, OAuthAuth, type RefreshFn } from "./auth
 import { NoteChannel } from "./channel";
 import { ConflictModal } from "./conflict-modal";
 import { errMsg } from "./error-util";
-import { FirstSyncModal } from "./first-sync-modal";
+import { SyncPreviewModal } from "./sync-preview-modal";
 import { SearchModal } from "./search-modal";
 import { SEARCH_VIEW_TYPE, SearchView } from "./search-view";
 import { EngramSyncSettingTab } from "./settings";
@@ -674,40 +674,43 @@ export default class EngramSyncPlugin extends Plugin {
 		}
 	}
 
-	/** Run sync, showing first-sync modal if no prior sync state exists. */
+	/** Compute a sync plan and show SyncPreviewModal. Used after every
+	 *  saveSettings once auth + vault are configured. Replaces the old
+	 *  isFirstSync()-only branch — first-sync is now just one case of the
+	 *  preview UX. */
 	async doSyncWithFirstSyncCheck(): Promise<void> {
-		if (this.syncEngine.isFirstSync()) {
-			const localCount = this.syncEngine.countSyncableFiles();
-			const modal = new FirstSyncModal(this.app, localCount);
-			const choice = await modal.waitForChoice();
+		try {
+			const plan = await this.syncEngine.computeSyncPlan("full");
+			const modal = new SyncPreviewModal(this.app, plan, {
+				serverUrl: this.settings.apiUrl,
+				showChangeVault: true,
+			});
+			const choice = await modal.awaitChoice();
 
-			if (choice === "cancel") {
+			if (choice === "change-vault") {
+				// Clear the vault selection and reopen the settings UI so the
+				// vault picker dropdown is visible again. We deliberately do
+				// NOT preselect a tab — the user landed in whichever tab they
+				// were using and we want to keep them there.
+				this.settings.vaultId = null;
+				this.api.setVaultId(null);
+				await this.savePluginData(this.syncEngine.getLastSync());
+				const setting = (
+					this.app as unknown as {
+						setting: { open(): void; openTabById(id: string): void };
+					}
+				).setting;
+				setting.open();
+				setting.openTabById(this.manifest.id);
 				return;
 			}
 
-			// Always pull first
-			const pulled = await this.syncEngine.pull();
-			if (pulled > 0) {
-				new Notice(`Engram Sync: pulled ${pulled} notes from server`);
-			}
-
-			if (choice === "push-all") {
-				const pushed = await this.syncEngine.pushAll();
-				new Notice(`Engram Sync: pushed ${pushed} files`);
-			} else {
-				new Notice("Engram sync: pull complete. Local notes were not pushed.");
-			}
-		} else {
-			try {
-				const { pulled, pushed } = await this.syncEngine.fullSync();
-				if (pulled > 0 || pushed > 0) {
-					new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
-				}
-			} catch (e) {
-				// biome-ignore lint/suspicious/noConsole: error boundary
-				console.error("Engram Sync: sync failed", e);
-				new Notice("Engram sync: sync failed — check connection");
-			}
+			await this.runSyncFromChoice(choice);
+		} catch (e) {
+			// biome-ignore lint/suspicious/noConsole: error boundary
+			console.error("Engram Sync: sync preview failed", e);
+			new Notice("Engram sync: preview failed — check connection");
+			rlog().error("lifecycle", `Sync preview failed: ${errMsg(e)}`);
 		}
 	}
 
