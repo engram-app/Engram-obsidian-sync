@@ -28,6 +28,7 @@ import { destroyDevLog, devLog, initDevLog } from "./dev-log";
 import { destroyRemoteLog, initRemoteLog, rlog } from "./remote-log";
 import { SyncLog } from "./sync-log";
 import { SyncLogModal } from "./sync-log-modal";
+import { computeSyncFingerprint } from "./sync-fingerprint";
 import type { QueueEntry, SyncChoice, SyncIssue } from "./types";
 
 /** Generate a stable client ID for vault registration.
@@ -57,6 +58,10 @@ interface PluginData {
 	syncIssues?: SyncIssue[];
 	/** User-explicit per-file ignores (Sync Center "Ignore" button). */
 	ignoredFiles?: string[];
+	/** Hash fingerprint of (apiKey/refreshToken + vaultId) that the user
+	 *  has confirmed via SyncPreviewModal. When `null` or out-of-date,
+	 *  the plugin closes the sync gate and shows the modal. */
+	syncGateAcceptedFor?: string | null;
 }
 
 export default class EngramSyncPlugin extends Plugin {
@@ -82,6 +87,11 @@ export default class EngramSyncPlugin extends Plugin {
 
 	private baseStore: BaseStore | null = null;
 	private settingTab: EngramSyncSettingTab | null = null;
+
+	/** Saved fingerprint from prior session — null on first load or after
+	 *  auth/vault change. Compared against current fingerprint to decide
+	 *  whether the sync gate should be open. */
+	private syncGateAcceptedFor: string | null = null;
 
 	async onload(): Promise<void> {
 		initDevLog();
@@ -360,7 +370,24 @@ export default class EngramSyncPlugin extends Plugin {
 						rlog().info("lifecycle", "Vault not registered — skipping initial sync");
 						return;
 					}
-					await this.doSyncWithFirstSyncCheck();
+					const gateOpen = await this.applySyncGate();
+					if (gateOpen) {
+						// User has already accepted a direction for this fingerprint —
+						// run an incremental sync without showing the modal.
+						try {
+							const { pulled, pushed } = await this.syncEngine.fullSync();
+							if (pulled > 0 || pushed > 0) {
+								new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+							}
+						} catch (e) {
+							// biome-ignore lint/suspicious/noConsole: error boundary
+							console.error("Engram Sync: startup sync failed", e);
+							rlog().error("lifecycle", `Startup sync failed: ${errMsg(e)}`);
+						}
+					} else {
+						// Gate closed — show the preview modal so user picks a direction.
+						await this.doSyncWithFirstSyncCheck();
+					}
 				}
 			} finally {
 				this.syncEngine.setReady();
@@ -389,6 +416,7 @@ export default class EngramSyncPlugin extends Plugin {
 	async loadSettings(): Promise<void> {
 		const data = (await this.loadData()) as Partial<PluginData> | null;
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, data?.settings);
+		this.syncGateAcceptedFor = data?.syncGateAcceptedFor ?? null;
 		// Generate stable client ID on first load (persisted forever)
 		if (!this.settings.clientId) {
 			this.settings.clientId = await generateClientId(this.app);
@@ -405,12 +433,28 @@ export default class EngramSyncPlugin extends Plugin {
 		this.setupNoteStream();
 		await this.savePluginData(this.syncEngine.getLastSync());
 
-		// Trigger sync when settings are configured (shows modal on first sync)
+		// Re-evaluate sync gate against the new auth+vault. If the fingerprint
+		// changed, this re-blocks the engine; the modal fire below will collect
+		// the user's choice and unblock on acceptance.
 		if (this.settings.apiUrl && this.settings.apiKey) {
 			this.registerVault()
-				.then((registered) => {
+				.then(async (registered) => {
 					if (!registered) return;
-					return this.doSyncWithFirstSyncCheck();
+					const gateOpen = await this.applySyncGate();
+					if (!gateOpen) {
+						return this.doSyncWithFirstSyncCheck();
+					}
+					// Gate already open — run an incremental sync silently.
+					try {
+						const { pulled, pushed } = await this.syncEngine.fullSync();
+						if (pulled > 0 || pushed > 0) {
+							new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+						}
+					} catch (e) {
+						// biome-ignore lint/suspicious/noConsole: error boundary
+						console.error("Engram Sync: sync after settings change failed", e);
+						rlog().error("lifecycle", `Sync after settings change failed: ${errMsg(e)}`);
+					}
 				})
 				.catch((e) => {
 					// biome-ignore lint/suspicious/noConsole: error boundary
@@ -462,6 +506,7 @@ export default class EngramSyncPlugin extends Plugin {
 			syncedHashes: this.syncEngine.exportHashes(),
 			syncIssues: this.syncEngine.issues.serialize(),
 			ignoredFiles: this.syncEngine.ignoredFiles.serialize(),
+			syncGateAcceptedFor: this.syncGateAcceptedFor,
 		});
 	}
 
@@ -644,35 +689,63 @@ export default class EngramSyncPlugin extends Plugin {
 				return false;
 
 			case "smart-merge": {
+				await this.markSyncGateAccepted();
 				const { pulled, pushed } = await this.syncEngine.fullSync();
 				new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
 				return true;
 			}
 
 			case "pull-all-delete-local": {
+				await this.markSyncGateAccepted();
 				const pulled = await this.syncEngine.pullAll({ deleteLocalExtras: true });
 				new Notice(`Engram Sync: pulled ${pulled} (local extras deleted)`);
 				return true;
 			}
 
 			case "pull-all-keep-local": {
+				await this.markSyncGateAccepted();
 				const pulled = await this.syncEngine.pullAll({ deleteLocalExtras: false });
 				new Notice(`Engram Sync: pulled ${pulled}`);
 				return true;
 			}
 
 			case "push-all-delete-remote": {
+				await this.markSyncGateAccepted();
 				const pushed = await this.syncEngine.pushAll({ deleteRemoteExtras: true });
 				new Notice(`Engram Sync: pushed ${pushed} (remote extras deleted)`);
 				return true;
 			}
 
 			case "push-all-keep-remote": {
+				await this.markSyncGateAccepted();
 				const pushed = await this.syncEngine.pushAll({ deleteRemoteExtras: false });
 				new Notice(`Engram Sync: pushed ${pushed}`);
 				return true;
 			}
 		}
+	}
+
+	/** Re-evaluate the sync gate against the current auth+vault fingerprint.
+	 *  Sets engine.syncBlocked accordingly. Returns true if the gate is open
+	 *  (sync allowed), false if blocked. Idempotent — safe to call repeatedly. */
+	async applySyncGate(): Promise<boolean> {
+		const fp = await computeSyncFingerprint(this.settings);
+		const accepted = fp !== "" && fp === this.syncGateAcceptedFor;
+		this.syncEngine.setSyncBlocked(!accepted);
+		this.updateStatusBar(this.syncEngine.getStatus());
+		return accepted;
+	}
+
+	/** Mark the current fingerprint as accepted (called after the user picks
+	 *  a real sync direction in the modal). Persists the fingerprint and
+	 *  unblocks the engine. */
+	async markSyncGateAccepted(): Promise<void> {
+		const fp = await computeSyncFingerprint(this.settings);
+		if (fp === "") return; // Nothing to accept if auth/vault not configured
+		this.syncGateAcceptedFor = fp;
+		this.syncEngine.setSyncBlocked(false);
+		await this.savePluginData(this.syncEngine.getLastSync());
+		this.updateStatusBar(this.syncEngine.getStatus());
 	}
 
 	/** Compute a sync plan and show SyncPreviewModal. Used after every

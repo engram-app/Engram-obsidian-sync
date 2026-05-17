@@ -3194,6 +3194,11 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
     this.offline = !1;
     this.healthCheckTimer = null;
     this.ready = !1;
+    /** When true, all sync actions (file events, stream events, bulk methods)
+     *  short-circuit to a no-op. Controlled by the plugin layer based on
+     *  whether the user has accepted a sync direction in SyncPreviewModal for
+     *  the current auth+vault fingerprint. */
+    this.syncBlocked = !1;
     this.activePushCount = 0;
     this.maxConcurrentPushes = 5;
     this.pushWaiters = [];
@@ -3238,6 +3243,12 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
    *  Called after layout is ready and initial sync completes. */
   setReady() {
     this.ready = !0, devLog().log("lifecycle", "setReady \u2014 event handlers enabled"), rlog().info("lifecycle", "Engine ready \u2014 event handlers enabled");
+  }
+  setSyncBlocked(blocked) {
+    this.syncBlocked = blocked, devLog().log("lifecycle", `setSyncBlocked(${blocked})`);
+  }
+  isSyncBlocked() {
+    return this.syncBlocked;
   }
   setLastSync(timestamp) {
     this.lastSync = timestamp;
@@ -3323,6 +3334,10 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   // --- Push: local → Engram ---
   /** Handle a vault modify/create event with debounce. */
   handleModify(file) {
+    if (this.syncBlocked) {
+      devLog().log("sync-blocked", "handleModify short-circuited \u2014 gate closed");
+      return;
+    }
     if (!this.ready || !this.isSyncable(file) || this.shouldIgnore(file.path)) return;
     if (this.pulling) {
       this.pendingPostPullPushes.add(file.path);
@@ -3338,6 +3353,10 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   /** Handle a vault delete event. */
   async handleDelete(file) {
     var _a;
+    if (this.syncBlocked) {
+      devLog().log("sync-blocked", "handleDelete short-circuited \u2014 gate closed");
+      return;
+    }
     if (!this.ready || this.suppressDeletes || !this.isSyncable(file) || this.shouldIgnore(file.path)) return;
     let isBinary = this.isBinaryFile(file), existing = this.debounceTimers.get(file.path);
     existing && (window.clearTimeout(existing), this.debounceTimers.delete(file.path));
@@ -3360,6 +3379,10 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   /** Handle a vault rename event. */
   async handleRename(file, oldPath) {
     var _a, _b;
+    if (this.syncBlocked) {
+      devLog().log("sync-blocked", "handleRename short-circuited \u2014 gate closed");
+      return;
+    }
     if (!this.ready || !this.isSyncable(file)) return;
     let isBinary = this.isBinaryFile(file);
     if (!this.shouldIgnore(oldPath))
@@ -3592,6 +3615,8 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   // --- Pull: Engram → local vault ---
   /** Pull remote changes and apply to vault. */
   async pull() {
+    if (this.syncBlocked)
+      return devLog().log("sync-blocked", "pull short-circuited \u2014 gate closed"), 0;
     if (this.pulling) return 0;
     this.lastSync || (this.lastSync = "1970-01-01T00:00:00Z"), this.pulling = !0, this.lastError = "", this.emitStatus(), devLog().log("pull", `start since=${this.lastSync}`), rlog().info("pull", `Pull started since=${this.lastSync}`);
     try {
@@ -3664,7 +3689,7 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
    */
   async pullAll(opts = {}) {
     var _a;
-    return this._pullAll((_a = opts.deleteLocalExtras) != null ? _a : !1);
+    return this.syncBlocked ? (devLog().log("sync-blocked", "pullAll short-circuited \u2014 gate closed"), 0) : this._pullAll((_a = opts.deleteLocalExtras) != null ? _a : !1);
   }
   async _pullAll(wipe) {
     var _a, _b, _c, _d, _e, _f, _g, _h;
@@ -3827,6 +3852,10 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   /** Handle a WebSocket stream event (upsert or delete). */
   async handleStreamEvent(event) {
     var _a, _b, _c, _d, _e, _f, _g;
+    if (this.syncBlocked) {
+      devLog().log("sync-blocked", "handleStreamEvent short-circuited \u2014 gate closed");
+      return;
+    }
     if (this.shouldIgnore(event.path)) return;
     if (devLog().log("ws", `${event.event_type} ${(_a = event.kind) != null ? _a : "note"}: ${event.path}`), rlog().info("ws", `Event: ${event.event_type} ${(_b = event.kind) != null ? _b : "note"}: ${event.path}`), this.pushing.has(event.path)) {
       rlog().info("ws", `Echo skip (pushing): ${event.path}`);
@@ -4137,6 +4166,8 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   // --- Full sync (startup) ---
   /** Full bidirectional sync: pull remote changes, then push local changes. */
   async fullSync() {
+    if (this.syncBlocked)
+      return devLog().log("sync-blocked", "fullSync short-circuited \u2014 gate closed"), { pulled: 0, pushed: 0 };
     devLog().log("lifecycle", "fullSync start"), rlog().info("lifecycle", "FullSync started");
     let { ok, error } = await this.api.ping();
     if (!ok)
@@ -4254,6 +4285,8 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
    */
   async pushAll(opts = {}) {
     var _a, _b, _c, _d;
+    if (this.syncBlocked)
+      return devLog().log("sync-blocked", "pushAll short-circuited \u2014 gate closed"), 0;
     (_a = this.syncLog) == null || _a.clear();
     let { ok, error } = await this.api.ping();
     if (!ok)
@@ -4641,6 +4674,14 @@ var import_obsidian16 = require("obsidian"), ACTION_ICONS = {
   }
 };
 
+// src/sync-fingerprint.ts
+async function computeSyncFingerprint(settings) {
+  let authPart = settings.refreshToken || settings.apiKey || "", vaultPart = settings.vaultId || "", input = `${authPart}|${vaultPart}`;
+  if (input === "|") return "";
+  let data = new TextEncoder().encode(input), hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 // src/main.ts
 async function generateClientId(app) {
   let adapter = app.vault.adapter, input = (adapter instanceof import_obsidian17.FileSystemAdapter ? adapter.getBasePath() : void 0) || app.vault.getName(), data = new TextEncoder().encode(input), hashBuffer = await crypto.subtle.digest("SHA-256", data), hashArray = new Uint8Array(hashBuffer);
@@ -4663,7 +4704,10 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
      *  connection state without requiring tab navigation. Single-slot. */
     this.onStatusBarChange = null;
     this.baseStore = null;
-    this.settingTab = null;
+    /** Saved fingerprint from prior session — null on first load or after
+     *  auth/vault change. Compared against current fingerprint to decide
+     *  whether the sync gate should be open. */
+    this.syncGateAcceptedFor = null;
   }
   /** Whether the WebSocket channel is currently connected (for settings UI). */
   isLiveConnected() {
@@ -4811,7 +4855,15 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
             rlog().info("lifecycle", "Vault not registered \u2014 skipping initial sync");
             return;
           }
-          await this.doSyncWithFirstSyncCheck();
+          if (await this.applySyncGate())
+            try {
+              let { pulled, pushed } = await this.syncEngine.fullSync();
+              (pulled > 0 || pushed > 0) && new import_obsidian17.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+            } catch (e) {
+              console.error("Engram Sync: startup sync failed", e), rlog().error("lifecycle", `Startup sync failed: ${errMsg(e)}`);
+            }
+          else
+            await this.doSyncWithFirstSyncCheck();
         }
       } finally {
         this.syncEngine.setReady();
@@ -4823,13 +4875,21 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
     devLog().log("lifecycle", "plugin unloading"), rlog().info("lifecycle", "Plugin unloading"), activeDocument.body.classList.remove("engram-vault-sync-active"), this.savePluginData(this.syncEngine.getLastSync()), (_a = this.baseStore) == null || _a.prune(), (_b = this.baseStore) == null || _b.save(), (_c = this.syncEngine) == null || _c.destroy(), (_d = this.noteStream) == null || _d.disconnect(), this.syncInterval && (window.clearInterval(this.syncInterval), this.syncInterval = null), destroyRemoteLog(), destroyDevLog();
   }
   async loadSettings() {
+    var _a;
     let data = await this.loadData();
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, data == null ? void 0 : data.settings), this.settings.clientId || (this.settings.clientId = await generateClientId(this.app), await this.saveData({ ...data, settings: this.settings }));
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data == null ? void 0 : data.settings), this.syncGateAcceptedFor = (_a = data == null ? void 0 : data.syncGateAcceptedFor) != null ? _a : null, this.settings.clientId || (this.settings.clientId = await generateClientId(this.app), await this.saveData({ ...data, settings: this.settings }));
   }
   async saveSettings() {
-    this.api.updateConfig(this.settings.apiUrl, this.settings.apiKey), this.api.setVaultId(this.settings.vaultId), this.syncEngine.updateSettings(this.settings), rlog().setEnabled(this.settings.remoteLoggingEnabled), this.startSyncInterval(), this.setupNoteStream(), await this.savePluginData(this.syncEngine.getLastSync()), this.settings.apiUrl && this.settings.apiKey && this.registerVault().then((registered) => {
-      if (registered)
+    this.api.updateConfig(this.settings.apiUrl, this.settings.apiKey), this.api.setVaultId(this.settings.vaultId), this.syncEngine.updateSettings(this.settings), rlog().setEnabled(this.settings.remoteLoggingEnabled), this.startSyncInterval(), this.setupNoteStream(), await this.savePluginData(this.syncEngine.getLastSync()), this.settings.apiUrl && this.settings.apiKey && this.registerVault().then(async (registered) => {
+      if (!registered) return;
+      if (!await this.applySyncGate())
         return this.doSyncWithFirstSyncCheck();
+      try {
+        let { pulled, pushed } = await this.syncEngine.fullSync();
+        (pulled > 0 || pushed > 0) && new import_obsidian17.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+      } catch (e) {
+        console.error("Engram Sync: sync after settings change failed", e), rlog().error("lifecycle", `Sync after settings change failed: ${errMsg(e)}`);
+      }
     }).catch((e) => {
       console.error("Engram Sync: sync after settings change failed", e), rlog().error("lifecycle", `Sync after settings change failed: ${errMsg(e)}`);
     });
@@ -4859,7 +4919,8 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
       // Dual-write legacy format for rollback safety (remove after one release cycle)
       syncedHashes: this.syncEngine.exportHashes(),
       syncIssues: this.syncEngine.issues.serialize(),
-      ignoredFiles: this.syncEngine.ignoredFiles.serialize()
+      ignoredFiles: this.syncEngine.ignoredFiles.serialize(),
+      syncGateAcceptedFor: this.syncGateAcceptedFor
     });
   }
   createAuthProvider() {
@@ -4951,26 +5012,45 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
       case "change-vault":
         return !1;
       case "smart-merge": {
+        await this.markSyncGateAccepted();
         let { pulled, pushed } = await this.syncEngine.fullSync();
         return new import_obsidian17.Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`), !0;
       }
       case "pull-all-delete-local": {
+        await this.markSyncGateAccepted();
         let pulled = await this.syncEngine.pullAll({ deleteLocalExtras: !0 });
         return new import_obsidian17.Notice(`Engram Sync: pulled ${pulled} (local extras deleted)`), !0;
       }
       case "pull-all-keep-local": {
+        await this.markSyncGateAccepted();
         let pulled = await this.syncEngine.pullAll({ deleteLocalExtras: !1 });
         return new import_obsidian17.Notice(`Engram Sync: pulled ${pulled}`), !0;
       }
       case "push-all-delete-remote": {
+        await this.markSyncGateAccepted();
         let pushed = await this.syncEngine.pushAll({ deleteRemoteExtras: !0 });
         return new import_obsidian17.Notice(`Engram Sync: pushed ${pushed} (remote extras deleted)`), !0;
       }
       case "push-all-keep-remote": {
+        await this.markSyncGateAccepted();
         let pushed = await this.syncEngine.pushAll({ deleteRemoteExtras: !1 });
         return new import_obsidian17.Notice(`Engram Sync: pushed ${pushed}`), !0;
       }
     }
+  }
+  /** Re-evaluate the sync gate against the current auth+vault fingerprint.
+   *  Sets engine.syncBlocked accordingly. Returns true if the gate is open
+   *  (sync allowed), false if blocked. Idempotent — safe to call repeatedly. */
+  async applySyncGate() {
+    let fp = await computeSyncFingerprint(this.settings), accepted = fp !== "" && fp === this.syncGateAcceptedFor;
+    return this.syncEngine.setSyncBlocked(!accepted), this.updateStatusBar(this.syncEngine.getStatus()), accepted;
+  }
+  /** Mark the current fingerprint as accepted (called after the user picks
+   *  a real sync direction in the modal). Persists the fingerprint and
+   *  unblocks the engine. */
+  async markSyncGateAccepted() {
+    let fp = await computeSyncFingerprint(this.settings);
+    fp !== "" && (this.syncGateAcceptedFor = fp, this.syncEngine.setSyncBlocked(!1), await this.savePluginData(this.syncEngine.getLastSync()), this.updateStatusBar(this.syncEngine.getStatus()));
   }
   /** Compute a sync plan and show SyncPreviewModal. Used after every
    *  saveSettings once auth + vault are configured. First-sync is just
