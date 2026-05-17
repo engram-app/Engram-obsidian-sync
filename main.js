@@ -4833,7 +4833,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
         this.openSyncCenterSettings();
       }
     }), this.startSyncInterval(), this.statusBarEl = this.addStatusBarItem(), this.statusBarEl.setText("Engram: ready"), this.statusBarEl.addClass("engram-status-bar-clickable"), this.registerDomEvent(this.statusBarEl, "click", () => {
-      if (!(!this.settings.apiUrl || !this.settings.apiKey)) {
+      if (this.hasAuthConfigured()) {
         if (this.syncEngine.isSyncBlocked()) {
           this.doSyncWithFirstSyncCheck();
           return;
@@ -4856,7 +4856,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
         })
       ), await ((_a2 = this.baseStore) == null ? void 0 : _a2.load());
       try {
-        if (this.settings.apiUrl && this.settings.apiKey) {
+        if (this.hasAuthConfigured()) {
           if (!await this.registerVault()) {
             rlog().info("lifecycle", "Vault not registered \u2014 skipping initial sync");
             return;
@@ -4886,7 +4886,7 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data == null ? void 0 : data.settings), this.syncGateAcceptedFor = (_a = data == null ? void 0 : data.syncGateAcceptedFor) != null ? _a : null, this.settings.clientId || (this.settings.clientId = await generateClientId(this.app), await this.saveData({ ...data, settings: this.settings }));
   }
   async saveSettings() {
-    this.api.updateConfig(this.settings.apiUrl, this.settings.apiKey), this.api.setVaultId(this.settings.vaultId), this.syncEngine.updateSettings(this.settings), rlog().setEnabled(this.settings.remoteLoggingEnabled), this.startSyncInterval(), this.setupNoteStream(), await this.savePluginData(this.syncEngine.getLastSync()), this.settings.apiUrl && this.settings.apiKey && this.registerVault().then(async (registered) => {
+    this.api.updateConfig(this.settings.apiUrl, this.settings.apiKey), this.api.setVaultId(this.settings.vaultId), this.syncEngine.updateSettings(this.settings), rlog().setEnabled(this.settings.remoteLoggingEnabled), this.startSyncInterval(), this.setupNoteStream(), await this.savePluginData(this.syncEngine.getLastSync()), this.hasAuthConfigured() && this.registerVault().then(async (registered) => {
       if (!registered) return;
       if (!await this.applySyncGate())
         return this.doSyncWithFirstSyncCheck();
@@ -5047,6 +5047,14 @@ var _EngramSyncPlugin = class _EngramSyncPlugin extends import_obsidian17.Plugin
       }
     }
   }
+  /** True when both `apiUrl` and at least one of `apiKey` (self-hosted /
+   *  static key) or `refreshToken` (OAuth device flow) are set. Used to gate
+   *  startup sync, post-saveSettings sync, the status-bar click handler, and
+   *  the periodic sync interval — all of which need to fire for OAuth users
+   *  too, not just static-key users. */
+  hasAuthConfigured() {
+    return !!this.settings.apiUrl && !!(this.settings.apiKey || this.settings.refreshToken);
+  }
   /** Re-evaluate the sync gate against the current auth+vault fingerprint.
    *  Sets engine.syncBlocked accordingly. Returns true if the gate is open
    *  (sync allowed), false if blocked. Idempotent — safe to call repeatedly. */
@@ -5116,7 +5124,7 @@ Last sync: ${date.toLocaleString()}`;
     this.statusBarEl.setText(text), this.statusBarEl.setAttribute("aria-label", tooltip), (_e = this.onStatusBarChange) == null || _e.call(this);
   }
   startSyncInterval() {
-    this.syncInterval && (window.clearInterval(this.syncInterval), this.syncInterval = null), !(!this.settings.apiUrl || !this.settings.apiKey) && (this.syncInterval = window.setInterval(() => {
+    this.syncInterval && (window.clearInterval(this.syncInterval), this.syncInterval = null), this.hasAuthConfigured() && (this.syncInterval = window.setInterval(() => {
       (async () => {
         try {
           let pulled = await this.syncEngine.pull();

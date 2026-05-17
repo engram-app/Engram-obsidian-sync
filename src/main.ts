@@ -325,7 +325,7 @@ export default class EngramSyncPlugin extends Plugin {
 		this.statusBarEl.addClass("engram-status-bar-clickable");
 
 		this.registerDomEvent(this.statusBarEl, "click", () => {
-			if (!this.settings.apiUrl || !this.settings.apiKey) return;
+			if (!this.hasAuthConfigured()) return;
 
 			if (this.syncEngine.isSyncBlocked()) {
 				// Gate is closed — open SyncPreviewModal so the user can pick
@@ -372,7 +372,7 @@ export default class EngramSyncPlugin extends Plugin {
 
 			await this.baseStore?.load();
 			try {
-				if (this.settings.apiUrl && this.settings.apiKey) {
+				if (this.hasAuthConfigured()) {
 					const registered = await this.registerVault();
 					if (!registered) {
 						rlog().info("lifecycle", "Vault not registered — skipping initial sync");
@@ -444,7 +444,7 @@ export default class EngramSyncPlugin extends Plugin {
 		// Re-evaluate sync gate against the new auth+vault. If the fingerprint
 		// changed, this re-blocks the engine; the modal fire below will collect
 		// the user's choice and unblock on acceptance.
-		if (this.settings.apiUrl && this.settings.apiKey) {
+		if (this.hasAuthConfigured()) {
 			this.registerVault()
 				.then(async (registered) => {
 					if (!registered) return;
@@ -736,6 +736,18 @@ export default class EngramSyncPlugin extends Plugin {
 		}
 	}
 
+	/** True when both `apiUrl` and at least one of `apiKey` (self-hosted /
+	 *  static key) or `refreshToken` (OAuth device flow) are set. Used to gate
+	 *  startup sync, post-saveSettings sync, the status-bar click handler, and
+	 *  the periodic sync interval — all of which need to fire for OAuth users
+	 *  too, not just static-key users. */
+	private hasAuthConfigured(): boolean {
+		return (
+			Boolean(this.settings.apiUrl) &&
+			Boolean(this.settings.apiKey || this.settings.refreshToken)
+		);
+	}
+
 	/** Re-evaluate the sync gate against the current auth+vault fingerprint.
 	 *  Sets engine.syncBlocked accordingly. Returns true if the gate is open
 	 *  (sync allowed), false if blocked. Idempotent — safe to call repeatedly. */
@@ -883,7 +895,7 @@ export default class EngramSyncPlugin extends Plugin {
 			this.syncInterval = null;
 		}
 
-		if (!this.settings.apiUrl || !this.settings.apiKey) return;
+		if (!this.hasAuthConfigured()) return;
 
 		this.syncInterval = window.setInterval(() => {
 			void (async () => {
