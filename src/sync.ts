@@ -34,6 +34,18 @@ function isHttpStatus(e: unknown, status: number): boolean {
 	return typeof e === "object" && e !== null && (e as { status?: number }).status === status;
 }
 
+/** Count distinct parent folders across the given file paths. Files at the
+ *  root contribute nothing; "a/b/c.md" contributes "a/b". Used by the sync
+ *  preview to surface "how many folders contain files" per side. */
+function countFolders(paths: Iterable<string>): number {
+	const set = new Set<string>();
+	for (const p of paths) {
+		const idx = p.lastIndexOf("/");
+		if (idx > 0) set.add(p.substring(0, idx));
+	}
+	return set.size;
+}
+
 /** How long (ms) after a push completes to suppress WebSocket echoes for that path. */
 const ECHO_COOLDOWN_MS = 5000;
 
@@ -119,6 +131,11 @@ export class SyncEngine {
 	private offline = false;
 	private healthCheckTimer: number | null = null;
 	private ready = false;
+	/** When true, all sync actions (file events, stream events, bulk methods)
+	 *  short-circuit to a no-op. Controlled by the plugin layer based on
+	 *  whether the user has accepted a sync direction in SyncPreviewModal for
+	 *  the current auth+vault fingerprint. */
+	private syncBlocked = false;
 	private activePushCount = 0;
 	private maxConcurrentPushes = 5;
 	private pushWaiters: (() => void)[] = [];
@@ -180,12 +197,31 @@ export class SyncEngine {
 		rlog().info("lifecycle", "Engine ready — event handlers enabled");
 	}
 
+	setSyncBlocked(blocked: boolean): void {
+		this.syncBlocked = blocked;
+		devLog().log("lifecycle", `setSyncBlocked(${blocked})`);
+	}
+
+	isSyncBlocked(): boolean {
+		return this.syncBlocked;
+	}
+
 	setLastSync(timestamp: string): void {
 		this.lastSync = timestamp;
 	}
 
 	getLastSync(): string {
 		return this.lastSync;
+	}
+
+	/** Reset all per-vault sync bookkeeping. Used when the user switches the
+	 *  active server vault inside the SyncPreviewModal so the next sync starts
+	 *  from a clean slate (lastSync empty, no stale per-file hashes). */
+	async resetForVaultChange(): Promise<void> {
+		this.syncState.clear();
+		this.lastSync = "";
+		await this.saveData({ lastSync: "" });
+		devLog().log("lifecycle", "resetForVaultChange: lastSync + syncState cleared");
 	}
 
 	/** Export sync state for persistence across sessions. */
@@ -314,6 +350,10 @@ export class SyncEngine {
 
 	/** Handle a vault modify/create event with debounce. */
 	handleModify(file: TAbstractFile): void {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "handleModify short-circuited — gate closed");
+			return;
+		}
 		if (!this.ready) return;
 		if (!this.isSyncable(file)) return;
 		if (this.shouldIgnore(file.path)) return;
@@ -342,6 +382,10 @@ export class SyncEngine {
 
 	/** Handle a vault delete event. */
 	async handleDelete(file: TAbstractFile): Promise<void> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "handleDelete short-circuited — gate closed");
+			return;
+		}
 		if (!this.ready) return;
 		if (this.suppressDeletes) return;
 		if (!this.isSyncable(file)) return;
@@ -383,6 +427,10 @@ export class SyncEngine {
 
 	/** Handle a vault rename event. */
 	async handleRename(file: TAbstractFile, oldPath: string): Promise<void> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "handleRename short-circuited — gate closed");
+			return;
+		}
 		if (!this.ready) return;
 		if (!this.isSyncable(file)) return;
 
@@ -772,6 +820,10 @@ export class SyncEngine {
 
 	/** Pull remote changes and apply to vault. */
 	async pull(): Promise<number> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "pull short-circuited — gate closed");
+			return 0;
+		}
 		if (this.pulling) return 0;
 		if (!this.lastSync) {
 			// First sync — use epoch
@@ -882,15 +934,17 @@ export class SyncEngine {
 		}
 	}
 
-	/** Force-pull ALL notes and attachments from the server, overwriting local files.
-	 *  Ignores lastSync — fetches everything. Skips conflict detection. */
-	async pullAll(): Promise<number> {
-		return this._pullAll(false);
-	}
-
-	/** Wipe all local syncable files, reset sync state, then pull everything from server. */
-	async wipePullAll(): Promise<number> {
-		return this._pullAll(true);
+	/** Force-pull every note + attachment from the server.
+	 *
+	 *  @param opts.deleteLocalExtras — if true, wipe local files that have no
+	 *    remote counterpart before pulling.
+	 */
+	async pullAll(opts: { deleteLocalExtras?: boolean } = {}): Promise<number> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "pullAll short-circuited — gate closed");
+			return 0;
+		}
+		return this._pullAll(opts.deleteLocalExtras ?? false);
 	}
 
 	private async _pullAll(wipe: boolean): Promise<number> {
@@ -904,8 +958,8 @@ export class SyncEngine {
 		if (wipe) {
 			// Suppress delete sync — we're wiping locally, not deleting from server
 			this.suppressDeletes = true;
-			devLog().log("pull", "wipePullAll: deleting all local syncable files");
-			rlog().info("pull", "WipePullAll started — deleting local files");
+			devLog().log("pull", "pullAll(deleteLocalExtras): deleting all local syncable files");
+			rlog().info("pull", "pullAll(deleteLocalExtras) started — deleting local files");
 			const files = this.app.vault.getFiles();
 			const syncable = files.filter((f) => this.isSyncable(f) && !this.shouldIgnore(f.path));
 			const wipeTotal = syncable.length;
@@ -939,9 +993,12 @@ export class SyncEngine {
 			await this.saveData({ lastSync: "" });
 			devLog().log(
 				"pull",
-				`wipePullAll: deleted ${syncable.length} local files, sync state reset`,
+				`pullAll(deleteLocalExtras): deleted ${syncable.length} local files, sync state reset`,
 			);
-			rlog().info("pull", `WipePullAll deleted ${syncable.length} local files`);
+			rlog().info(
+				"pull",
+				`pullAll(deleteLocalExtras) deleted ${syncable.length} local files`,
+			);
 			// NOTE: suppressDeletes stays true until the entire pull completes.
 			// Obsidian's delete events fire asynchronously — resetting here would
 			// allow queued events to leak through and soft-delete server data.
@@ -949,11 +1006,11 @@ export class SyncEngine {
 
 		devLog().log(
 			"pull",
-			`${wipe ? "wipePullAll" : "pullAll"}: fetching everything from server`,
+			`${wipe ? "pullAll(deleteLocalExtras)" : "pullAll"}: fetching everything from server`,
 		);
 		rlog().info(
 			"pull",
-			`${wipe ? "WipePullAll" : "PullAll"} started — fetching everything from epoch`,
+			`${wipe ? "pullAll(deleteLocalExtras)" : "pullAll"} started — fetching everything from epoch`,
 		);
 		try {
 			const epoch = "1970-01-01T00:00:00Z";
@@ -1148,6 +1205,10 @@ export class SyncEngine {
 
 	/** Handle a WebSocket stream event (upsert or delete). */
 	async handleStreamEvent(event: NoteStreamEvent): Promise<void> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "handleStreamEvent short-circuited — gate closed");
+			return;
+		}
 		if (this.shouldIgnore(event.path)) return;
 		devLog().log("ws", `${event.event_type} ${event.kind ?? "note"}: ${event.path}`);
 		rlog().info("ws", `Event: ${event.event_type} ${event.kind ?? "note"}: ${event.path}`);
@@ -1651,6 +1712,10 @@ export class SyncEngine {
 
 	/** Full bidirectional sync: pull remote changes, then push local changes. */
 	async fullSync(): Promise<{ pulled: number; pushed: number }> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "fullSync short-circuited — gate closed");
+			return { pulled: 0, pushed: 0 };
+		}
 		devLog().log("lifecycle", "fullSync start");
 		rlog().info("lifecycle", "FullSync started");
 		// Verify auth before syncing to give a clear error on bad API key
@@ -1684,20 +1749,24 @@ export class SyncEngine {
 		return { pulled, pushed };
 	}
 
-	/** Push all files that have been modified since last sync. */
+	/** Push all files that have been modified since last sync, plus any
+	 *  syncable file that the engine has never seen (no syncState entry).
+	 *  The untracked branch covers the first-sync case and the post
+	 *  vault-change case where we cleared sync state — neither would
+	 *  otherwise touch the push path because lastSync is empty and the
+	 *  mtime comparison short-circuits. */
 	private async pushModifiedFiles(sinceTimestamp?: string): Promise<number> {
 		const since = sinceTimestamp || this.lastSync;
-		if (!since) return 0;
-
-		const sinceMs = new Date(since).getTime();
+		const sinceMs = since ? new Date(since).getTime() : 0;
 		const files = this.app.vault.getFiles();
 		let pushed = 0;
 
 		// Batch in groups of 10
-		const toSync = files.filter(
-			(f: TFile) =>
-				this.isSyncable(f) && !this.shouldIgnore(f.path) && f.stat.mtime > sinceMs,
-		);
+		const toSync = files.filter((f: TFile) => {
+			if (!this.isSyncable(f) || this.shouldIgnore(f.path)) return false;
+			if (!this.syncState.has(f.path)) return true;
+			return f.stat.mtime > sinceMs;
+		});
 		devLog().log("push", `pushModifiedFiles: ${toSync.length} files modified since ${since}`);
 		rlog().info("push", `PushModified: ${toSync.length} files modified since ${since}`);
 
@@ -1708,17 +1777,6 @@ export class SyncEngine {
 		}
 
 		return pushed;
-	}
-
-	/** Count files that would be synced (not ignored). */
-	countSyncableFiles(): number {
-		const files = this.app.vault.getFiles();
-		return files.filter((f: TFile) => this.isSyncable(f) && !this.shouldIgnore(f.path)).length;
-	}
-
-	/** Check if this is a first sync (no prior sync state). */
-	isFirstSync(): boolean {
-		return !this.lastSync;
 	}
 
 	/** Compute what a sync would do without executing it (dry-run preview).
@@ -1739,6 +1797,7 @@ export class SyncEngine {
 		let manifestNotePaths: Set<string> | null = null;
 		let manifestAttachPaths: Set<string> | null = null;
 		let manifestNoteCount: number | null = null;
+		let manifestAttachCount: number | null = null;
 
 		if (mode === "full" && this.lastSync) {
 			const manifest = await this.api.getManifest();
@@ -1746,6 +1805,7 @@ export class SyncEngine {
 				manifestNotePaths = new Set(manifest.notes.map((n) => n.path));
 				manifestAttachPaths = new Set(manifest.attachments.map((a) => a.path));
 				manifestNoteCount = manifest.notes.length;
+				manifestAttachCount = manifest.attachments.length;
 			}
 		}
 
@@ -1891,12 +1951,30 @@ export class SyncEngine {
 			}
 		}
 
+		const localFolderCount = countFolders([...localNotes, ...localAttachments]);
+		const serverPaths = manifestNotePaths
+			? [...manifestNotePaths, ...(manifestAttachPaths ?? new Set<string>())]
+			: [
+					...[...serverNotes.entries()].filter(([, v]) => !v.deleted).map(([k]) => k),
+					...[...serverAttachments.entries()]
+						.filter(([, v]) => !v.deleted)
+						.map(([k]) => k),
+				];
+		const serverFolderCount = countFolders(serverPaths);
+
 		return {
 			vaultName: this.app.vault.getName(),
 			serverNoteCount:
 				manifestNoteCount ?? [...serverNotes.values()].filter((v) => !v.deleted).length,
+			serverAttachmentCount:
+				manifestAttachCount ??
+				[...serverAttachments.values()].filter((v) => !v.deleted).length,
+			serverFolderCount,
 			localNoteCount: localNotes.length,
 			localAttachmentCount: localAttachments.length,
+			localFolderCount,
+			localPaths: [...localNotes, ...localAttachments],
+			serverPaths,
 			toPush: {
 				notes: mode === "pull-all" ? [] : toPushNotes,
 				attachments: mode === "pull-all" ? [] : toPushAttachments,
@@ -1911,8 +1989,18 @@ export class SyncEngine {
 		};
 	}
 
-	/** Push ALL syncable files (initial import). */
-	async pushAll(): Promise<number> {
+	/** Push every local syncable file to the server.
+	 *
+	 *  @param opts.deleteRemoteExtras — if true, also delete any remote note or
+	 *    attachment that has no local counterpart. Used by the "Push all + delete
+	 *    remote extras" sync direction. Defaults to false (preserves existing
+	 *    behavior for callers that haven't migrated).
+	 */
+	async pushAll(opts: { deleteRemoteExtras?: boolean } = {}): Promise<number> {
+		if (this.syncBlocked) {
+			devLog().log("sync-blocked", "pushAll short-circuited — gate closed");
+			return 0;
+		}
 		this.syncLog?.clear();
 
 		// Verify auth before pushing to give a clear error on bad API key
@@ -2000,7 +2088,59 @@ export class SyncEngine {
 		// Persist all hashes accumulated during pushAll + reconcile
 		await this.saveData({ lastSync: this.lastSync });
 
+		if (opts.deleteRemoteExtras) {
+			await this.deleteRemoteExtras();
+		}
+
 		return pushed;
+	}
+
+	/** Known limitation: `pushAll(opts={deleteRemoteExtras:true})` triggers TWO
+	 *  `/sync/manifest` fetches in sequence — one inside `reconcile()`, one here.
+	 *  Any note a different client creates between those two reads will be in
+	 *  this method's "remote-only" set and get deleted. The window is small
+	 *  (sub-second) and the user's intent is explicitly destructive, but it's
+	 *  worth refactoring later to share the manifest snapshot if the race
+	 *  surfaces. Tracked in: code review for commit dcb74e2. */
+	private async deleteRemoteExtras(): Promise<void> {
+		const manifest = await this.api.getManifest();
+		if (!manifest) {
+			rlog().warn("push", "deleteRemoteExtras skipped — backend has no /sync/manifest");
+			return;
+		}
+		const localFiles = this.app.vault.getFiles();
+		const localPaths = new Set(
+			localFiles
+				.filter((f) => this.isSyncable(f) && !this.shouldIgnore(f.path))
+				.map((f) => f.path),
+		);
+
+		const remoteOnlyNotes = manifest.notes.map((n) => n.path).filter((p) => !localPaths.has(p));
+		const remoteOnlyAttachments = manifest.attachments
+			.map((a) => a.path)
+			.filter((p) => !localPaths.has(p));
+
+		rlog().info(
+			"push",
+			`deleteRemoteExtras — ${remoteOnlyNotes.length} notes, ${remoteOnlyAttachments.length} attachments`,
+		);
+
+		for (const path of remoteOnlyNotes) {
+			try {
+				await this.api.deleteNote(path);
+				this.logEntry("delete", path, "ok", undefined, "remote-extras");
+			} catch (e) {
+				this.logEntry("delete", path, "error", errMsg(e));
+			}
+		}
+		for (const path of remoteOnlyAttachments) {
+			try {
+				await this.api.deleteAttachment(path);
+				this.logEntry("delete", path, "ok", undefined, "remote-extras");
+			} catch (e) {
+				this.logEntry("delete", path, "error", errMsg(e));
+			}
+		}
 	}
 
 	/** Compute MD5 hex hash of a UTF-8 string using Web Crypto API. */

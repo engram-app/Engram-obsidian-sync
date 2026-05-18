@@ -10,24 +10,26 @@ import { ApiKeyAuth, type AuthProvider, OAuthAuth, type RefreshFn } from "./auth
 import { NoteChannel } from "./channel";
 import { ConflictModal } from "./conflict-modal";
 import { errMsg } from "./error-util";
-import { FirstSyncModal } from "./first-sync-modal";
 import { SearchModal } from "./search-modal";
 import { SEARCH_VIEW_TYPE, SearchView } from "./search-view";
 import { EngramSyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync";
+import { SyncPreviewModal } from "./sync-preview-modal";
 import {
 	DEFAULT_SETTINGS,
 	type EngramSyncSettings,
 	type FileSyncState,
+	type SyncPreviewContext,
 	type SyncStatus,
 } from "./types";
 
 import { BaseStore } from "./base-store";
 import { destroyDevLog, devLog, initDevLog } from "./dev-log";
 import { destroyRemoteLog, initRemoteLog, rlog } from "./remote-log";
+import { computeSyncFingerprint } from "./sync-fingerprint";
 import { SyncLog } from "./sync-log";
 import { SyncLogModal } from "./sync-log-modal";
-import type { QueueEntry, SyncIssue } from "./types";
+import type { QueueEntry, SyncChoice, SyncIssue } from "./types";
 
 /** Generate a stable client ID for vault registration.
  *  Uses SHA-256 of the vault's absolute path (desktop) or name (mobile fallback). */
@@ -56,6 +58,10 @@ interface PluginData {
 	syncIssues?: SyncIssue[];
 	/** User-explicit per-file ignores (Sync Center "Ignore" button). */
 	ignoredFiles?: string[];
+	/** Hash fingerprint of (apiKey/refreshToken + vaultId) that the user
+	 *  has confirmed via SyncPreviewModal. When `null` or out-of-date,
+	 *  the plugin closes the sync gate and shows the modal. */
+	syncGateAcceptedFor?: string | null;
 }
 
 export default class EngramSyncPlugin extends Plugin {
@@ -67,6 +73,7 @@ export default class EngramSyncPlugin extends Plugin {
 	private syncInterval: number | null = null;
 	noteStream: NoteChannel | null = null;
 	private statusBarEl: HTMLElement | null = null;
+	private settingTab: EngramSyncSettingTab | null = null;
 	private liveConnected = false;
 
 	/** Fires whenever the status bar text/state changes — used by the settings
@@ -80,7 +87,11 @@ export default class EngramSyncPlugin extends Plugin {
 	}
 
 	private baseStore: BaseStore | null = null;
-	private settingTab: EngramSyncSettingTab | null = null;
+
+	/** Saved fingerprint from prior session — null on first load or after
+	 *  auth/vault change. Compared against current fingerprint to decide
+	 *  whether the sync gate should be open. */
+	private syncGateAcceptedFor: string | null = null;
 
 	async onload(): Promise<void> {
 		initDevLog();
@@ -314,24 +325,32 @@ export default class EngramSyncPlugin extends Plugin {
 		this.statusBarEl.addClass("engram-status-bar-clickable");
 
 		this.registerDomEvent(this.statusBarEl, "click", () => {
-			if (this.settings.apiUrl && this.settings.apiKey) {
-				new Notice("Engram sync: syncing...");
-				this.syncEngine
-					.fullSync()
-					.then(({ pulled, pushed }) => {
-						new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
-					})
-					.catch((e) => {
-						// biome-ignore lint/suspicious/noConsole: error boundary
-						console.error("Engram Sync: manual sync failed", e);
-						rlog().error(
-							"lifecycle",
-							`Manual sync failed: ${errMsg(e)}`,
-							e instanceof Error ? e.stack : undefined,
-						);
-						new Notice("Engram sync: sync failed");
-					});
+			if (!this.hasAuthConfigured()) return;
+
+			if (this.syncEngine.isSyncBlocked()) {
+				// Gate is closed — open SyncPreviewModal so the user can pick
+				// a direction. doSyncWithFirstSyncCheck handles plan compute,
+				// modal open, and dispatch.
+				void this.doSyncWithFirstSyncCheck();
+				return;
 			}
+
+			new Notice("Engram sync: syncing...");
+			this.syncEngine
+				.fullSync()
+				.then(({ pulled, pushed }) => {
+					new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+				})
+				.catch((e) => {
+					// biome-ignore lint/suspicious/noConsole: error boundary
+					console.error("Engram Sync: manual sync failed", e);
+					rlog().error(
+						"lifecycle",
+						`Manual sync failed: ${errMsg(e)}`,
+						e instanceof Error ? e.stack : undefined,
+					);
+					new Notice("Engram sync: sync failed");
+				});
 		});
 
 		// WebSocket live sync
@@ -352,17 +371,49 @@ export default class EngramSyncPlugin extends Plugin {
 			);
 
 			await this.baseStore?.load();
-			try {
-				if (this.settings.apiUrl && this.settings.apiKey) {
-					const registered = await this.registerVault();
-					if (!registered) {
+
+			let registered = false;
+			let gateOpen = false;
+			if (this.hasAuthConfigured()) {
+				try {
+					registered = await this.registerVault();
+					if (registered) {
+						gateOpen = await this.applySyncGate();
+					} else {
 						rlog().info("lifecycle", "Vault not registered — skipping initial sync");
-						return;
 					}
-					await this.doSyncWithFirstSyncCheck();
+				} catch (e) {
+					// biome-ignore lint/suspicious/noConsole: error boundary
+					console.error("Engram Sync: startup setup failed", e);
+					rlog().error("lifecycle", `Startup setup failed: ${errMsg(e)}`);
 				}
-			} finally {
-				this.syncEngine.setReady();
+			}
+
+			// Engine setup is complete: baseStore loaded, vault registered (or
+			// skipped), sync gate evaluated, listeners armed. Flip readiness
+			// now so handlers can respond to vault events. The sync gate
+			// (`syncBlocked`) independently controls whether handlers push;
+			// readiness must not depend on a user-driven modal choice.
+			this.syncEngine.setReady();
+
+			if (!registered) return;
+
+			if (gateOpen) {
+				// User has already accepted a direction for this fingerprint —
+				// run an incremental sync without showing the modal.
+				try {
+					const { pulled, pushed } = await this.syncEngine.fullSync();
+					if (pulled > 0 || pushed > 0) {
+						new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+					}
+				} catch (e) {
+					// biome-ignore lint/suspicious/noConsole: error boundary
+					console.error("Engram Sync: startup sync failed", e);
+					rlog().error("lifecycle", `Startup sync failed: ${errMsg(e)}`);
+				}
+			} else {
+				// Gate closed — show the preview modal so user picks a direction.
+				await this.doSyncWithFirstSyncCheck();
 			}
 		});
 	}
@@ -388,6 +439,7 @@ export default class EngramSyncPlugin extends Plugin {
 	async loadSettings(): Promise<void> {
 		const data = (await this.loadData()) as Partial<PluginData> | null;
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, data?.settings);
+		this.syncGateAcceptedFor = data?.syncGateAcceptedFor ?? null;
 		// Generate stable client ID on first load (persisted forever)
 		if (!this.settings.clientId) {
 			this.settings.clientId = await generateClientId(this.app);
@@ -404,12 +456,31 @@ export default class EngramSyncPlugin extends Plugin {
 		this.setupNoteStream();
 		await this.savePluginData(this.syncEngine.getLastSync());
 
-		// Trigger sync when settings are configured (shows modal on first sync)
-		if (this.settings.apiUrl && this.settings.apiKey) {
+		// Re-evaluate sync gate against the new auth+vault. If the fingerprint
+		// changed, this re-blocks the engine; the modal fire below will collect
+		// the user's choice and unblock on acceptance.
+		if (this.hasAuthConfigured()) {
 			this.registerVault()
-				.then((registered) => {
+				.then(async (registered) => {
 					if (!registered) return;
-					return this.doSyncWithFirstSyncCheck();
+					const gateOpen = await this.applySyncGate();
+					if (!gateOpen) {
+						return this.doSyncWithFirstSyncCheck();
+					}
+					// Gate already open — run an incremental sync silently.
+					try {
+						const { pulled, pushed } = await this.syncEngine.fullSync();
+						if (pulled > 0 || pushed > 0) {
+							new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+						}
+					} catch (e) {
+						// biome-ignore lint/suspicious/noConsole: error boundary
+						console.error("Engram Sync: sync after settings change failed", e);
+						rlog().error(
+							"lifecycle",
+							`Sync after settings change failed: ${errMsg(e)}`,
+						);
+					}
 				})
 				.catch((e) => {
 					// biome-ignore lint/suspicious/noConsole: error boundary
@@ -434,6 +505,7 @@ export default class EngramSyncPlugin extends Plugin {
 				this.settings.clientId,
 			);
 			this.settings.vaultId = String(result.id);
+			this.settings.remoteVaultName = result.name;
 			this.api.setVaultId(this.settings.vaultId);
 			await this.saveSettings();
 			rlog().info("lifecycle", `Vault registered: id=${result.id} slug=${result.slug}`);
@@ -461,6 +533,7 @@ export default class EngramSyncPlugin extends Plugin {
 			syncedHashes: this.syncEngine.exportHashes(),
 			syncIssues: this.syncEngine.issues.serialize(),
 			ignoredFiles: this.syncEngine.ignoredFiles.serialize(),
+			syncGateAcceptedFor: this.syncGateAcceptedFor,
 		});
 	}
 
@@ -632,40 +705,147 @@ export default class EngramSyncPlugin extends Plugin {
 			});
 	}
 
-	/** Run sync, showing first-sync modal if no prior sync state exists. */
-	async doSyncWithFirstSyncCheck(): Promise<void> {
-		if (this.syncEngine.isFirstSync()) {
-			const localCount = this.syncEngine.countSyncableFiles();
-			const modal = new FirstSyncModal(this.app, localCount);
-			const choice = await modal.waitForChoice();
+	/** Dispatch a user's SyncChoice to the appropriate engine method.
+	 *  Returns true if a sync ran (regardless of success); false if the choice
+	 *  was a no-op (`cancel`, `change-vault`). Caller is responsible for the
+	 *  side effects of `change-vault` (clearing vaultId + reopening the picker). */
+	async runSyncFromChoice(choice: SyncChoice): Promise<boolean> {
+		switch (choice) {
+			case "cancel":
+			case "change-vault": // change-vault side effects are the caller's responsibility
+				return false;
 
-			if (choice === "cancel") {
-				return;
-			}
-
-			// Always pull first
-			const pulled = await this.syncEngine.pull();
-			if (pulled > 0) {
-				new Notice(`Engram Sync: pulled ${pulled} notes from server`);
-			}
-
-			if (choice === "push-all") {
-				const pushed = await this.syncEngine.pushAll();
-				new Notice(`Engram Sync: pushed ${pushed} files`);
-			} else {
-				new Notice("Engram sync: pull complete. Local notes were not pushed.");
-			}
-		} else {
-			try {
+			case "smart-merge": {
+				await this.markSyncGateAccepted();
 				const { pulled, pushed } = await this.syncEngine.fullSync();
-				if (pulled > 0 || pushed > 0) {
-					new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
-				}
-			} catch (e) {
-				// biome-ignore lint/suspicious/noConsole: error boundary
-				console.error("Engram Sync: sync failed", e);
-				new Notice("Engram sync: sync failed — check connection");
+				new Notice(`Engram Sync: pulled ${pulled}, pushed ${pushed}`);
+				return true;
 			}
+
+			case "pull-all-delete-local": {
+				await this.markSyncGateAccepted();
+				const pulled = await this.syncEngine.pullAll({ deleteLocalExtras: true });
+				new Notice(`Engram Sync: pulled ${pulled} (local extras deleted)`);
+				return true;
+			}
+
+			case "pull-all-keep-local": {
+				await this.markSyncGateAccepted();
+				const pulled = await this.syncEngine.pullAll({ deleteLocalExtras: false });
+				new Notice(`Engram Sync: pulled ${pulled}`);
+				return true;
+			}
+
+			case "push-all-delete-remote": {
+				await this.markSyncGateAccepted();
+				const pushed = await this.syncEngine.pushAll({ deleteRemoteExtras: true });
+				new Notice(`Engram Sync: pushed ${pushed} (remote extras deleted)`);
+				return true;
+			}
+
+			case "push-all-keep-remote": {
+				await this.markSyncGateAccepted();
+				const pushed = await this.syncEngine.pushAll({ deleteRemoteExtras: false });
+				new Notice(`Engram Sync: pushed ${pushed}`);
+				return true;
+			}
+		}
+	}
+
+	/** True when both `apiUrl` and at least one of `apiKey` (self-hosted /
+	 *  static key) or `refreshToken` (OAuth device flow) are set. Used to gate
+	 *  startup sync, post-saveSettings sync, the status-bar click handler, and
+	 *  the periodic sync interval — all of which need to fire for OAuth users
+	 *  too, not just static-key users. */
+	private hasAuthConfigured(): boolean {
+		return (
+			Boolean(this.settings.apiUrl) &&
+			Boolean(this.settings.apiKey || this.settings.refreshToken)
+		);
+	}
+
+	/** Re-evaluate the sync gate against the current auth+vault fingerprint.
+	 *  Sets engine.syncBlocked accordingly. Returns true if the gate is open
+	 *  (sync allowed), false if blocked. Idempotent — safe to call repeatedly. */
+	async applySyncGate(): Promise<boolean> {
+		const fp = await computeSyncFingerprint(this.settings);
+		const accepted = fp !== "" && fp === this.syncGateAcceptedFor;
+		this.syncEngine.setSyncBlocked(!accepted);
+		this.updateStatusBar(this.syncEngine.getStatus());
+		return accepted;
+	}
+
+	/** Mark the current fingerprint as accepted (called after the user picks
+	 *  a real sync direction in the modal). Persists the fingerprint and
+	 *  unblocks the engine. */
+	async markSyncGateAccepted(): Promise<void> {
+		const fp = await computeSyncFingerprint(this.settings);
+		if (fp === "") {
+			rlog().warn(
+				"lifecycle",
+				"markSyncGateAccepted called with empty fingerprint — auth or vault not configured",
+			);
+			return;
+		}
+		this.syncGateAcceptedFor = fp;
+		this.syncEngine.setSyncBlocked(false);
+		await this.savePluginData(this.syncEngine.getLastSync());
+		this.updateStatusBar(this.syncEngine.getStatus());
+	}
+
+	/** Decide which header copy the SyncPreviewModal should use based on the
+	 *  saved gate fingerprint. Never accepted before = first-time onboarding;
+	 *  accepted but for a different fingerprint = vault/account switched;
+	 *  otherwise the user is re-reviewing. */
+	private derivePreviewContext(): SyncPreviewContext {
+		if (this.syncGateAcceptedFor == null) return "first-time";
+		return "vault-switch";
+	}
+
+	/** Compute a sync plan and show SyncPreviewModal. Used after every
+	 *  saveSettings once auth + vault are configured. First-sync is just
+	 *  one case of the preview UX. */
+	async doSyncWithFirstSyncCheck(opts: { startInVaultPicker?: boolean } = {}): Promise<void> {
+		try {
+			const plan = await this.syncEngine.computeSyncPlan("full");
+			const context = this.derivePreviewContext();
+			const modal = new SyncPreviewModal(this.app, plan, {
+				remoteVaultName: this.settings.remoteVaultName,
+				showChangeVault: true,
+				context,
+				initialView: opts.startInVaultPicker ? "vault-picker" : "preview",
+				listVaults: () => this.api.listVaults(),
+				applyVaultChange: async (id, name) => {
+					// Persist the new vault target without going through
+					// saveSettings — that path would re-fire
+					// doSyncWithFirstSyncCheck for the closed gate and stack
+					// a second modal on top of this one.
+					this.settings.vaultId = id;
+					this.settings.remoteVaultName = name;
+					this.api.setVaultId(id);
+					this.syncEngine.updateSettings(this.settings);
+					// Last sync and per-file hashes are scoped to the previous
+					// server vault. Without this reset, fullSync compares
+					// local mtime to a stale lastSync and pushes nothing —
+					// even when the new vault is empty.
+					await this.syncEngine.resetForVaultChange();
+					this.syncGateAcceptedFor = null;
+					this.syncEngine.setSyncBlocked(true);
+					await this.savePluginData(this.syncEngine.getLastSync());
+					// Re-render the settings tab so the vault name span and
+					// any other vault-derived UI pick up the switch.
+					this.settingTab?.display();
+					return this.syncEngine.computeSyncPlan("full");
+				},
+			});
+			const choice = await modal.awaitChoice();
+
+			await this.runSyncFromChoice(choice);
+		} catch (e) {
+			// biome-ignore lint/suspicious/noConsole: error boundary
+			console.error("Engram Sync: sync preview failed", e);
+			new Notice("Engram sync: preview failed — check connection");
+			rlog().error("lifecycle", `Sync preview failed: ${errMsg(e)}`);
 		}
 	}
 
@@ -690,10 +870,20 @@ export default class EngramSyncPlugin extends Plugin {
 	private updateStatusBar(status: SyncStatus): void {
 		if (!this.statusBarEl) return;
 
+		const blocked = this.syncEngine?.isSyncBlocked() ?? false;
+
 		let text: string;
 		let tooltip: string;
 
-		if (status.state === "offline") {
+		if (blocked && status.state !== "syncing") {
+			// Sync gate closed — user has not picked a direction in SyncPreviewModal
+			// for the current auth+vault fingerprint. Show a click-to-resolve nag.
+			text =
+				status.pending > 0
+					? `Engram: sync paused (${status.pending} queued)`
+					: "Engram: sync paused";
+			tooltip = "Sync paused — click to choose a sync direction";
+		} else if (status.state === "offline") {
 			text =
 				status.queued > 0 ? `Engram: offline (${status.queued} queued)` : "Engram: offline";
 			tooltip = "Server unreachable — changes will sync when connected";
@@ -715,7 +905,7 @@ export default class EngramSyncPlugin extends Plugin {
 		}
 
 		const errorCount = this.syncLog?.errorCount() ?? 0;
-		if (errorCount > 0 && status.state === "idle") {
+		if (errorCount > 0 && status.state === "idle" && !blocked) {
 			text = `Engram: ⚠ ${errorCount} sync errors`;
 		}
 
@@ -738,7 +928,7 @@ export default class EngramSyncPlugin extends Plugin {
 			this.syncInterval = null;
 		}
 
-		if (!this.settings.apiUrl || !this.settings.apiKey) return;
+		if (!this.hasAuthConfigured()) return;
 
 		this.syncInterval = window.setInterval(() => {
 			void (async () => {

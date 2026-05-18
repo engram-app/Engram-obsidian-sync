@@ -1,0 +1,623 @@
+import { type App, Modal } from "obsidian";
+import {
+	type OptionBreakdown,
+	buildDeletionTree,
+	computeMatchPercent,
+	isDestructiveChoice,
+	isPlanEmpty,
+	optionBreakdown,
+} from "./sync-plan-format";
+import type { SyncChoice, SyncPlan, SyncPreviewContext, VaultInfo } from "./types";
+
+/** Pure state machine for the SyncPreviewModal. Owns view + input state and
+ *  the resolve callback. Tested directly; the Modal class is a thin DOM
+ *  wrapper that delegates to it. */
+export class SyncPreviewState {
+	view: "preview" | "confirm" | "vault-picker" | "done" = "preview";
+	pendingChoice: SyncChoice | null = null;
+	confirmInput = "";
+	/** Mutable so the modal can swap in a fresh plan after applyVaultChange. */
+	plan: SyncPlan;
+	vaultsLoading = false;
+	vaults: VaultInfo[] | null = null;
+	vaultsError: string | null = null;
+	private resolved = false;
+
+	constructor(
+		initialPlan: SyncPlan,
+		private readonly onResolve: (choice: SyncChoice) => void,
+	) {
+		this.plan = initialPlan;
+	}
+
+	pickOption(choice: SyncChoice): void {
+		if (this.resolved) return;
+		if (isDestructiveChoice(choice)) {
+			this.pendingChoice = choice;
+			this.view = "confirm";
+			this.confirmInput = "";
+			return;
+		}
+		this.resolve(choice);
+	}
+
+	typeConfirm(input: string): void {
+		if (this.resolved || this.view !== "confirm") return;
+		this.confirmInput = input;
+	}
+
+	canSubmitConfirm(): boolean {
+		return this.view === "confirm" && this.confirmInput === "delete";
+	}
+
+	submitConfirm(): void {
+		if (!this.canSubmitConfirm() || this.pendingChoice == null) return;
+		this.resolve(this.pendingChoice);
+	}
+
+	goBack(): void {
+		if (this.resolved) return;
+		this.view = "preview";
+		this.pendingChoice = null;
+		this.confirmInput = "";
+	}
+
+	enterVaultPicker(): void {
+		if (this.resolved) return;
+		this.view = "vault-picker";
+		this.vaultsLoading = true;
+		this.vaults = null;
+		this.vaultsError = null;
+	}
+
+	onVaultsLoaded(vaults: VaultInfo[]): void {
+		this.vaultsLoading = false;
+		this.vaults = vaults;
+		this.vaultsError = null;
+	}
+
+	onVaultsError(message: string): void {
+		this.vaultsLoading = false;
+		this.vaults = null;
+		this.vaultsError = message;
+	}
+
+	exitVaultPicker(): void {
+		if (this.resolved) return;
+		this.view = "preview";
+		this.vaultsLoading = false;
+		this.vaults = null;
+		this.vaultsError = null;
+	}
+
+	/** Swap in the SyncPlan that came back from applyVaultChange. Caller is
+	 *  responsible for re-rendering. */
+	replacePlan(plan: SyncPlan): void {
+		this.plan = plan;
+	}
+
+	cancel(): void {
+		this.resolve("cancel");
+	}
+
+	private resolve(choice: SyncChoice): void {
+		if (this.resolved) return;
+		this.resolved = true;
+		this.view = "done";
+		this.onResolve(choice);
+	}
+}
+
+interface OptionCard {
+	choice: SyncChoice;
+	emoji: string;
+	label: string;
+	subtitle: (b: OptionBreakdown) => string;
+	cssClass: string;
+}
+
+const MERGE_CARD: OptionCard = {
+	choice: "smart-merge",
+	emoji: "✨",
+	label: "Merge",
+	subtitle: () => "Keep files from both sides; resolve conflicts as they appear",
+	cssClass: "engram-sync-preview-option mod-cta",
+};
+
+const PUSH_CARDS: OptionCard[] = [
+	{
+		choice: "push-all-keep-remote",
+		emoji: "⬆️",
+		label: "Push all + keep remote",
+		subtitle: (b) => `Upload ${b.pushCount}, keep remote extras`,
+		cssClass: "engram-sync-preview-option",
+	},
+	{
+		choice: "push-all-delete-remote",
+		emoji: "⚠️",
+		label: "Push all + delete remote",
+		subtitle: (b) => `Upload ${b.pushCount}, delete ${b.deleteRemoteCount} remote`,
+		cssClass: "engram-sync-preview-option engram-sync-preview-destructive",
+	},
+];
+
+const PULL_CARDS: OptionCard[] = [
+	{
+		choice: "pull-all-keep-local",
+		emoji: "⬇️",
+		label: "Pull all + keep local",
+		subtitle: (b) => `Download ${b.pullCount}, keep local extras`,
+		cssClass: "engram-sync-preview-option",
+	},
+	{
+		choice: "pull-all-delete-local",
+		emoji: "⚠️",
+		label: "Pull all + delete local",
+		subtitle: (b) => `Download ${b.pullCount}, delete ${b.deleteLocalCount} local`,
+		cssClass: "engram-sync-preview-option engram-sync-preview-destructive",
+	},
+];
+
+const HEADER_BY_CONTEXT: Record<SyncPreviewContext, string> = {
+	"first-time": "Set up sync for this vault",
+	"vault-switch": "New vault detected",
+	review: "Sync preview",
+};
+
+const OPTIONS_HEADER_BY_CONTEXT: Record<SyncPreviewContext, string> = {
+	"first-time": "Choose from the following first-time sync options",
+	"vault-switch": "Choose how to sync this new vault",
+	review: "Choose a sync direction",
+};
+
+export interface SyncPreviewOptions {
+	/** Server-side vault name. Falls back to "Cloud Server" when missing. */
+	remoteVaultName?: string;
+	/** When true the footer shows a "Change vault" button. Off for triggers
+	 *  outside the vault picker (e.g. Sync Center). */
+	showChangeVault: boolean;
+	/** Drives header copy. Defaults to "review" when not provided. */
+	context?: SyncPreviewContext;
+	/** Fetches the list of vaults the user can switch to. Called when the
+	 *  user presses Change Vault. Required when showChangeVault is true. */
+	listVaults?: () => Promise<VaultInfo[]>;
+	/** Persists a vault switch and returns the new SyncPlan so the modal can
+	 *  re-render in place. Required when showChangeVault is true. */
+	applyVaultChange?: (id: string, name: string) => Promise<SyncPlan>;
+	/** Initial view the modal opens on. Defaults to "preview". Set to
+	 *  "vault-picker" when the user entered the modal via a "Change vault"
+	 *  affordance on the settings page. */
+	initialView?: "preview" | "vault-picker";
+}
+
+export class SyncPreviewModal extends Modal {
+	private state: SyncPreviewState;
+	private resolvedChoice: SyncChoice | null = null;
+	private resolveFn: ((c: SyncChoice) => void) | null = null;
+	/** Mirrors state.plan.vaultName + opts.remoteVaultName so the picker view
+	 *  can swap in fresh values after applyVaultChange. */
+	private remoteVaultName: string | undefined;
+
+	constructor(
+		app: App,
+		plan: SyncPlan,
+		private readonly opts: SyncPreviewOptions,
+	) {
+		super(app);
+		this.remoteVaultName = opts.remoteVaultName;
+		this.state = new SyncPreviewState(plan, (choice) => {
+			this.resolvedChoice = choice;
+			this.close();
+		});
+	}
+
+	onOpen(): void {
+		this.contentEl.addClass("engram-sync-preview-modal");
+		if (this.opts.initialView === "vault-picker") {
+			void this.openVaultPicker();
+		} else {
+			this.render();
+		}
+	}
+
+	onClose(): void {
+		// Defensive: if the user dismisses via Esc/backdrop before picking,
+		// treat that as a cancel.
+		const resolve = this.resolveFn;
+		this.resolveFn = null;
+		this.contentEl.empty();
+		if (resolve) resolve(this.resolvedChoice ?? "cancel");
+	}
+
+	awaitChoice(): Promise<SyncChoice> {
+		return new Promise((resolve) => {
+			this.resolveFn = resolve;
+			this.open();
+		});
+	}
+
+	private render(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+
+		if (this.state.view === "preview") {
+			this.renderPreview();
+		} else if (this.state.view === "vault-picker") {
+			this.renderVaultPicker();
+		} else {
+			this.renderConfirm();
+		}
+	}
+
+	private renderPreview(): void {
+		const { contentEl } = this;
+		const empty = isPlanEmpty(this.state.plan);
+		const context = this.opts.context ?? "review";
+
+		this.renderHeader(contentEl, empty ? "up-to-date" : context);
+		this.renderComparison(contentEl);
+
+		if (empty) {
+			const footer = contentEl.createDiv({ cls: "engram-sync-preview-footer" });
+			const closeBtn = footer.createEl("button", {
+				text: "Close",
+				cls: "mod-cta",
+			});
+			closeBtn.addEventListener("click", () => this.state.cancel());
+			return;
+		}
+
+		const options = contentEl.createDiv({ cls: "engram-sync-preview-options" });
+		options.createDiv({
+			cls: "engram-sync-preview-options-header",
+			text: OPTIONS_HEADER_BY_CONTEXT[context],
+		});
+
+		const mergeRow = options.createDiv({ cls: "engram-sync-preview-options-merge" });
+		this.renderOptionCard(mergeRow, MERGE_CARD);
+
+		const grid = options.createDiv({ cls: "engram-sync-preview-options-grid" });
+		const pushCol = grid.createDiv({ cls: "engram-sync-preview-options-col" });
+		pushCol.createDiv({
+			text: "Push (local → cloud)",
+			cls: "engram-sync-preview-options-col-header",
+		});
+		for (const card of PUSH_CARDS) {
+			this.renderOptionCard(pushCol, card);
+		}
+
+		const pullCol = grid.createDiv({ cls: "engram-sync-preview-options-col" });
+		pullCol.createDiv({
+			text: "Pull (cloud → local)",
+			cls: "engram-sync-preview-options-col-header",
+		});
+		for (const card of PULL_CARDS) {
+			this.renderOptionCard(pullCol, card);
+		}
+
+		const footer = contentEl.createDiv({ cls: "engram-sync-preview-footer" });
+		const cancelBtn = footer.createEl("button", { text: "Cancel" });
+		cancelBtn.addEventListener("click", () => this.state.cancel());
+		if (this.opts.showChangeVault) {
+			const changeBtn = footer.createEl("button", { text: "Change vault" });
+			changeBtn.addEventListener("click", () => {
+				void this.openVaultPicker();
+			});
+		}
+	}
+
+	private renderHeader(parent: HTMLElement, context: SyncPreviewContext | "up-to-date"): void {
+		if (context === "up-to-date") {
+			const h = parent.createEl("h2", {
+				cls: "engram-sync-preview-header engram-sync-preview-header-success",
+			});
+			h.createSpan({ text: "✅ ", cls: "engram-sync-preview-header-emoji" });
+			h.createSpan({ text: "Everything is in sync" });
+			return;
+		}
+		parent.createEl("h2", {
+			text: HEADER_BY_CONTEXT[context],
+			cls: "engram-sync-preview-header",
+		});
+	}
+
+	private renderComparison(parent: HTMLElement): void {
+		const wrap = parent.createDiv({ cls: "engram-sync-preview-compare" });
+		const plan = this.state.plan;
+
+		this.renderCompareCard(wrap, {
+			emoji: "💻",
+			name: plan.vaultName,
+			role: "This vault",
+			notes: plan.localNoteCount,
+			attachments: plan.localAttachmentCount,
+			folders: plan.localFolderCount,
+		});
+		this.renderCompareCard(wrap, {
+			emoji: "☁️",
+			name: this.remoteVaultName || "Cloud server",
+			role: "Cloud server",
+			notes: plan.serverNoteCount,
+			attachments: plan.serverAttachmentCount,
+			folders: plan.serverFolderCount,
+		});
+
+		const match = computeMatchPercent(plan);
+		const conflicts = plan.conflicts.length;
+		const matchRow = parent.createDiv({ cls: "engram-sync-preview-match" });
+		const matchValue = matchRow.createSpan({
+			cls: "engram-sync-preview-match-value",
+			text: `${match}%`,
+		});
+		if (match === 100) matchValue.addClass("is-perfect");
+		matchRow.createSpan({
+			cls: "engram-sync-preview-match-label",
+			text: " of vaults currently match",
+		});
+		if (conflicts > 0) {
+			const conflictRow = parent.createDiv({ cls: "engram-sync-preview-conflicts" });
+			conflictRow.createSpan({
+				cls: "engram-sync-preview-conflicts-value",
+				text: `⚡ ${conflicts}`,
+			});
+			conflictRow.createSpan({
+				cls: "engram-sync-preview-conflicts-label",
+				text: ` conflict${conflicts === 1 ? "" : "s"} need resolution`,
+			});
+		}
+	}
+
+	private renderCompareCard(
+		parent: HTMLElement,
+		card: {
+			emoji: string;
+			name: string;
+			role: string;
+			notes: number;
+			attachments: number;
+			folders: number;
+		},
+	): void {
+		const col = parent.createDiv({ cls: "engram-sync-preview-compare-col" });
+		const title = col.createDiv({ cls: "engram-sync-preview-compare-title" });
+		title.createSpan({ text: card.emoji, cls: "engram-sync-preview-compare-emoji" });
+		title.createSpan({ text: card.name, cls: "engram-sync-preview-compare-name" });
+		col.createDiv({
+			text: card.role,
+			cls: "engram-sync-preview-compare-role",
+		});
+		const cardEl = col.createDiv({ cls: "engram-sync-preview-compare-card" });
+		const body = cardEl.createDiv({ cls: "engram-sync-preview-compare-card-body" });
+		this.renderCompareRow(body, "📄", card.notes, "notes");
+		this.renderCompareRow(body, "📎", card.attachments, "attachments");
+		this.renderCompareRow(body, "📁", card.folders, "folders");
+	}
+
+	private renderCompareRow(
+		parent: HTMLElement,
+		emoji: string,
+		count: number,
+		label: string,
+	): void {
+		const row = parent.createDiv({ cls: "engram-sync-preview-compare-row" });
+		row.createSpan({ text: emoji, cls: "engram-sync-preview-compare-row-emoji" });
+		row.createSpan({
+			text: String(count),
+			cls: "engram-sync-preview-compare-row-count",
+		});
+		row.createSpan({
+			text: label,
+			cls: "engram-sync-preview-compare-row-label",
+		});
+	}
+
+	private renderOptionCard(parent: HTMLElement, card: OptionCard): void {
+		const b = optionBreakdown(this.state.plan, card.choice);
+		const wrap = parent.createDiv({ cls: "engram-sync-preview-option-wrap" });
+		const btn = wrap.createEl("button", { cls: card.cssClass });
+		btn.createSpan({ text: card.emoji, cls: "engram-sync-preview-option-emoji" });
+		btn.createSpan({ text: card.label, cls: "engram-sync-preview-option-label" });
+		wrap.createEl("p", {
+			text: card.subtitle(b),
+			cls: "engram-sync-preview-option-subtitle",
+		});
+		btn.addEventListener("click", () => {
+			this.state.pickOption(card.choice);
+			this.render();
+		});
+	}
+
+	private renderConfirm(): void {
+		const { contentEl } = this;
+		const choice = this.state.pendingChoice;
+		if (choice == null) return;
+
+		contentEl.createEl("h2", {
+			text: "Confirm destructive sync",
+			cls: "engram-sync-preview-header",
+		});
+
+		const b = optionBreakdown(this.state.plan, choice);
+		const summary = contentEl.createDiv({ cls: "engram-sync-preview-confirm-summary" });
+		summary.createEl("p", { text: "You are about to:" });
+		const ul = summary.createEl("ul");
+		if (b.deleteLocalCount > 0) {
+			ul.createEl("li", { text: `Delete ${b.deleteLocalCount} local files` });
+		}
+		if (b.deleteRemoteCount > 0) {
+			ul.createEl("li", { text: `Delete ${b.deleteRemoteCount} remote files` });
+		}
+		if (b.pullCount > 0) {
+			ul.createEl("li", { text: `Download ${b.pullCount} files from server` });
+		}
+		if (b.pushCount > 0) {
+			ul.createEl("li", { text: `Upload ${b.pushCount} files to server` });
+		}
+
+		const deletePaths = this.deletePathsFor(choice);
+		if (deletePaths.length > 0) {
+			contentEl.createEl("p", {
+				text: "Files marked for deletion:",
+				cls: "engram-sync-preview-tree-caption",
+			});
+			this.renderDeletionTree(contentEl, deletePaths, this.keptPathsFor(choice, deletePaths));
+		}
+
+		contentEl.createEl("p", {
+			cls: "engram-sync-preview-warning",
+			text: "This cannot be undone.",
+		});
+		contentEl.createEl("p", { text: "Type delete to confirm:" });
+
+		const input = contentEl.createEl("input", {
+			type: "text",
+			cls: "engram-sync-preview-confirm-input",
+		});
+
+		const footer = contentEl.createDiv({ cls: "engram-sync-preview-footer" });
+		const backBtn = footer.createEl("button", { text: "Back" });
+		backBtn.addEventListener("click", () => {
+			this.state.goBack();
+			this.render();
+		});
+
+		const confirmBtn = footer.createEl("button", {
+			text: "Confirm",
+			cls: "engram-sync-preview-confirm-btn",
+		});
+		confirmBtn.disabled = true;
+		confirmBtn.addEventListener("click", () => this.state.submitConfirm());
+
+		input.addEventListener("input", () => {
+			this.state.typeConfirm(input.value);
+			confirmBtn.disabled = !this.state.canSubmitConfirm();
+		});
+
+		input.focus();
+	}
+
+	private renderVaultPicker(): void {
+		const { contentEl } = this;
+		contentEl.createEl("h2", {
+			text: "Switch vault",
+			cls: "engram-sync-preview-header",
+		});
+		contentEl.createEl("p", {
+			text: "Pick a vault to sync with. We will recalculate the sync preview after you choose.",
+			cls: "engram-sync-preview-picker-help",
+		});
+
+		const body = contentEl.createDiv({ cls: "engram-sync-preview-picker-body" });
+
+		if (this.state.vaultsLoading) {
+			body.createEl("p", { text: "Loading vaults…" });
+		} else if (this.state.vaultsError) {
+			body.createEl("p", {
+				text: this.state.vaultsError,
+				cls: "engram-sync-preview-picker-error",
+			});
+		} else if (this.state.vaults && this.state.vaults.length > 0) {
+			const list = body.createDiv({ cls: "engram-sync-preview-picker-list" });
+			for (const v of this.state.vaults) {
+				const item = list.createEl("button", {
+					cls: "engram-sync-preview-picker-item",
+				});
+				item.createSpan({
+					text: v.name,
+					cls: "engram-sync-preview-picker-item-name",
+				});
+				if (v.is_default) {
+					item.createSpan({
+						text: " (default)",
+						cls: "engram-sync-preview-picker-item-default",
+					});
+				}
+				item.addEventListener("click", () => {
+					void this.applyPickedVault(v);
+				});
+			}
+		} else {
+			body.createEl("p", { text: "No other vaults available." });
+		}
+
+		const footer = contentEl.createDiv({ cls: "engram-sync-preview-footer" });
+		const backBtn = footer.createEl("button", { text: "Back" });
+		backBtn.addEventListener("click", () => {
+			this.state.exitVaultPicker();
+			this.render();
+		});
+	}
+
+	private async openVaultPicker(): Promise<void> {
+		if (!this.opts.listVaults) return;
+		this.state.enterVaultPicker();
+		this.render();
+		try {
+			const vaults = await this.opts.listVaults();
+			this.state.onVaultsLoaded(vaults);
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : "Could not load vaults";
+			this.state.onVaultsError(msg);
+		}
+		this.render();
+	}
+
+	private deletePathsFor(choice: SyncChoice): string[] {
+		const plan = this.state.plan;
+		if (choice === "pull-all-delete-local") {
+			return [...plan.toPush.notes, ...plan.toPush.attachments];
+		}
+		if (choice === "push-all-delete-remote") {
+			return [...plan.toPull.notes, ...plan.toPull.attachments];
+		}
+		return [];
+	}
+
+	/** Paths that remain on the affected side after the destructive sync —
+	 *  used to decide whether a folder row is going away entirely. */
+	private keptPathsFor(choice: SyncChoice, deletePaths: string[]): string[] {
+		const plan = this.state.plan;
+		const deleted = new Set(deletePaths);
+		if (choice === "pull-all-delete-local") {
+			return plan.localPaths.filter((p) => !deleted.has(p));
+		}
+		if (choice === "push-all-delete-remote") {
+			return plan.serverPaths.filter((p) => !deleted.has(p));
+		}
+		return [];
+	}
+
+	private renderDeletionTree(parent: HTMLElement, paths: string[], keptPaths: string[]): void {
+		const pre = parent.createEl("pre", { cls: "engram-sync-preview-tree" });
+		const code = pre.createEl("code");
+		const rows = buildDeletionTree(paths, keptPaths);
+		for (const row of rows) {
+			let cls = "engram-sync-preview-tree-row";
+			if (row.kind === "file") {
+				cls += " engram-sync-preview-tree-file";
+			} else if (row.deleted) {
+				cls += " engram-sync-preview-tree-folder engram-sync-preview-tree-folder-deleted";
+			} else {
+				cls += " engram-sync-preview-tree-folder";
+			}
+			const line = code.createDiv({ cls });
+			line.setText(`${"  ".repeat(row.depth)}${row.label}`);
+		}
+	}
+
+	private async applyPickedVault(v: VaultInfo): Promise<void> {
+		if (!this.opts.applyVaultChange) return;
+		this.state.vaultsLoading = true;
+		this.render();
+		try {
+			const newPlan = await this.opts.applyVaultChange(String(v.id), v.name);
+			this.state.replacePlan(newPlan);
+			this.remoteVaultName = v.name;
+			this.state.exitVaultPicker();
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : "Failed to switch vault";
+			this.state.onVaultsError(msg);
+		}
+		this.render();
+	}
+}

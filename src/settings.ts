@@ -154,8 +154,9 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 
 		const status = this.plugin.syncEngine.getStatus();
 		const live = this.plugin.isLiveConnected();
+		const blocked = this.plugin.syncEngine.isSyncBlocked();
 
-		let dotState: "is-error" | "is-connected" | "is-polling" | "is-idle";
+		let dotState: "is-error" | "is-connected" | "is-polling" | "is-idle" | "is-waiting";
 		let label: string;
 
 		if (status.state === "offline") {
@@ -164,6 +165,13 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 		} else if (status.state === "error") {
 			dotState = "is-error";
 			label = `Error: ${status.error || "unknown"}`;
+		} else if (
+			blocked &&
+			this.plugin.settings.apiUrl &&
+			(this.plugin.settings.apiKey || this.plugin.settings.refreshToken)
+		) {
+			dotState = "is-waiting";
+			label = "Connected — waiting for first sync decision";
 		} else if (live) {
 			dotState = "is-connected";
 			label = "Connected — live sync active";
@@ -180,6 +188,16 @@ export class EngramSyncSettingTab extends PluginSettingTab {
 
 		statusEl.createSpan({ cls: `engram-status-dot ${dotState}` });
 		statusEl.createSpan({ text: label });
+
+		if (dotState === "is-waiting") {
+			const openBtn = statusEl.createEl("button", {
+				cls: "engram-status-open-sync-btn mod-cta",
+				text: "Open sync setup",
+			});
+			openBtn.addEventListener("click", () => {
+				void this.plugin.doSyncWithFirstSyncCheck();
+			});
+		}
 
 		if (status.lastSync) {
 			const date = new Date(status.lastSync);

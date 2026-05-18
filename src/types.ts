@@ -18,6 +18,10 @@ export interface EngramSyncSettings {
 	conflictResolution: "auto" | "modal";
 	/** Server-assigned vault ID. Populated after registration. Null until first sync. */
 	vaultId: string | null;
+	/** Server-side name for the selected vault, mirrored from the registration
+	 *  response or the vault picker. Used as the cloud-side label in the sync
+	 *  preview modal. Optional for migration — older saves predate this field. */
+	remoteVaultName?: string;
 	/** Stable client-generated vault identifier (SHA-256 of vault absolute path).
 	 *  Generated once on first load, persisted forever. Used for idempotent registration. */
 	clientId: string;
@@ -295,17 +299,24 @@ export interface VaultInfo {
 export interface SyncPlan {
 	vaultName: string;
 	serverNoteCount: number;
+	serverAttachmentCount: number;
+	serverFolderCount: number;
 	localNoteCount: number;
 	localAttachmentCount: number;
+	localFolderCount: number;
+	/** Every syncable path that currently exists locally. Used by the deletion
+	 *  preview tree to decide whether a folder is fully going away or just
+	 *  losing some leaves. */
+	localPaths: string[];
+	/** Every path the server has in this vault. Same role as localPaths, for
+	 *  the push-all-delete-remote preview. */
+	serverPaths: string[];
 	toPush: { notes: string[]; attachments: string[] };
 	toPull: { notes: string[]; attachments: string[] };
 	conflicts: string[];
 	toDeleteLocal: string[];
 	toDeleteRemote: string[];
 }
-
-/** Result of the pre-sync modal for pull operations. */
-export type PullAction = "pull" | "wipe-pull" | "cancel";
 
 export interface SyncProgress {
 	phase: "deleting" | "pushing" | "pulling" | "attachments" | "complete";
@@ -355,3 +366,27 @@ export interface ReconcileResult {
 	diverged: string[];
 	extraOnServer: string[];
 }
+
+/** Why the SyncPreviewModal opened. Controls header copy.
+ *  - "first-time": user has never accepted a sync gate before.
+ *  - "vault-switch": gate fingerprint exists but doesn't match (vault/account changed).
+ *  - "review": gate already accepted; user re-opened (Sync Center, status bar). */
+export type SyncPreviewContext = "first-time" | "vault-switch" | "review";
+
+/** User's chosen sync direction in the SyncPreviewModal.
+ *  Drives dispatch in main.ts → runSyncFromChoice. */
+export type SyncChoice =
+	| "smart-merge"
+	| "pull-all-delete-local"
+	| "pull-all-keep-local"
+	| "push-all-delete-remote"
+	| "push-all-keep-remote"
+	| "cancel"
+	| "change-vault";
+
+/** Subset of SyncChoice values that delete data on either side. Used by the
+ *  modal to gate behind the typed-DELETE confirm view. */
+export const DESTRUCTIVE_CHOICES = new Set<SyncChoice>([
+	"pull-all-delete-local",
+	"push-all-delete-remote",
+]);
