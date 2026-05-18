@@ -15,7 +15,6 @@ import { SearchModal } from "./search-modal";
 import { SEARCH_VIEW_TYPE, SearchView } from "./search-view";
 import { EngramSyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync";
-import { SYNC_CENTER_VIEW_TYPE, SyncCenterView } from "./sync-center-view";
 import {
 	DEFAULT_SETTINGS,
 	type EngramSyncSettings,
@@ -81,6 +80,7 @@ export default class EngramSyncPlugin extends Plugin {
 	}
 
 	private baseStore: BaseStore | null = null;
+	private settingTab: EngramSyncSettingTab | null = null;
 
 	async onload(): Promise<void> {
 		initDevLog();
@@ -126,7 +126,6 @@ export default class EngramSyncPlugin extends Plugin {
 
 		this.syncEngine.onStatusChange = (status) => {
 			this.updateStatusBar(status);
-			this.refreshSyncCenter();
 		};
 
 		this.syncEngine.onConflict = async (info) => {
@@ -162,7 +161,8 @@ export default class EngramSyncPlugin extends Plugin {
 		this.syncEngine.ignoredFiles.hydrate(saved?.ignoredFiles);
 
 		// Register settings tab
-		this.addSettingTab(new EngramSyncSettingTab(this.app, this));
+		this.settingTab = new EngramSyncSettingTab(this.app, this);
+		this.addSettingTab(this.settingTab);
 
 		// Register vault events (create is registered in onLayoutReady to avoid
 		// processing the startup burst — Obsidian fires 'create' for every existing
@@ -297,19 +297,12 @@ export default class EngramSyncPlugin extends Plugin {
 			}
 		});
 
-		// Sync Center view + ribbon + command
-		this.registerView(SYNC_CENTER_VIEW_TYPE, (leaf) => new SyncCenterView(leaf, this));
-
 		this.addCommand({
 			id: "open-sync-center",
 			name: "Open sync center",
-			callback: async () => {
-				await this.openSyncCenter();
+			callback: () => {
+				this.openSyncCenterSettings();
 			},
-		});
-
-		this.addRibbonIcon("refresh-cw", "Engram sync center", async () => {
-			await this.openSyncCenter();
 		});
 
 		// Start periodic sync if configured
@@ -683,27 +676,14 @@ export default class EngramSyncPlugin extends Plugin {
 		await this.savePluginData(this.syncEngine.getLastSync());
 	}
 
-	/** Open the Sync Center pane in the right sidebar (or reveal it if already open). */
-	async openSyncCenter(): Promise<void> {
-		const existing = this.app.workspace.getLeavesOfType(SYNC_CENTER_VIEW_TYPE);
-		if (existing[0]) {
-			void this.app.workspace.revealLeaf(existing[0]);
-			return;
-		}
-		const leaf = this.app.workspace.getRightLeaf(false);
-		if (leaf) {
-			await leaf.setViewState({ type: SYNC_CENTER_VIEW_TYPE, active: true });
-			void this.app.workspace.revealLeaf(leaf);
-		}
-	}
-
-	/** Re-render any open Sync Center view (no-op if not open). Safe to call
-	 *  from any sync-state-change hook. */
-	refreshSyncCenter(): void {
-		for (const leaf of this.app.workspace.getLeavesOfType(SYNC_CENTER_VIEW_TYPE)) {
-			const view = leaf.view;
-			if (view instanceof SyncCenterView) view.render();
-		}
+	/** Open the plugin settings on the Sync Center tab. */
+	openSyncCenterSettings(): void {
+		this.settingTab?.setInitialTab("sync-center");
+		const setting = (
+			this.app as unknown as { setting: { open(): void; openTabById(id: string): void } }
+		).setting;
+		setting.open();
+		setting.openTabById(this.manifest.id);
 	}
 
 	/** Update status bar text and tooltip based on sync state + WebSocket connection. */

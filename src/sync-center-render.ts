@@ -1,10 +1,8 @@
 /** Shared renderer for the Sync Center UI.
  *
- *  Used by both `SyncCenterView` (the right-sidebar workspace leaf) and the
- *  Sync Center settings tab so they stay byte-for-byte identical without a
- *  base class or shared subclass. The caller passes a `refresh` callback so
- *  in-pane button clicks can re-render the same surface they were clicked
- *  from.
+ *  Mounted inside the Sync Center settings tab. The caller passes a `refresh`
+ *  callback so in-pane button clicks can re-render the same surface they were
+ *  clicked from.
  */
 import { Notice, Setting, normalizePath } from "obsidian";
 import type EngramSyncPlugin from "./main";
@@ -274,7 +272,6 @@ async function ignoreFilePermanently(
 	await plugin.persistEngineState();
 	new Notice(`Ignored ${path} — won't sync until restored from Sync Center.`);
 	refresh();
-	plugin.refreshSyncCenter();
 }
 
 async function restoreFile(
@@ -286,7 +283,6 @@ async function restoreFile(
 	await plugin.persistEngineState();
 	new Notice(`Restored ${path} — will sync on next push.`);
 	refresh();
-	plugin.refreshSyncCenter();
 }
 
 const ACTIVITY_LIMIT = 50;
