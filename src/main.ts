@@ -14,7 +14,6 @@ import { SearchModal } from "./search-modal";
 import { SEARCH_VIEW_TYPE, SearchView } from "./search-view";
 import { EngramSyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync";
-import { SYNC_CENTER_VIEW_TYPE, SyncCenterView } from "./sync-center-view";
 import { SyncPreviewModal } from "./sync-preview-modal";
 import {
 	DEFAULT_SETTINGS,
@@ -88,7 +87,6 @@ export default class EngramSyncPlugin extends Plugin {
 	}
 
 	private baseStore: BaseStore | null = null;
-	private settingTab: EngramSyncSettingTab | null = null;
 
 	/** Saved fingerprint from prior session — null on first load or after
 	 *  auth/vault change. Compared against current fingerprint to decide
