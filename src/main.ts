@@ -679,7 +679,9 @@ export default class EngramSyncPlugin extends Plugin {
 	/** Open the plugin settings on the Sync Center tab. */
 	openSyncCenterSettings(): void {
 		this.settingTab?.setInitialTab("sync-center");
-		const setting = (this.app as unknown as { setting: { open(): void; openTabById(id: string): void } }).setting;
+		const setting = (
+			this.app as unknown as { setting: { open(): void; openTabById(id: string): void } }
+		).setting;
 		setting.open();
 		setting.openTabById(this.manifest.id);
 	}
